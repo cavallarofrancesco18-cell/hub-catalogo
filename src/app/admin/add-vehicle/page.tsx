@@ -28,8 +28,7 @@ import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
-import { List, UploadCloud, X } from 'lucide-react';
-import Link from 'next/link';
+import { UploadCloud, X } from 'lucide-react';
 import { useState } from 'react';
 import Image from 'next/image';
 import { Progress } from '@/components/ui/progress';
@@ -184,15 +183,7 @@ export default function AddVehiclePage() {
     <div className="container mx-auto max-w-4xl px-4 py-8">
       <Card>
         <CardHeader>
-          <div className="flex justify-between items-center">
-            <CardTitle>Aggiungi un nuovo veicolo</CardTitle>
-            <Button asChild variant="outline">
-              <Link href="/auto">
-                <List className="mr-2 h-4 w-4" />
-                Elenco Auto
-              </Link>
-            </Button>
-          </div>
+          <CardTitle>Aggiungi un nuovo veicolo</CardTitle>
         </CardHeader>
         <CardContent>
           <Form {...form}>
