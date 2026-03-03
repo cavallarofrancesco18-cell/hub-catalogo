@@ -4,25 +4,33 @@ import { formatCurrency, formatNumber } from '@/lib/utils';
 import { notFound, useParams } from 'next/navigation';
 import { VehicleDetailsClient } from './components/vehicle-details-client';
 import { Badge } from '@/components/ui/badge';
-import { useDoc } from '@/firebase/firestore/use-doc';
-import { doc, getFirestore } from 'firebase/firestore';
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Vehicle } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { getVehicleBySlug } from '@/lib/api';
 
 export default function VehiclePage() {
   const params = useParams();
   const slug = params.slug as string;
-  const vehicleId = useMemo(() => slug.split('-').pop(), [slug]);
   const [showTarga, setShowTarga] = useState(false);
+  const [vehicle, setVehicle] = useState<Vehicle | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const vehicleRef = useMemo(
-    () => (vehicleId ? doc(getFirestore(), 'vehicles', vehicleId) : null),
-    [vehicleId]
-  );
-  const { data: vehicle, loading } = useDoc<Vehicle>(vehicleRef);
+  useEffect(() => {
+    if (slug) {
+        setLoading(true);
+        async function loadVehicle() {
+            const v = await getVehicleBySlug(slug);
+            setVehicle(v);
+            setLoading(false);
+        }
+        loadVehicle();
+    } else {
+        setLoading(false);
+    }
+  }, [slug]);
 
   if (loading) {
     return (

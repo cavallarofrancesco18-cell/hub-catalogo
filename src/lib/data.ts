@@ -1,8 +1,9 @@
 import type { Vehicle } from './types';
 
-export const vehicles: Omit<Vehicle, 'data_inserimento'>[] = [
+export const vehicles: Vehicle[] = [
   {
     id: 'ab123cd',
+    data_inserimento: '2024-07-26T10:00:00Z',
     marca: 'Audi',
     modello: 'A3',
     versione: 'Sportback 35 TFSI S tronic',
@@ -26,6 +27,7 @@ export const vehicles: Omit<Vehicle, 'data_inserimento'>[] = [
   },
   {
     id: 'ef456gh',
+    data_inserimento: '2024-07-26T10:00:00Z',
     marca: 'BMW',
     modello: 'X1',
     versione: 'sDrive18d',
@@ -48,6 +50,7 @@ export const vehicles: Omit<Vehicle, 'data_inserimento'>[] = [
   },
   {
     id: 'ij789kl',
+    data_inserimento: '2024-07-26T10:00:00Z',
     marca: 'Mercedes-Benz',
     modello: 'Classe A',
     versione: 'A 200 d Automatic PREMIUM',
@@ -72,6 +75,7 @@ export const vehicles: Omit<Vehicle, 'data_inserimento'>[] = [
   },
   {
     id: 'mn012op',
+    data_inserimento: '2024-07-26T10:00:00Z',
     marca: 'Fiat',
     modello: '500',
     versione: 'Hybrid Cult',
@@ -93,6 +97,7 @@ export const vehicles: Omit<Vehicle, 'data_inserimento'>[] = [
   },
   {
     id: 'qr345st',
+    data_inserimento: '2024-07-26T10:00:00Z',
     marca: 'Tesla',
     modello: 'Model 3',
     versione: 'Standard Range Plus',
@@ -116,6 +121,7 @@ export const vehicles: Omit<Vehicle, 'data_inserimento'>[] = [
   },
   {
     id: 'uv678wx',
+    data_inserimento: '2024-07-26T10:00:00Z',
     marca: 'Lancia',
     modello: 'Ypsilon',
     versione: '1.0 FireFly 70 CV Start&Stop Hybrid Argento',

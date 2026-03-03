@@ -1,6 +1,6 @@
 export type Vehicle = {
   id: string;
-  data_inserimento: any; // Firestore Server Timestamp
+  data_inserimento: string;
   stato: 'In vendita' | 'Venduto';
   marca: string;
   modello: string;
