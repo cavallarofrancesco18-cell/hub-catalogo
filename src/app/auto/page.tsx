@@ -7,12 +7,8 @@ import { FilterSidebar } from './components/filter-sidebar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useCollection } from '@/firebase/firestore/use-collection';
 import { collection, getFirestore } from 'firebase/firestore';
-import { Button } from '@/components/ui/button';
-import { useAuth } from '@/hooks/use-auth';
-import Link from 'next/link';
 
 export default function AutoPage() {
-  const { isAdmin, loading: authLoading } = useAuth();
   const [brands, setBrands] = useState<string[]>([]);
   const [initialPriceRange, setInitialPriceRange] = useState<[number, number]>([0, 100000]);
 
@@ -20,7 +16,7 @@ export default function AutoPage() {
     useMemo(() => collection(getFirestore(), 'vehicles'), [])
   );
   
-  const isLoading = authLoading || vehiclesLoading;
+  const isLoading = vehiclesLoading;
 
   const [filters, setFilters] = useState({
     brand: 'all',
@@ -73,13 +69,6 @@ export default function AutoPage() {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      {isAdmin && !authLoading && (
-        <div className="mb-4 flex justify-end">
-          <Button asChild>
-            <Link href="/admin">Pannello Admin</Link>
-          </Button>
-        </div>
-      )}
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-4">
         <FilterSidebar
           brands={brands}
