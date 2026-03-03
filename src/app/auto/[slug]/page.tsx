@@ -10,8 +10,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useDoc } from '@/firebase/firestore/use-doc';
-import { doc, getFirestore } from 'firebase/firestore';
-import { useMemoFirebase } from '@/firebase';
+import { doc } from 'firebase/firestore';
+import { useFirestore, useMemoFirebase } from '@/firebase';
 
 
 export default function VehiclePage() {
@@ -30,7 +30,7 @@ export default function VehiclePage() {
     }
   }, [slug]);
 
-  const firestore = getFirestore();
+  const firestore = useFirestore();
   const vehicleRef = useMemoFirebase(() => {
     if (!vehicleId) return null;
     return doc(firestore, 'vehicles', vehicleId);

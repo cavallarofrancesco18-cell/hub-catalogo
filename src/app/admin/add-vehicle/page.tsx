@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useRouter } from 'next/navigation';
 import {
-  addDoc,
+  doc,
   collection,
   serverTimestamp,
 } from 'firebase/firestore';
@@ -40,7 +40,7 @@ import {
 } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
 import { generateSlug } from '@/lib/utils';
-import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import Link from 'next/link';
 
 const vehicleSchema = z.object({
@@ -49,8 +49,8 @@ const vehicleSchema = z.object({
   versione: z.string().min(1, 'La versione è obbligatoria.'),
   anno: z.coerce.number().int().min(1900, 'Anno non valido.').max(new Date().getFullYear() + 1),
   chilometraggio: z.coerce.number().int().min(0, 'Chilometraggio non valido.'),
-  carburante: z.enum(['Benzina', 'Diesel', 'Elettrica', 'Ibrida']),
-  cambio: z.enum(['Manuale', 'Automatico']),
+  carburante: z.enum(['Benzina', 'Diesel', 'Elettrica', 'Ibrida'], { required_error: 'Seleziona un tipo di carburante.'}),
+  cambio: z.enum(['Manuale', 'Automatico'], { required_error: 'Seleziona un tipo di cambio.'}),
   potenza: z.coerce.number().int().min(1, 'Potenza non valida.'),
   potenza_kw: z.coerce.number().int().min(1, 'Potenza non valida.').optional().or(z.literal('')),
   cilindrata: z.coerce.number().int().min(1, 'Cilindrata non valida.').optional().or(z.literal('')),
@@ -84,8 +84,6 @@ export default function AddVehiclePage() {
       versione: '',
       anno: new Date().getFullYear(),
       chilometraggio: 0,
-      carburante: 'Benzina',
-      cambio: 'Manuale',
       potenza: 0,
       potenza_kw: '',
       cilindrata: '',
@@ -115,19 +113,18 @@ export default function AddVehiclePage() {
     setIsSubmitting(true);
     try {
       const vehicleCollection = collection(firestore, 'vehicles');
-
       const immaginiArray = data.immagini.split('\n').filter(url => url.trim() !== '');
       
-      const newDocRef = doc(vehicleCollection); // Create a new doc reference to get the ID
+      const newDocRef = doc(vehicleCollection);
       
       const slug = generateSlug({
         ...data,
         id: newDocRef.id,
       });
 
-      // Use the non-blocking set function with the new reference
-      await addDocumentNonBlocking(vehicleCollection, {
+      const dataToSave = {
         ...data,
+        id: newDocRef.id,
         immagini: immaginiArray,
         slug,
         potenza_kw: data.potenza_kw ? Number(data.potenza_kw) : null,
@@ -135,7 +132,9 @@ export default function AddVehiclePage() {
         data_inserimento: new Date().toISOString(),
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-      });
+      };
+      
+      await setDocumentNonBlocking(newDocRef, dataToSave, {});
 
       toast({
         title: 'Veicolo aggiunto!',
@@ -524,5 +523,3 @@ export default function AddVehiclePage() {
     </div>
   );
 }
-
-    

@@ -6,12 +6,12 @@ import { VehicleCard } from '@/components/vehicle-card';
 import { FilterSidebar } from './components/filter-sidebar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useCollection } from '@/firebase/firestore/use-collection';
-import { collection, getFirestore } from 'firebase/firestore';
-import { useMemoFirebase } from '@/firebase';
+import { collection } from 'firebase/firestore';
+import { useFirestore, useMemoFirebase } from '@/firebase';
 
 
 export default function AutoPage() {
-  const firestore = getFirestore();
+  const firestore = useFirestore();
   const vehiclesRef = useMemoFirebase(() => collection(firestore, 'vehicles'), [firestore]);
   const { data: vehicles, isLoading: isLoadingVehicles } = useCollection<Vehicle>(vehiclesRef);
   
