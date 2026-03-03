@@ -32,6 +32,7 @@ import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { UploadCloud, X } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import Image from 'next/image';
+import { Label } from '@/components/ui/label';
 
 const vehicleSchema = z.object({
   marca: z.string().min(1, 'La marca è obbligatoria'),
@@ -69,10 +70,24 @@ export default function AddVehiclePage() {
   const form = useForm<VehicleFormValues>({
     resolver: zodResolver(vehicleSchema),
     defaultValues: {
+      marca: '',
+      modello: '',
+      versione: '',
       anno: new Date().getFullYear(),
       chilometraggio: 0,
+      carburante: undefined,
+      cambio: undefined,
       potenza: 0,
+      potenza_kw: undefined,
+      cilindrata: undefined,
+      classe_emissioni: '',
+      colore_esterno: '',
+      colore_interni: '',
       prezzo: 0,
+      descrizione: '',
+      targa: '',
+      garanzia: '',
+      bollo: '',
       stato: 'In vendita',
     },
   });
@@ -114,9 +129,6 @@ export default function AddVehiclePage() {
     setUploadProgress(0);
 
     try {
-      let totalBytes = imageFiles.reduce((acc, file) => acc + file.size, 0);
-      let totalBytesTransferred = 0;
-
       const uploadPromises = imageFiles.map(file => {
         const storageRef = ref(storage, `vehicles/${Date.now()}_${file.name}`);
         const uploadTask = uploadBytesResumable(storageRef, file);
@@ -124,13 +136,11 @@ export default function AddVehiclePage() {
         return new Promise<string>((resolve, reject) => {
           uploadTask.on('state_changed', 
             (snapshot) => {
-              // This logic for aggregate progress is a bit tricky, but this should work.
-              // For simplicity, we calculate progress based on number of files, not size.
+              setUploadProgress(prev => prev + (snapshot.bytesTransferred / snapshot.totalBytes) * (100 / imageFiles.length));
             },
             (error) => reject(error),
             async () => {
               const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-              setUploadProgress(prev => prev + (1 / imageFiles.length) * 100);
               resolve(downloadURL);
             }
           );
@@ -183,7 +193,7 @@ export default function AddVehiclePage() {
                     <FormItem>
                       <FormLabel>Marca *</FormLabel>
                       <FormControl>
-                        <Input placeholder="Es. Audi" {...field} disabled={isFormDisabled} />
+                        <Input placeholder="Es. Audi" {...field} value={field.value ?? ''} disabled={isFormDisabled} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -196,7 +206,7 @@ export default function AddVehiclePage() {
                     <FormItem>
                       <FormLabel>Modello *</FormLabel>
                       <FormControl>
-                        <Input placeholder="Es. A3" {...field} disabled={isFormDisabled} />
+                        <Input placeholder="Es. A3" {...field} value={field.value ?? ''} disabled={isFormDisabled} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -209,7 +219,7 @@ export default function AddVehiclePage() {
                     <FormItem>
                       <FormLabel>Versione/Allestimento *</FormLabel>
                       <FormControl>
-                        <Input placeholder="Es. Sportback 35 TFSI" {...field} disabled={isFormDisabled} />
+                        <Input placeholder="Es. Sportback 35 TFSI" {...field} value={field.value ?? ''} disabled={isFormDisabled} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -222,7 +232,7 @@ export default function AddVehiclePage() {
                     <FormItem>
                       <FormLabel>Anno *</FormLabel>
                       <FormControl>
-                        <Input type="number" {...field} disabled={isFormDisabled} />
+                        <Input type="number" {...field} value={field.value ?? ''} disabled={isFormDisabled} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -235,7 +245,7 @@ export default function AddVehiclePage() {
                     <FormItem>
                       <FormLabel>Chilometraggio *</FormLabel>
                       <FormControl>
-                        <Input type="number" {...field} disabled={isFormDisabled} />
+                        <Input type="number" {...field} value={field.value ?? ''} disabled={isFormDisabled} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -248,7 +258,7 @@ export default function AddVehiclePage() {
                     <FormItem>
                       <FormLabel>Prezzo *</FormLabel>
                       <FormControl>
-                        <Input type="number" {...field} disabled={isFormDisabled} />
+                        <Input type="number" {...field} value={field.value ?? ''} disabled={isFormDisabled} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -260,7 +270,7 @@ export default function AddVehiclePage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Carburante *</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isFormDisabled}>
+                      <Select onValueChange={field.onChange} value={field.value} disabled={isFormDisabled}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Seleziona..." />
@@ -283,7 +293,7 @@ export default function AddVehiclePage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Cambio *</FormLabel>
-                       <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isFormDisabled}>
+                       <Select onValueChange={field.onChange} value={field.value} disabled={isFormDisabled}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Seleziona..." />
@@ -305,7 +315,7 @@ export default function AddVehiclePage() {
                     <FormItem>
                       <FormLabel>Potenza (CV) *</FormLabel>
                       <FormControl>
-                        <Input type="number" {...field} disabled={isFormDisabled} />
+                        <Input type="number" {...field} value={field.value ?? ''} disabled={isFormDisabled} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -318,7 +328,7 @@ export default function AddVehiclePage() {
                     <FormItem>
                       <FormLabel>Potenza (kW)</FormLabel>
                       <FormControl>
-                        <Input type="number" {...field} disabled={isFormDisabled} />
+                        <Input type="number" {...field} value={field.value ?? ''} disabled={isFormDisabled} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -331,7 +341,7 @@ export default function AddVehiclePage() {
                     <FormItem>
                       <FormLabel>Cilindrata (cc)</FormLabel>
                       <FormControl>
-                        <Input type="number" {...field} disabled={isFormDisabled} />
+                        <Input type="number" {...field} value={field.value ?? ''} disabled={isFormDisabled} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -344,7 +354,7 @@ export default function AddVehiclePage() {
                     <FormItem>
                       <FormLabel>Classe Emissioni</FormLabel>
                       <FormControl>
-                        <Input placeholder="Es. Euro 6" {...field} disabled={isFormDisabled} />
+                        <Input placeholder="Es. Euro 6" {...field} value={field.value ?? ''} disabled={isFormDisabled} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -357,7 +367,7 @@ export default function AddVehiclePage() {
                     <FormItem>
                       <FormLabel>Colore Esterno *</FormLabel>
                       <FormControl>
-                        <Input {...field} disabled={isFormDisabled} />
+                        <Input {...field} value={field.value ?? ''} disabled={isFormDisabled} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -370,7 +380,7 @@ export default function AddVehiclePage() {
                     <FormItem>
                       <FormLabel>Colore Interni</FormLabel>
                       <FormControl>
-                        <Input {...field} disabled={isFormDisabled} />
+                        <Input {...field} value={field.value ?? ''} disabled={isFormDisabled} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -383,7 +393,7 @@ export default function AddVehiclePage() {
                     <FormItem>
                       <FormLabel>Targa</FormLabel>
                       <FormControl>
-                        <Input {...field} disabled={isFormDisabled} />
+                        <Input {...field} value={field.value ?? ''} disabled={isFormDisabled} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -396,7 +406,7 @@ export default function AddVehiclePage() {
                     <FormItem>
                       <FormLabel>Garanzia</FormLabel>
                       <FormControl>
-                        <Input placeholder="Es. 12 mesi" {...field} disabled={isFormDisabled} />
+                        <Input placeholder="Es. 12 mesi" {...field} value={field.value ?? ''} disabled={isFormDisabled} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -409,7 +419,7 @@ export default function AddVehiclePage() {
                     <FormItem>
                       <FormLabel>Bollo</FormLabel>
                       <FormControl>
-                        <Input placeholder="Es. Pagato fino a 05/2025" {...field} disabled={isFormDisabled} />
+                        <Input placeholder="Es. Pagato fino a 05/2025" {...field} value={field.value ?? ''} disabled={isFormDisabled} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -421,7 +431,7 @@ export default function AddVehiclePage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Stato Annuncio *</FormLabel>
-                       <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isFormDisabled}>
+                       <Select onValueChange={field.onChange} value={field.value} disabled={isFormDisabled}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Seleziona..." />
@@ -445,7 +455,7 @@ export default function AddVehiclePage() {
                     <FormItem>
                       <FormLabel>Descrizione *</FormLabel>
                       <FormControl>
-                        <Textarea rows={5} {...field} disabled={isFormDisabled} />
+                        <Textarea rows={5} {...field} value={field.value ?? ''} disabled={isFormDisabled} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -521,3 +531,5 @@ export default function AddVehiclePage() {
     </div>
   );
 }
+
+    
