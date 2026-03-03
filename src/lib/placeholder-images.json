@@ -1,3 +1,52 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "audi-a3",
+      "description": "Front view of a modern grey Audi A3 sedan",
+      "imageUrl": "https://images.unsplash.com/photo-1540066019607-e5f69323a8dc?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw4fHxhdWRpJTIwY2FyfGVufDB8fHx8MTc3MjU1MzEyN3ww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "audi car"
+    },
+    {
+      "id": "bmw-x1",
+      "description": "A white BMW X1 SUV parked in a city",
+      "imageUrl": "https://images.unsplash.com/photo-1635990215204-e7dd7bbae49d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw1fHxibXclMjBzdXZ8ZW58MHx8fHwxNzcyNTUzMTI3fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "bmw suv"
+    },
+    {
+      "id": "mercedes-a-class",
+      "description": "Side profile of a sleek black Mercedes A-Class hatchback",
+      "imageUrl": "https://images.unsplash.com/photo-1630165646015-77e71874fa68?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxMHx8bWVyY2VkZXMlMjBjYXJ8ZW58MHx8fHwxNzcyNTUzMTI3fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "mercedes car"
+    },
+    {
+      "id": "porsche-911",
+      "description": "A classic silver Porsche 911 sports car on a winding road",
+      "imageUrl": "https://images.unsplash.com/photo-1696581084306-591db2e1af14?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwyfHxwb3JzY2hlJTIwc3BvcnRzY2FyfGVufDB8fHx8MTc3MjU1MzEyN3ww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "porsche sportscar"
+    },
+    {
+      "id": "fiat-500",
+      "description": "A vibrant red Fiat 500 city car",
+      "imageUrl": "https://images.unsplash.com/photo-1662715087897-73bf72c850f2?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwyfHxmaWF0JTIwY2FyfGVufDB8fHx8MTc3MjU1MzEyNnww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "fiat car"
+    },
+    {
+      "id": "tesla-model-3",
+      "description": "A white Tesla Model 3 charging",
+      "imageUrl": "https://images.unsplash.com/photo-1744973270493-01a1f5e5e1c4?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw3fHx0ZXNsYSUyMGVsZWN0cmljfGVufDB8fHx8MTc3MjU1MzEyN3ww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "tesla electric"
+    },
+    {
+      "id": "audi-q5",
+      "description": "A family driving in a blue Audi Q5",
+      "imageUrl": "https://images.unsplash.com/photo-1760551000611-a11598cfc505?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw2fHxhdWRpJTIwc3V2fGVufDB8fHx8MTc3MjU1MzEyN3ww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "audi suv"
+    },
+    {
+      "id": "lancia-ypsilon",
+      "description": "A stylish Lancia Ypsilon in an urban setting",
+      "imageUrl": "https://images.unsplash.com/photo-1707492650689-200aa431d098?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw3fHxsYW5jaWElMjBjYXJ8ZW58MHx8fHwxNzcyNTUzMTI3fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "lancia car"
+    }
+  ]
 }
