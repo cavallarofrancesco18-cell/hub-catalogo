@@ -1,43 +1,167 @@
 {
   "entities": {
     "Vehicle": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Vehicle",
-      "description": "Represents a vehicle for sale.",
       "type": "object",
+      "description": "Represents a vehicle available for sale in the LuxDrive Catalog, including its technical specifications, marketing details, and sales status.",
       "properties": {
-        "data_inserimento": { "type": "string", "format": "date-time" },
-        "stato": { "type": "string", "enum": ["In vendita", "Venduto"] },
-        "marca": { "type": "string" },
-        "modello": { "type": "string" },
-        "versione": { "type": "string" },
-        "anno": { "type": "number" },
-        "chilometraggio": { "type": "number" },
-        "carburante": { "type": "string", "enum": ["Benzina", "Diesel", "Elettrica", "Ibrida"] },
-        "cambio": { "type": "string", "enum": ["Manuale", "Automatico"] },
-        "potenza": { "type": "number", "description": "Potenza in CV" },
-        "potenza_kw": { "type": "number" },
-        "bollo": { "type": "string" },
-        "cilindrata": { "type": "number" },
-        "classe_emissioni": { "type": "string" },
-        "colore_esterno": { "type": "string" },
-        "colore_interni": { "type": "string" },
-        "prezzo": { "type": "number" },
-        "targa": { "type": "string" },
-        "garanzia": { "type": "string" },
-        "descrizione": { "type": "string" },
-        "immagini": { "type": "array", "items": { "type": "string", "format": "uri" } },
-        "link_canva": { "type": "string", "format": "uri" }
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Vehicle entity."
+        },
+        "brand": {
+          "type": "string",
+          "description": "The brand or manufacturer of the vehicle (e.g., 'BMW', 'Mercedes-Benz')."
+        },
+        "model": {
+          "type": "string",
+          "description": "The specific model of the vehicle (e.g., 'Serie 3', 'Classe C')."
+        },
+        "version": {
+          "type": "string",
+          "description": "The specific version or trim level of the vehicle (e.g., '320d Business', 'C 220 d Premium')."
+        },
+        "year": {
+          "type": "number",
+          "description": "The manufacturing year of the vehicle."
+        },
+        "mileage": {
+          "type": "number",
+          "description": "The total distance the vehicle has traveled, in kilometers."
+        },
+        "fuelType": {
+          "type": "string",
+          "description": "The type of fuel the vehicle uses (e.g., 'Benzina', 'Diesel', 'Elettrica')."
+        },
+        "transmissionType": {
+          "type": "string",
+          "description": "The type of transmission in the vehicle (e.g., 'Manuale', 'Automatica')."
+        },
+        "horsepower": {
+          "type": "number",
+          "description": "The engine's power output in horsepower (CV)."
+        },
+        "exteriorColor": {
+          "type": "string",
+          "description": "The exterior color of the vehicle."
+        },
+        "price": {
+          "type": "number",
+          "description": "The selling price of the vehicle."
+        },
+        "description": {
+          "type": "string",
+          "description": "A comprehensive commercial description of the vehicle, highlighting its features and selling points. This can be AI-assisted."
+        },
+        "coverImageUrl": {
+          "type": "string",
+          "description": "The URL of the primary image used as a cover for the vehicle listing card.",
+          "format": "uri"
+        },
+        "imageUrls": {
+          "type": "array",
+          "description": "An array of URLs pointing to additional images of the vehicle for the full gallery.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "canvaLink": {
+          "type": "string",
+          "description": "A URL to an external Canva presentation or extended photo gallery for the vehicle.",
+          "format": "uri"
+        },
+        "status": {
+          "type": "string",
+          "description": "The current sales status of the vehicle (e.g., 'Pubblicato', 'Opzionato', 'Venduto')."
+        },
+        "consultantName": {
+          "type": "string",
+          "description": "The full name of the sales consultant assigned to this vehicle."
+        },
+        "consultantPhoneNumber": {
+          "type": "string",
+          "description": "The phone number of the sales consultant, primarily used for direct WhatsApp contact."
+        },
+        "slug": {
+          "type": "string",
+          "description": "A URL-friendly, unique identifier (slug) for the vehicle, generated for SEO and dynamic routing (e.g., 'marca-modello-anno-id')."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp indicating when this vehicle record was first created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp indicating when this vehicle record was last updated.",
+          "format": "date-time"
+        }
       },
-      "required": ["marca", "modello", "anno", "prezzo", "data_inserimento", "stato", "chilometraggio", "carburante", "cambio", "potenza"]
+      "required": [
+        "id",
+        "brand",
+        "model",
+        "year",
+        "mileage",
+        "fuelType",
+        "transmissionType",
+        "horsepower",
+        "exteriorColor",
+        "price",
+        "description",
+        "coverImageUrl",
+        "imageUrls",
+        "status",
+        "consultantName",
+        "consultantPhoneNumber",
+        "slug",
+        "createdAt",
+        "updatedAt"
+      ]
     }
   },
   "auth": {
-    "providers": []
+    "providers": [
+      "password",
+      "anonymous"
+    ]
   },
   "firestore": {
-    "/vehicles/{vehicleId}": {
-      "schema": { "$ref": "#/entities/Vehicle" },
-      "description": "Stores vehicle listings."
-    }
+    "structure": [
+      {
+        "path": "/vehicles/{vehicleId}",
+        "definition": {
+          "entityName": "Vehicle",
+          "schema": {
+            "$ref": "#/backend/entities/Vehicle"
+          },
+          "description": "Primary collection for all vehicle listings in the LuxDrive Catalog. Documents are publicly readable to display the car catalog and individual car details. Write operations (create, update, delete) are restricted to authenticated administrators. Includes denormalized 'slug' for SEO and 'status' for UI state control.",
+          "params": [
+            {
+              "name": "vehicleId",
+              "description": "Unique identifier for a specific vehicle document."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/roles_admin/{userId}",
+        "definition": {
+          "entityName": "AdminRole",
+          "schema": {
+            "$ref": "#/backend/entities/AdminRole"
+          },
+          "description": "Dedicated collection for administrative roles. The existence of a document at this path signifies that the user (identified by '{userId}') has administrative privileges to create, update, and delete vehicle listings. Documents are typically empty or contain minimal metadata. (Note: 'AdminRole' is conceptually introduced to fulfill DBAC mandates, mapping to a minimal schema where presence indicates role).",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user who is assigned the administrative role."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure for LuxDrive Catalog prioritizes secure, scalable, and debuggable authorization by adhering to the core design principles. It leverages **Structural Segregation** and **DBAC (Database-Backed Access Control)** to clearly separate public data from administrative functions.\n\n**Authorization Independence (CRITICAL):**\nVehicle documents are stored in the top-level `/vehicles/{vehicleId}` collection. Their authorization is self-contained: they are publicly readable, and write operations (create, update, delete) are restricted to administrators. There are no subcollections whose access depends on parent document attributes, thus eliminating the need for `get()` calls in security rules for hierarchical authorization. Admin roles are managed in a separate, independent collection (`/roles_admin/{userId}`), ensuring that checking for administrative privileges is a single, atomic lookup and does not create hierarchical authorization dependencies within the vehicle data itself. This allows for atomic operations (transactions/batches) on vehicle documents without breaking security rule evaluations.\n\n**QAPs (Rules are not Filters):**\nFor the `/vehicles/{vehicleId}` collection, the `read` permission is `allow read: if true;`. This means that `list` queries on the `/vehicles` collection will return all documents that match the query filters (e.g., `where('brand', '==', 'BMW')`) without needing any additional filtering logic in the security rules. This design enables efficient client-side filtering and sorting as described in the requirements, fully supporting the Query-as-Permission principle. Security rules serve solely as authorization gates, not data filters, which is crucial for scalable performance and security.\n\n**Structure Breakdown:**\n1.  **`/vehicles/{vehicleId}`:** This primary collection stores all `Vehicle` entities, including all technical specifications, marketing details, and sales status information. Each document in this collection represents a single car available for sale.\n    *   **Security Posture:** Publicly readable (all authenticated and unauthenticated users can view) for the 'Auto in Vendita' catalog. Write access (create, update, delete) is restricted to authenticated users who possess an administrative role.\n    *   **Fields:** Contains all fields from the `Vehicle` schema, including `id`, `brand`, `model`, `year`, `mileage`, `fuelType`, `transmissionType`, `horsepower`, `exteriorColor`, `price`, `description`, `coverImageUrl`, `imageUrls`, `canvaLink`, `status`, `consultantName`, `consultantPhoneNumber`, `slug`, `createdAt`, and `updatedAt`.\n    *   **Denormalization:** The `slug` field is denormalized within each `Vehicle` document to facilitate SEO-friendly dynamic routing without requiring additional lookups. The `status` field explicitly models the vehicle's sales state, which influences UI behavior (e.g., disabling the contact button).\n\n2.  **`/roles_admin/{userId}`:** This collection is dedicated to managing administrative roles within the system. While not explicitly provided in the initial `backend.entities`, an `AdminRole` entity is conceptually introduced here to fulfill the DBAC mandate and enable secure administrative actions.\n    *   **Security Posture:** Read/write access is highly restricted, typically to a super-admin or internal processes. The mere existence of a document at `/roles_admin/{request.auth.uid}` grants administrative privileges for managing vehicles.\n    *   **Fields:** Documents in this collection can be empty or contain minimal metadata, as their existence itself signifies the role. For the purpose of this design, it maps to a conceptual `AdminRole` entity whose presence grants privileges."
   }
 }
