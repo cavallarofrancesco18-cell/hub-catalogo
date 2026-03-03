@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -23,16 +24,12 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { db, storage } from '@/firebase';
+import { db } from '@/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
-import { useState, useRef, useEffect } from 'react';
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
-import { UploadCloud, X } from 'lucide-react';
-import { Progress } from '@/components/ui/progress';
-import Image from 'next/image';
-import { Label } from '@/components/ui/label';
+import { List } from 'lucide-react';
+import Link from 'next/link';
 
 const vehicleSchema = z.object({
   marca: z.string().min(1, 'La marca è obbligatoria'),
@@ -54,6 +51,8 @@ const vehicleSchema = z.object({
   garanzia: z.string().optional(),
   bollo: z.string().optional(),
   stato: z.enum(['In vendita', 'Venduto']),
+  immagini: z.string().min(1, 'Aggiungi almeno un URL di immagine.'),
+  link_canva: z.string().url({ message: 'URL non valido.' }).optional().or(z.literal('')),
 });
 
 type VehicleFormValues = z.infer<typeof vehicleSchema>;
@@ -61,11 +60,6 @@ type VehicleFormValues = z.infer<typeof vehicleSchema>;
 export default function AddVehiclePage() {
   const { toast } = useToast();
   const router = useRouter();
-  const [imageFiles, setImageFiles] = useState<File[]>([]);
-  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const form = useForm<VehicleFormValues>({
     resolver: zodResolver(vehicleSchema),
@@ -89,68 +83,37 @@ export default function AddVehiclePage() {
       garanzia: '',
       bollo: '',
       stato: 'In vendita',
+      immagini: '',
+      link_canva: '',
     },
   });
 
-  useEffect(() => {
-    // Cleanup object URLs on component unmount
-    return () => {
-      imagePreviews.forEach(preview => URL.revokeObjectURL(preview));
-    };
-  }, [imagePreviews]);
-
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files) {
-      const files = Array.from(event.target.files);
-      setImageFiles(prev => [...prev, ...files]);
-      
-      const newPreviews = files.map(file => URL.createObjectURL(file));
-      setImagePreviews(prev => [...prev, ...newPreviews]);
-    }
-  };
-
-  const removeImage = (indexToRemove: number) => {
-    URL.revokeObjectURL(imagePreviews[indexToRemove]);
-    setImageFiles(files => files.filter((_, i) => i !== indexToRemove));
-    setImagePreviews(previews => previews.filter((_, i) => i !== indexToRemove));
-  };
-
   async function onSubmit(data: VehicleFormValues) {
-     if (imageFiles.length === 0) {
+    const imageUrls = data.immagini.split('\n').map(url => url.trim()).filter(Boolean);
+    if (imageUrls.length === 0) {
       toast({
         variant: 'destructive',
         title: 'Errore',
-        description: "Aggiungi almeno un'immagine.",
+        description: 'Aggiungi almeno un URL di immagine.',
       });
       return;
     }
-    
-    setIsUploading(true);
-    setUploadProgress(0);
+
+    const urlSchema = z.string().url();
+    const invalidUrls = imageUrls.filter(url => !urlSchema.safeParse(url).success);
+    if (invalidUrls.length > 0) {
+      toast({
+        variant: 'destructive',
+        title: 'URL Immagine non valido',
+        description: `Uno o più URL delle immagini non sono validi: ${invalidUrls.join(', ')}`,
+      });
+      return;
+    }
 
     try {
-      const uploadPromises = imageFiles.map(file => {
-        const storageRef = ref(storage, `vehicles/${Date.now()}_${file.name}`);
-        const uploadTask = uploadBytesResumable(storageRef, file);
-        
-        return new Promise<string>((resolve, reject) => {
-          uploadTask.on('state_changed', 
-            (snapshot) => {
-              setUploadProgress(prev => prev + (snapshot.bytesTransferred / snapshot.totalBytes) * (100 / imageFiles.length));
-            },
-            (error) => reject(error),
-            async () => {
-              const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-              resolve(downloadURL);
-            }
-          );
-        });
-      });
-
-      const imageUrls = await Promise.all(uploadPromises);
-
+      const { immagini, ...restOfData } = data;
       const vehicleData = {
-        ...data,
+        ...restOfData,
         immagini: imageUrls,
         data_inserimento: serverTimestamp(),
       };
@@ -168,19 +131,24 @@ export default function AddVehiclePage() {
         title: 'Errore',
         description: 'Impossibile aggiungere il veicolo. Riprova più tardi.',
       });
-    } finally {
-        setIsUploading(false);
     }
   }
 
   const { formState: { isSubmitting } } = form;
-  const isFormDisabled = isSubmitting || isUploading;
 
   return (
     <div className="container mx-auto max-w-4xl px-4 py-8">
       <Card>
         <CardHeader>
-          <CardTitle>Aggiungi un nuovo veicolo</CardTitle>
+          <div className="flex justify-between items-center">
+            <CardTitle>Aggiungi un nuovo veicolo</CardTitle>
+            <Button asChild variant="outline">
+              <Link href="/auto">
+                <List className="mr-2 h-4 w-4" />
+                Elenco Auto
+              </Link>
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -193,7 +161,7 @@ export default function AddVehiclePage() {
                     <FormItem>
                       <FormLabel>Marca *</FormLabel>
                       <FormControl>
-                        <Input placeholder="Es. Audi" {...field} value={field.value ?? ''} disabled={isFormDisabled} />
+                        <Input placeholder="Es. Audi" {...field} value={field.value ?? ''} disabled={isSubmitting} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -206,7 +174,7 @@ export default function AddVehiclePage() {
                     <FormItem>
                       <FormLabel>Modello *</FormLabel>
                       <FormControl>
-                        <Input placeholder="Es. A3" {...field} value={field.value ?? ''} disabled={isFormDisabled} />
+                        <Input placeholder="Es. A3" {...field} value={field.value ?? ''} disabled={isSubmitting} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -219,7 +187,7 @@ export default function AddVehiclePage() {
                     <FormItem>
                       <FormLabel>Versione/Allestimento *</FormLabel>
                       <FormControl>
-                        <Input placeholder="Es. Sportback 35 TFSI" {...field} value={field.value ?? ''} disabled={isFormDisabled} />
+                        <Input placeholder="Es. Sportback 35 TFSI" {...field} value={field.value ?? ''} disabled={isSubmitting} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -232,7 +200,7 @@ export default function AddVehiclePage() {
                     <FormItem>
                       <FormLabel>Anno *</FormLabel>
                       <FormControl>
-                        <Input type="number" {...field} value={field.value ?? ''} disabled={isFormDisabled} />
+                        <Input type="number" {...field} value={field.value ?? ''} disabled={isSubmitting} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -245,32 +213,32 @@ export default function AddVehiclePage() {
                     <FormItem>
                       <FormLabel>Chilometraggio *</FormLabel>
                       <FormControl>
-                        <Input type="number" {...field} value={field.value ?? ''} disabled={isFormDisabled} />
+                        <Input type="number" {...field} value={field.value ?? ''} disabled={isSubmitting} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-                 <FormField
+                <FormField
                   control={form.control}
                   name="prezzo"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Prezzo *</FormLabel>
                       <FormControl>
-                        <Input type="number" {...field} value={field.value ?? ''} disabled={isFormDisabled} />
+                        <Input type="number" {...field} value={field.value ?? ''} disabled={isSubmitting} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-                 <FormField
+                <FormField
                   control={form.control}
                   name="carburante"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Carburante *</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value} disabled={isFormDisabled}>
+                      <Select onValueChange={field.onChange} value={field.value} disabled={isSubmitting}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Seleziona..." />
@@ -287,13 +255,13 @@ export default function AddVehiclePage() {
                     </FormItem>
                   )}
                 />
-                 <FormField
+                <FormField
                   control={form.control}
                   name="cambio"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Cambio *</FormLabel>
-                       <Select onValueChange={field.onChange} value={field.value} disabled={isFormDisabled}>
+                      <Select onValueChange={field.onChange} value={field.value} disabled={isSubmitting}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Seleziona..." />
@@ -308,40 +276,40 @@ export default function AddVehiclePage() {
                     </FormItem>
                   )}
                 />
-                 <FormField
+                <FormField
                   control={form.control}
                   name="potenza"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Potenza (CV) *</FormLabel>
                       <FormControl>
-                        <Input type="number" {...field} value={field.value ?? ''} disabled={isFormDisabled} />
+                        <Input type="number" {...field} value={field.value ?? ''} disabled={isSubmitting} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-                 <FormField
+                <FormField
                   control={form.control}
                   name="potenza_kw"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Potenza (kW)</FormLabel>
                       <FormControl>
-                        <Input type="number" {...field} value={field.value ?? ''} disabled={isFormDisabled} />
+                        <Input type="number" {...field} value={field.value ?? ''} disabled={isSubmitting} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-                 <FormField
+                <FormField
                   control={form.control}
                   name="cilindrata"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Cilindrata (cc)</FormLabel>
                       <FormControl>
-                        <Input type="number" {...field} value={field.value ?? ''} disabled={isFormDisabled} />
+                        <Input type="number" {...field} value={field.value ?? ''} disabled={isSubmitting} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -354,7 +322,7 @@ export default function AddVehiclePage() {
                     <FormItem>
                       <FormLabel>Classe Emissioni</FormLabel>
                       <FormControl>
-                        <Input placeholder="Es. Euro 6" {...field} value={field.value ?? ''} disabled={isFormDisabled} />
+                        <Input placeholder="Es. Euro 6" {...field} value={field.value ?? ''} disabled={isSubmitting} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -367,20 +335,20 @@ export default function AddVehiclePage() {
                     <FormItem>
                       <FormLabel>Colore Esterno *</FormLabel>
                       <FormControl>
-                        <Input {...field} value={field.value ?? ''} disabled={isFormDisabled} />
+                        <Input {...field} value={field.value ?? ''} disabled={isSubmitting} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-                 <FormField
+                <FormField
                   control={form.control}
                   name="colore_interni"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Colore Interni</FormLabel>
                       <FormControl>
-                        <Input {...field} value={field.value ?? ''} disabled={isFormDisabled} />
+                        <Input {...field} value={field.value ?? ''} disabled={isSubmitting} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -393,33 +361,33 @@ export default function AddVehiclePage() {
                     <FormItem>
                       <FormLabel>Targa</FormLabel>
                       <FormControl>
-                        <Input {...field} value={field.value ?? ''} disabled={isFormDisabled} />
+                        <Input {...field} value={field.value ?? ''} disabled={isSubmitting} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-                 <FormField
+                <FormField
                   control={form.control}
                   name="garanzia"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Garanzia</FormLabel>
                       <FormControl>
-                        <Input placeholder="Es. 12 mesi" {...field} value={field.value ?? ''} disabled={isFormDisabled} />
+                        <Input placeholder="Es. 12 mesi" {...field} value={field.value ?? ''} disabled={isSubmitting} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-                 <FormField
+                <FormField
                   control={form.control}
                   name="bollo"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Bollo</FormLabel>
                       <FormControl>
-                        <Input placeholder="Es. Pagato fino a 05/2025" {...field} value={field.value ?? ''} disabled={isFormDisabled} />
+                        <Input placeholder="Es. Pagato fino a 05/2025" {...field} value={field.value ?? ''} disabled={isSubmitting} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -431,7 +399,7 @@ export default function AddVehiclePage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Stato Annuncio *</FormLabel>
-                       <Select onValueChange={field.onChange} value={field.value} disabled={isFormDisabled}>
+                      <Select onValueChange={field.onChange} value={field.value} disabled={isSubmitting}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Seleziona..." />
@@ -448,81 +416,62 @@ export default function AddVehiclePage() {
                 />
               </div>
 
-               <FormField
-                  control={form.control}
-                  name="descrizione"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Descrizione *</FormLabel>
-                      <FormControl>
-                        <Textarea rows={5} {...field} value={field.value ?? ''} disabled={isFormDisabled} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <div className="space-y-2">
-                  <FormLabel>Immagini *</FormLabel>
-                  <FormControl>
-                    <div
-                      className="relative flex flex-col items-center justify-center w-full p-6 border-2 border-dashed rounded-lg cursor-pointer border-input hover:border-primary/50"
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      <UploadCloud className="w-10 h-10 text-muted-foreground" />
-                      <p className="mt-2 text-sm text-muted-foreground">
-                        <span className="font-semibold">Clicca per caricare</span> o trascina le foto
-                      </p>
-                      <p className="text-xs text-muted-foreground">PNG, JPG, WEBP</p>
-                      <Input
-                        ref={fileInputRef}
-                        type="file"
-                        multiple
-                        accept="image/png, image/jpeg, image/webp"
-                        className="hidden"
-                        onChange={handleFileChange}
-                        disabled={isFormDisabled}
-                      />
-                    </div>
-                  </FormControl>
-                  {imagePreviews.length > 0 && (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 mt-4">
-                    {imagePreviews.map((preview, index) => (
-                      <div key={preview} className="relative aspect-square">
-                        <Image
-                          src={preview}
-                          alt={`Anteprima immagine ${index + 1}`}
-                          fill
-                          sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, 20vw"
-                          className="object-cover rounded-md"
-                        />
-                        <Button
-                          type="button"
-                          variant="destructive"
-                          size="icon"
-                          className="absolute top-1 right-1 h-6 w-6"
-                          onClick={() => removeImage(index)}
-                          disabled={isFormDisabled}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
+              <FormField
+                control={form.control}
+                name="descrizione"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Descrizione *</FormLabel>
+                    <FormControl>
+                      <Textarea rows={5} {...field} value={field.value ?? ''} disabled={isSubmitting} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
                 )}
-                 <FormMessage />
-                </div>
-                
-              {isUploading && (
-                <div className="space-y-2">
-                    <Label>Caricamento immagini... {Math.round(uploadProgress)}%</Label>
-                    <Progress value={uploadProgress} className="w-full" />
-                </div>
-              )}
+              />
 
+              <FormField
+                control={form.control}
+                name="immagini"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>URL Immagini *</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="https://.../immagine1.jpg
+https://.../immagine2.jpg"
+                        rows={5}
+                        {...field}
+                        disabled={isSubmitting}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      Inserisci un URL di immagine per riga. La prima immagine sarà quella di copertina.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-              <Button type="submit" disabled={isFormDisabled}>
-                {isUploading ? `Caricamento... ${Math.round(uploadProgress)}%` : (isSubmitting ? 'Salvataggio...' : 'Salva veicolo')}
+              <FormField
+                control={form.control}
+                name="link_canva"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Link Canva (Galleria Completa)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="https://www.canva.com/design/..." {...field} value={field.value ?? ''} disabled={isSubmitting} />
+                    </FormControl>
+                    <FormDescription>
+                      Link a una presentazione Canva con la galleria fotografica completa del veicolo.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? 'Salvataggio...' : 'Salva veicolo'}
               </Button>
             </form>
           </Form>
@@ -531,5 +480,3 @@ export default function AddVehiclePage() {
     </div>
   );
 }
-
-    
