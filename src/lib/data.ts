@@ -17,10 +17,7 @@ export const vehicles: Vehicle[] = [
     descrizione:
       "Scopri l'eleganza e le prestazioni dell'Audi A3 Sportback. Questo modello del 2022 combina un design sportivo con una tecnologia all'avanguardia, offrendo un'esperienza di guida dinamica e confortevole. Il motore 35 TFSI garantisce efficienza e reattività, mentre il cambio S tronic assicura passaggi di marcia fluidi e veloci. Perfetta per la città e per i lunghi viaggi, questa A3 è un'occasione da non perdere.",
     immagini: [
-      'https://picsum.photos/seed/audi-a3-1/800/600',
-      'https://picsum.photos/seed/audi-a3-2/800/600',
-      'https://picsum.photos/seed/audi-a3-3/800/600',
-      'https://picsum.photos/seed/audi-a3-4/800/600',
+      'https://images.unsplash.com/photo-1540066019607-e5f69323a8dc?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw4fHxhdWRpJTIwY2FyfGVufDB8fHx8MTc3MjU1MzEyN3ww&ixlib=rb-4.1.0&q=80&w=1080',
     ],
     link_canva: 'https://www.canva.com/design/DAF-1_2_3/view',
     stato: 'In vendita',
@@ -41,9 +38,7 @@ export const vehicles: Vehicle[] = [
     descrizione:
       "Versatilità e stile si fondono nel BMW X1 sDrive18d. Questo SUV compatto offre un'abitabilità eccezionale e un piacere di guida tipicamente BMW. Con il suo efficiente motore diesel e un allestimento ricco di optional, è l'auto ideale per chi cerca comfort, sicurezza e prestazioni. Le condizioni sono impeccabili, pronta per qualsiasi avventura.",
     immagini: [
-      'https://picsum.photos/seed/bmw-x1-1/800/600',
-      'https://picsum.photos/seed/bmw-x1-2/800/600',
-      'https://picsum.photos/seed/bmw-x1-3/800/600',
+      'https://images.unsplash.com/photo-1635990215204-e7dd7bbae49d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw1fHxibXclMjBzdXZ8ZW58MHx8fHwxNzcyNTUzMTI3fDA&ixlib=rb-4.1.0&q=80&w=1080',
     ],
     link_canva: 'https://www.canva.com/design/DAF-4_5_6/view',
     stato: 'In vendita',
@@ -64,11 +59,7 @@ export const vehicles: Vehicle[] = [
     descrizione:
       "La Mercedes-Benz Classe A ridefinisce il concetto di compatta di lusso. Con il suo design iconico e gli interni tecnologici dominati dal sistema MBUX, offre un'esperienza di guida senza pari. La versione Premium è dotata di tutti i comfort e le tecnologie più desiderate. Un'auto che non passa inosservata, ora disponibile ad un prezzo competitivo.",
     immagini: [
-      'https://picsum.photos/seed/merc-a-1/800/600',
-      'https://picsum.photos/seed/merc-a-2/800/600',
-      'https://picsum.photos/seed/merc-a-3/800/600',
-      'https://picsum.photos/seed/merc-a-4/800/600',
-      'https://picsum.photos/seed/merc-a-5/800/600',
+      'https://images.unsplash.com/photo-1630165646015-77e71874fa68?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxMHx8bWVyY2VkZXMlMjBjYXJ8ZW58MHx8fHwxNzcyNTUzMTI3fDA&ixlib=rb-4.1.0&q=80&w=1080',
     ],
     link_canva: 'https://www.canva.com/design/DAF-7_8_9/view',
     stato: 'Venduto',
@@ -89,8 +80,7 @@ export const vehicles: Vehicle[] = [
     descrizione:
       "L'icona italiana si rinnova con la tecnologia ibrida. La Fiat 500 Hybrid Cult è la city car perfetta: stile inconfondibile, consumi ridotti e un'agilità che la rende imbattibile nel traffico urbano. Questo esemplare del 2023 è praticamente nuovo, con pochissimi chilometri. Ideale per chi cerca un'auto alla moda, ecologica e divertente da guidare.",
     immagini: [
-      'https://picsum.photos/seed/fiat-500-1/800/600',
-      'https://picsum.photos/seed/fiat-500-2/800/600',
+      'https://images.unsplash.com/photo-1662715087897-73bf72c850f2?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwyfHxmaWF0JTIwY2FyfGVufDB8fHx8MTc3MjU1MzEyNnww&ixlib=rb-4.1.0&q=80&w=1080',
     ],
     link_canva: 'https://www.canva.com/design/DAF-10_11_12/view',
     stato: 'In vendita',
@@ -111,10 +101,7 @@ export const vehicles: Vehicle[] = [
     descrizione:
       "Entra nel futuro della mobilità con la Tesla Model 3. Prestazioni mozzafiato, autonomia eccellente e una tecnologia che ridefinisce l'esperienza di guida. Questo modello Standard Range Plus è perfetto per l'uso quotidiano e per i viaggi, grazie alla rete di Supercharger. Silenziosa, potente e a zero emissioni, è l'auto che hai sempre sognato.",
     immagini: [
-      'https://picsum.photos/seed/tesla-3-1/800/600',
-      'https://picsum.photos/seed/tesla-3-2/800/600',
-      'https://picsum.photos/seed/tesla-3-3/800/600',
-      'https://picsum.photos/seed/tesla-3-4/800/600',
+      'https://images.unsplash.com/photo-1744973270493-01a1f5e5e1c4?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw3fHx0ZXNsYSUyMGVsZWN0cmljfGVufDB8fHx8MTc3MjU1MzEyN3ww&ixlib=rb-4.1.0&q=80&w=1080',
     ],
     link_canva: 'https://www.canva.com/design/DAF-13_14_15/view',
     stato: 'In vendita',
@@ -135,11 +122,29 @@ export const vehicles: Vehicle[] = [
     descrizione:
       "Lancia Ypsilon, la fashion city car per eccellenza. Questo modello ibrido unisce eleganza e rispetto per l'ambiente, garantendo consumi contenuti. L'allestimento Argento offre un look raffinato e una dotazione completa. Perfetta per chi desidera distinguersi in città con stile e intelligenza.",
     immagini: [
-      'https://picsum.photos/seed/lancia-y-1/800/600',
-      'https://picsum.photos/seed/lancia-y-2/800/600',
-      'https://picsum.photos/seed/lancia-y-3/800/600',
+      'https://images.unsplash.com/photo-1707492650689-200aa431d098?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw3fHxsYW5jaWElMjBjYXJ8ZW58MHx8fHwxNzcyNTUzMTI3fDA&ixlib=rb-4.1.0&q=80&w=1080',
     ],
     link_canva: 'https://www.canva.com/design/DAF-16_17_18/view',
     stato: 'In vendita',
+  },
+  {
+    id: 'yz012ab',
+    data_inserimento: '2024-07-25T12:00:00Z',
+    marca: 'Fiat',
+    modello: 'Panda',
+    versione: '1.0 70cv Hybrid City Cross',
+    anno: 2022,
+    chilometraggio: 22000,
+    carburante: 'Ibrida',
+    cambio: 'Manuale',
+    potenza: 70,
+    colore_esterno: 'Nero',
+    prezzo: 15500,
+    descrizione: "La Fiat Panda si conferma l'auto perfetta per la città. Agile, parsimoniosa grazie al motore ibrido e con lo stile inconfondibile dell'allestimento City Cross. Questo esemplare è in condizioni eccellenti e pronto a diventare il tuo compagno di avventure urbane.",
+    immagini: [
+      "https://www.nstre.it/files/web-auto/fiat/panda-iii-2021/N01021123/fiat-panda-1-0-70cv-firefly-hybrid-sands-gp481db-2.jpg"
+    ],
+    link_canva: "https://www.canva.com/design/DAF_sample/view",
+    stato: 'In vendita'
   }
 ];

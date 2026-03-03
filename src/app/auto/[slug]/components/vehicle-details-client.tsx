@@ -1,12 +1,5 @@
 'use client';
 
-import {
-  Carousel,
-  CarouselContent,
-  CarouselItem,
-  CarouselNext,
-  CarouselPrevious,
-} from '@/components/ui/carousel';
 import type { Vehicle } from '@/lib/types';
 import { formatCurrency, getDirectImageUrl } from '@/lib/utils';
 import Image from 'next/image';
@@ -20,34 +13,28 @@ interface VehicleDetailsClientProps {
 
 export function VehicleDetailsClient({ vehicle }: VehicleDetailsClientProps) {
   const isSold = vehicle.stato === 'Venduto';
+  const imageUrl = vehicle.immagini.length > 0 ? getDirectImageUrl(vehicle.immagini[0]) : '';
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
       <div className="lg:col-span-3">
-        <Carousel className="w-full">
-          <CarouselContent>
-            {vehicle.immagini.map((img, index) => {
-              const imageUrl = getDirectImageUrl(img);
-              return (
-              <CarouselItem key={index}>
-                <div className="aspect-w-16 aspect-h-9">
-                  <Image
-                    src={imageUrl}
-                    alt={`Immagine ${index + 1} di ${vehicle.marca} ${vehicle.modello}`}
-                    width={800}
-                    height={600}
-                    className="w-full h-full object-cover rounded-lg shadow-md"
-                    priority={index === 0}
-                    data-ai-hint={`${vehicle.marca} car interior exterior`}
-                  />
-                </div>
-              </CarouselItem>
-              )
-            })}
-          </CarouselContent>
-          <CarouselPrevious className="ml-14" />
-          <CarouselNext className="mr-14" />
-        </Carousel>
+        {imageUrl ? (
+            <div className="aspect-w-16 aspect-h-9">
+            <Image
+                src={imageUrl}
+                alt={`Immagine di ${vehicle.marca} ${vehicle.modello}`}
+                width={800}
+                height={600}
+                className="w-full h-full object-cover rounded-lg shadow-md"
+                priority
+                data-ai-hint={`${vehicle.marca} car interior exterior`}
+            />
+            </div>
+        ) : (
+            <div className="aspect-w-16 aspect-h-9 bg-muted rounded-lg flex items-center justify-center text-muted-foreground">
+                Nessuna immagine disponibile
+            </div>
+        )}
       </div>
       <div className="lg:col-span-2">
         <div className="sticky top-24 rounded-lg border bg-card text-card-foreground shadow-sm p-6">
