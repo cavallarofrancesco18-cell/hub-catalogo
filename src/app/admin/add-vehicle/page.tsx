@@ -129,22 +129,21 @@ export default function AddVehiclePage() {
     setUploadProgress(0);
 
     try {
-      const imageUrls: string[] = [];
       const totalFiles = imageFiles.length;
 
-      for (let i = 0; i < totalFiles; i++) {
-        const file = imageFiles[i];
-        // Create a unique file name to avoid collisions in storage
+      const uploadPromises = imageFiles.map((file, i) => {
         const fileName = `vehicle-${Date.now()}-${i}-${file.name}`;
         const storageRef = ref(storage, `vehicles/${fileName}`);
         
-        await uploadBytes(storageRef, file);
-        const downloadURL = await getDownloadURL(storageRef);
-        imageUrls.push(downloadURL);
+        return uploadBytes(storageRef, file).then(async snapshot => {
+          const downloadURL = await getDownloadURL(snapshot.ref);
+          setUploadProgress(currentProgress => (currentProgress ?? 0) + (100 / totalFiles));
+          return downloadURL;
+        });
+      });
 
-        // Update progress
-        setUploadProgress(((i + 1) / totalFiles) * 100);
-      }
+      const imageUrls = await Promise.all(uploadPromises);
+
 
       const vehicleData = {
         ...data,
@@ -524,7 +523,7 @@ export default function AddVehiclePage() {
 
               {uploadProgress !== null && (
                   <div className="space-y-2">
-                      <FormLabel>{uploadProgress === 100 ? 'Finalizzazione...' : 'Caricamento in corso...'}</FormLabel>
+                      <FormLabel>{uploadProgress >= 99 ? 'Finalizzazione...' : 'Caricamento in corso...'}</FormLabel>
                       <Progress value={uploadProgress} />
                       <p className="text-sm text-muted-foreground text-center">{Math.round(uploadProgress)}%</p>
                   </div>
@@ -540,3 +539,5 @@ export default function AddVehiclePage() {
     </div>
   );
 }
+
+    
