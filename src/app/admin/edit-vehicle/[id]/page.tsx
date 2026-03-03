@@ -77,11 +77,33 @@ export default function EditVehiclePage() {
 
   const form = useForm<VehicleFormValues>({
     resolver: zodResolver(vehicleSchema),
-    defaultValues: {},
+    defaultValues: {
+      marca: '',
+      modello: '',
+      versione: '',
+      anno: new Date().getFullYear(),
+      chilometraggio: 0,
+      carburante: 'Benzina',
+      cambio: 'Manuale',
+      potenza: 0,
+      potenza_kw: '',
+      cilindrata: '',
+      colore_esterno: '',
+      colore_interni: '',
+      prezzo: 0,
+      targa: '',
+      garanzia: '',
+      classe_emissioni: '',
+      bollo: '',
+      descrizione: '',
+      immagini: '',
+      link_canva: '',
+      stato: 'In vendita',
+    },
   });
 
   useEffect(() => {
-    if (!vehicleId) return;
+    if (!vehicleId || !firestore) return;
 
     const fetchVehicle = async () => {
       setIsLoading(true);
@@ -119,6 +141,14 @@ export default function EditVehiclePage() {
   }, [vehicleId, firestore, form, router, toast]);
 
   async function onSubmit(data: VehicleFormValues) {
+    if (!firestore) {
+        toast({
+            variant: 'destructive',
+            title: 'Errore di connessione',
+            description: 'Impossibile connettersi al database. Riprova più tardi.',
+        });
+        return;
+    }
     setIsSubmitting(true);
     try {
       const vehicleRef = doc(firestore, 'vehicles', vehicleId);
@@ -174,9 +204,6 @@ export default function EditVehiclePage() {
     <div className="container mx-auto px-4 py-8">
        <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold font-headline">Modifica Veicolo</h1>
-        <Button asChild variant="outline">
-          <Link href="/admin">Elenco Auto</Link>
-        </Button>
       </div>
 
       <Form {...form}>
@@ -527,7 +554,10 @@ export default function EditVehiclePage() {
           </Card>
 
 
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-4">
+             <Button variant="outline" asChild>
+                <Link href="/admin">Annulla</Link>
+            </Button>
             <Button type="submit" disabled={isSubmitting || isLoading}>
               {isSubmitting ? 'Salvataggio in corso...' : 'Salva Modifiche'}
             </Button>
@@ -537,3 +567,5 @@ export default function EditVehiclePage() {
     </div>
   );
 }
+
+    
