@@ -1,72 +1,160 @@
 'use client';
-import {
-  getAuth,
-  GoogleAuthProvider,
-  signInWithPopup,
-  User,
-} from 'firebase/auth';
-import { doc, getDoc, setDoc, getFirestore } from 'firebase/firestore';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { getAuth, signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { doc, getDoc, getFirestore } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
+import { useForm } from 'react-hook-form';
+import * as z from 'zod';
+
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { useUser } from '@/firebase/auth/use-user';
-import { useEffect } from 'react';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/use-auth';
+import { useEffect, useState } from 'react';
+import type { UserProfile } from '@/lib/types';
 
-async function createUserProfile(user: User) {
-  const db = getFirestore();
-  const userRef = doc(db, 'users', user.uid);
-  const userDoc = await getDoc(userRef);
-
-  if (!userDoc.exists()) {
-    // Create user profile on first login, default role is 'seller'
-    await setDoc(userRef, {
-      displayName: user.displayName,
-      email: user.email,
-      photoURL: user.photoURL,
-      role: 'seller', // Default role
-    });
-  }
-}
+const formSchema = z.object({
+  email: z.string().email({ message: 'Inserisci un indirizzo email valido.' }),
+  password: z.string().min(1, { message: 'La password è richiesta.' }),
+});
 
 export default function LoginPage() {
   const router = useRouter();
-  const { user, loading } = useUser();
+  const { isAdmin, loading } = useAuth();
+  const { toast } = useToast();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      email: '',
+      password: '',
+    },
+  });
 
   useEffect(() => {
-    if (!loading && user) {
-      router.push('/auto');
+    if (!loading && isAdmin) {
+      router.push('/admin');
     }
-  }, [user, loading, router]);
+  }, [isAdmin, loading, router]);
 
-
-  const handleSignIn = async () => {
+  const handleSignIn = async (values: z.infer<typeof formSchema>) => {
+    setIsSubmitting(true);
     const auth = getAuth();
-    const provider = new GoogleAuthProvider();
     try {
-      const result = await signInWithPopup(auth, provider);
-      await createUserProfile(result.user);
-      router.push('/auto');
-    } catch (error) {
-      console.error('Error during sign-in:', error);
+      const userCredential = await signInWithEmailAndPassword(
+        auth,
+        values.email,
+        values.password
+      );
+      const user = userCredential.user;
+
+      const db = getFirestore();
+      const userRef = doc(db, 'users', user.uid);
+      const userDoc = await getDoc(userRef);
+
+      if (userDoc.exists()) {
+        const userProfile = userDoc.data() as UserProfile;
+        if (userProfile.role === 'admin') {
+          toast({
+            title: 'Accesso effettuato',
+            description: 'Bentornato, admin!',
+          });
+          router.push('/admin');
+        } else {
+          await signOut(auth);
+          toast({
+            variant: 'destructive',
+            title: 'Accesso negato',
+            description: 'Non disponi dei permessi di amministratore.',
+          });
+        }
+      } else {
+        await signOut(auth);
+        toast({
+          variant: 'destructive',
+          title: 'Profilo non trovato',
+          description: 'Utente non configurato correttamente. Contatta il supporto.',
+        });
+      }
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Errore di accesso',
+        description: 'Credenziali non valide. Riprova.',
+      });
+    } finally {
+      setIsSubmitting(false);
     }
   };
-
-  if(loading || user) {
-    return <div className="container flex items-center justify-center min-h-[calc(100vh-8rem)]">Loading...</div>
+  
+  if (loading) {
+     return <div className="container flex items-center justify-center min-h-[calc(100vh-8rem)]">Caricamento in corso...</div>
+  }
+  
+  if (!loading && isAdmin) {
+    router.push('/admin');
+    return <div className="container flex items-center justify-center min-h-[calc(100vh-8rem)]">Reindirizzamento...</div>;
   }
 
   return (
     <div className="container flex items-center justify-center min-h-[calc(100vh-8rem)]">
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
-          <CardTitle>Login</CardTitle>
-          <CardDescription>Accedi per continuare su LuxDrive Catalog</CardDescription>
+          <CardTitle>Accesso Amministratore</CardTitle>
+          <CardDescription>
+            Inserisci le tue credenziali per accedere al pannello.
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <Button className="w-full" onClick={handleSignIn}>
-            <svg className="mr-2 h-4 w-4" aria-hidden="true" focusable="false" data-prefix="fab" data-icon="google" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512"><path fill="currentColor" d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 126 23.4 172.9 61.9l-76.2 64.5C308.6 102.3 282.7 90 248 90c-82.1 0-148.9 66.8-148.9 148.9s66.8 148.9 148.9 148.9c93.5 0 130.8-71.5 136-112.4H248v-85.3h236.1c2.3 12.7 3.9 26.9 3.9 41.4z"></path></svg>
-            Accedi con Google
-          </Button>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(handleSignIn)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input placeholder="admin@example.com" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Password</FormLabel>
+                    <FormControl>
+                      <Input type="password" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <Button type="submit" className="w-full" disabled={isSubmitting}>
+                {isSubmitting ? 'Accesso in corso...' : 'Accedi'}
+              </Button>
+            </form>
+          </Form>
         </CardContent>
       </Card>
     </div>
