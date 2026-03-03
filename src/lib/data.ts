@@ -1,6 +1,6 @@
 import type { Vehicle } from './types';
 
-export const vehicles: Vehicle[] = [
+export const vehicles: Omit<Vehicle, 'data_inserimento'>[] = [
   {
     id: 'ab123cd',
     marca: 'Audi',
@@ -22,9 +22,7 @@ export const vehicles: Vehicle[] = [
       'https://picsum.photos/seed/audi-a3-4/800/600',
     ],
     link_canva: 'https://www.canva.com/design/DAF-1_2_3/view',
-    stato: 'Pubblicato',
-    consulente: 'Mario Rossi',
-    telefono_consulente: '+393331234567',
+    stato: 'In vendita',
   },
   {
     id: 'ef456gh',
@@ -46,9 +44,7 @@ export const vehicles: Vehicle[] = [
       'https://picsum.photos/seed/bmw-x1-3/800/600',
     ],
     link_canva: 'https://www.canva.com/design/DAF-4_5_6/view',
-    stato: 'Opzionato',
-    consulente: 'Luca Bianchi',
-    telefono_consulente: '+393337654321',
+    stato: 'In vendita',
   },
   {
     id: 'ij789kl',
@@ -73,8 +69,6 @@ export const vehicles: Vehicle[] = [
     ],
     link_canva: 'https://www.canva.com/design/DAF-7_8_9/view',
     stato: 'Venduto',
-    consulente: 'Mario Rossi',
-    telefono_consulente: '+393331234567',
   },
   {
     id: 'mn012op',
@@ -95,9 +89,7 @@ export const vehicles: Vehicle[] = [
       'https://picsum.photos/seed/fiat-500-2/800/600',
     ],
     link_canva: 'https://www.canva.com/design/DAF-10_11_12/view',
-    stato: 'Pubblicato',
-    consulente: 'Giulia Verdi',
-    telefono_consulente: '+393331122334',
+    stato: 'In vendita',
   },
   {
     id: 'qr345st',
@@ -120,9 +112,7 @@ export const vehicles: Vehicle[] = [
       'https://picsum.photos/seed/tesla-3-4/800/600',
     ],
     link_canva: 'https://www.canva.com/design/DAF-13_14_15/view',
-    stato: 'Pubblicato',
-    consulente: 'Luca Bianchi',
-    telefono_consulente: '+393337654321',
+    stato: 'In vendita',
   },
   {
     id: 'uv678wx',
@@ -144,8 +134,6 @@ export const vehicles: Vehicle[] = [
       'https://picsum.photos/seed/lancia-y-3/800/600',
     ],
     link_canva: 'https://www.canva.com/design/DAF-16_17_18/view',
-    stato: 'Pubblicato',
-    consulente: 'Giulia Verdi',
-    telefono_consulente: '+393331122334',
+    stato: 'In vendita',
   }
 ];

@@ -5,6 +5,8 @@
       "description": "Represents a vehicle for sale.",
       "type": "object",
       "properties": {
+        "data_inserimento": { "type": "string", "format": "date-time" },
+        "stato": { "type": "string", "enum": ["In vendita", "Venduto"] },
         "marca": { "type": "string" },
         "modello": { "type": "string" },
         "versione": { "type": "string" },
@@ -12,17 +14,21 @@
         "chilometraggio": { "type": "number" },
         "carburante": { "type": "string", "enum": ["Benzina", "Diesel", "Elettrica", "Ibrida"] },
         "cambio": { "type": "string", "enum": ["Manuale", "Automatico"] },
-        "potenza": { "type": "number" },
+        "potenza": { "type": "number", "description": "Potenza in CV" },
+        "potenza_kw": { "type": "number" },
+        "bollo": { "type": "string" },
+        "cilindrata": { "type": "number" },
+        "classe_emissioni": { "type": "string" },
         "colore_esterno": { "type": "string" },
+        "colore_interni": { "type": "string" },
         "prezzo": { "type": "number" },
+        "targa": { "type": "string" },
+        "garanzia": { "type": "string" },
         "descrizione": { "type": "string" },
         "immagini": { "type": "array", "items": { "type": "string", "format": "uri" } },
-        "link_canva": { "type": "string", "format": "uri" },
-        "stato": { "type": "string", "enum": ["Pubblicato", "Opzionato", "Venduto"] },
-        "consulente": { "type": "string" },
-        "telefono_consulente": { "type": "string" }
+        "link_canva": { "type": "string", "format": "uri" }
       },
-      "required": ["marca", "modello", "anno", "prezzo"]
+      "required": ["marca", "modello", "anno", "prezzo", "data_inserimento", "stato", "chilometraggio", "carburante", "cambio", "potenza"]
     }
   },
   "auth": {
