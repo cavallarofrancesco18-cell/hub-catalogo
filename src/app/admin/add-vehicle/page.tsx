@@ -23,13 +23,16 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { db } from '@/firebase';
+import { db, storage } from '@/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
-import { List } from 'lucide-react';
+import { List, UploadCloud, X } from 'lucide-react';
 import Link from 'next/link';
-import { getDirectImageUrl } from '@/lib/utils';
+import { useState } from 'react';
+import Image from 'next/image';
+import { Progress } from '@/components/ui/progress';
 
 const vehicleSchema = z.object({
   marca: z.string().min(1, 'La marca è obbligatoria'),
@@ -61,8 +64,6 @@ const vehicleSchema = z.object({
   garanzia: z.string().optional(),
   bollo: z.string().optional(),
   stato: z.enum(['In vendita', 'Venduto']),
-  immagini: z.string().min(1, 'Aggiungi almeno un URL di immagine.'),
-  link_canva: z.string().url({ message: 'URL non valido.' }).optional().or(z.literal('')),
 });
 
 type VehicleFormValues = z.infer<typeof vehicleSchema>;
@@ -70,6 +71,8 @@ type VehicleFormValues = z.infer<typeof vehicleSchema>;
 export default function AddVehiclePage() {
   const { toast } = useToast();
   const router = useRouter();
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
 
   const form = useForm<VehicleFormValues>({
     resolver: zodResolver(vehicleSchema),
@@ -93,37 +96,59 @@ export default function AddVehiclePage() {
       garanzia: '',
       bollo: '',
       stato: 'In vendita',
-      immagini: '',
-      link_canva: '',
     },
   });
+  
+  const { formState: { isSubmitting } } = form;
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files) {
+      const files = Array.from(event.target.files);
+      setImageFiles(prev => [...prev, ...files]);
+    }
+  };
+
+  const removeImage = (index: number) => {
+    setImageFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
 
   async function onSubmit(data: VehicleFormValues) {
-    const rawImageUrls = data.immagini.split('\n').map(url => url.trim()).filter(Boolean);
-    if (rawImageUrls.length === 0) {
-      form.setError('immagini', {
+     if (imageFiles.length === 0) {
+      form.setError('root.serverError', {
         type: 'manual',
-        message: 'Aggiungi almeno un URL di immagine.',
+        message: 'Devi caricare almeno un\'immagine.'
+      });
+      toast({
+        variant: 'destructive',
+        title: 'Errore',
+        description: 'Devi caricare almeno un\'immagine.',
       });
       return;
     }
 
-    const imageUrls = rawImageUrls.map(getDirectImageUrl);
-
-    const urlSchema = z.string().url();
-    const invalidUrls = imageUrls.filter(url => !urlSchema.safeParse(url).success);
-    if (invalidUrls.length > 0) {
-      form.setError('immagini', {
-        type: 'manual',
-        message: `Uno o più URL delle immagini non sono validi: ${invalidUrls.join(', ')}`,
-      });
-      return;
-    }
+    setUploadProgress(0);
 
     try {
-      const { immagini, ...restOfData } = data;
+      const imageUrls: string[] = [];
+      const totalFiles = imageFiles.length;
+
+      for (let i = 0; i < totalFiles; i++) {
+        const file = imageFiles[i];
+        // Create a unique file name to avoid collisions in storage
+        const fileName = `vehicle-${Date.now()}-${i}-${file.name}`;
+        const storageRef = ref(storage, `vehicles/${fileName}`);
+        
+        await uploadBytes(storageRef, file);
+        const downloadURL = await getDownloadURL(storageRef);
+        imageUrls.push(downloadURL);
+
+        // Update progress
+        setUploadProgress(((i + 1) / totalFiles) * 100);
+      }
+
       const vehicleData = {
-        ...restOfData,
+        ...data,
         immagini: imageUrls,
         data_inserimento: serverTimestamp(),
       };
@@ -137,12 +162,11 @@ export default function AddVehiclePage() {
     } catch (error: any) {
       console.error('Error adding document: ', error);
       
-      let description = error.message || 'Impossibile aggiungere il veicolo. Si è verificato un errore sconosciuto.';
-      
-      if (error.code === 'permission-denied') {
+      let description = 'Impossibile salvare il veicolo. Si è verificato un errore sconosciuto.';
+      if (error.code === 'storage/unauthorized') {
+          description = 'Errore di permessi per il caricamento delle immagini. Controlla le regole di sicurezza di Firebase Storage.';
+      } else if (error.code === 'permission-denied') {
         description = 'Errore di permessi. Controlla le regole di sicurezza di Firestore.';
-      } else if (error.code === 'unavailable') {
-        description = 'Errore di connessione al database. Verifica la tua connessione internet e la configurazione di Firebase.'
       }
 
       toast({
@@ -150,10 +174,11 @@ export default function AddVehiclePage() {
         title: 'Errore durante il salvataggio',
         description: description,
       });
+    } finally {
+        setUploadProgress(null);
     }
   }
 
-  const { formState: { isSubmitting } } = form;
 
   return (
     <div className="container mx-auto max-w-4xl px-4 py-8">
@@ -180,7 +205,7 @@ export default function AddVehiclePage() {
                     <FormItem>
                       <FormLabel>Marca *</FormLabel>
                       <FormControl>
-                        <Input placeholder="Es. Audi" {...field} value={field.value ?? ''} disabled={isSubmitting} />
+                        <Input placeholder="Es. Audi" {...field} disabled={isSubmitting} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -193,7 +218,7 @@ export default function AddVehiclePage() {
                     <FormItem>
                       <FormLabel>Modello *</FormLabel>
                       <FormControl>
-                        <Input placeholder="Es. A3" {...field} value={field.value ?? ''} disabled={isSubmitting} />
+                        <Input placeholder="Es. A3" {...field} disabled={isSubmitting} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -206,7 +231,7 @@ export default function AddVehiclePage() {
                     <FormItem>
                       <FormLabel>Versione/Allestimento *</FormLabel>
                       <FormControl>
-                        <Input placeholder="Es. Sportback 35 TFSI" {...field} value={field.value ?? ''} disabled={isSubmitting} />
+                        <Input placeholder="Es. Sportback 35 TFSI" {...field} disabled={isSubmitting} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -219,7 +244,7 @@ export default function AddVehiclePage() {
                     <FormItem>
                       <FormLabel>Anno *</FormLabel>
                       <FormControl>
-                        <Input type="number" {...field} value={field.value ?? ''} disabled={isSubmitting} />
+                        <Input type="number" {...field} disabled={isSubmitting} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -232,7 +257,7 @@ export default function AddVehiclePage() {
                     <FormItem>
                       <FormLabel>Chilometraggio *</FormLabel>
                       <FormControl>
-                        <Input type="number" {...field} value={field.value ?? ''} disabled={isSubmitting} />
+                        <Input type="number" {...field} disabled={isSubmitting} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -245,7 +270,7 @@ export default function AddVehiclePage() {
                     <FormItem>
                       <FormLabel>Prezzo *</FormLabel>
                       <FormControl>
-                        <Input type="number" {...field} value={field.value ?? ''} disabled={isSubmitting} />
+                        <Input type="number" {...field} disabled={isSubmitting} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -302,7 +327,7 @@ export default function AddVehiclePage() {
                     <FormItem>
                       <FormLabel>Potenza (CV) *</FormLabel>
                       <FormControl>
-                        <Input type="number" {...field} value={field.value ?? ''} disabled={isSubmitting} />
+                        <Input type="number" {...field} disabled={isSubmitting} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -449,46 +474,71 @@ export default function AddVehiclePage() {
                 )}
               />
 
-              <FormField
-                control={form.control}
-                name="immagini"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>URL Immagini *</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        placeholder="https://.../immagine1.jpg
-https://.../immagine2.jpg"
-                        rows={5}
-                        {...field}
+              <div className="space-y-2">
+                <FormLabel>Immagini *</FormLabel>
+                <FormControl>
+                  <div className="flex items-center justify-center w-full">
+                    <label htmlFor="dropzone-file" className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed rounded-lg cursor-pointer bg-muted hover:bg-muted/80">
+                      <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                        <UploadCloud className="w-10 h-10 mb-3 text-muted-foreground" />
+                        <p className="mb-2 text-sm text-muted-foreground"><span className="font-semibold">Clicca per caricare</span> o trascina</p>
+                        <p className="text-xs text-muted-foreground">PNG, JPG, WEBP</p>
+                      </div>
+                      <Input 
+                        id="dropzone-file" 
+                        type="file" 
+                        className="hidden" 
+                        multiple 
+                        onChange={handleFileChange}
+                        accept="image/png, image/jpeg, image/webp"
                         disabled={isSubmitting}
                       />
-                    </FormControl>
-                    <FormDescription>
-                      Inserisci un URL di immagine per riga. La prima immagine sarà quella di copertina.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                    </label>
+                  </div>
+                </FormControl>
+                <FormDescription>
+                  La prima immagine caricata sarà quella di copertina.
+                </FormDescription>
+                <FormMessage />
+              </div>
 
-              <FormField
-                control={form.control}
-                name="link_canva"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Link Canva (Galleria Completa)</FormLabel>
-                    <FormControl>
-                      <Input placeholder="https://www.canva.com/design/..." {...field} value={field.value ?? ''} disabled={isSubmitting} />
-                    </FormControl>
-                    <FormDescription>
-                      Link a una presentazione Canva con la galleria fotografica completa del veicolo.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {imageFiles.length > 0 && (
+                <div className="space-y-4">
+                  <h4 className="text-sm font-medium">Immagini selezionate:</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {imageFiles.map((file, index) => (
+                      <div key={index} className="relative group">
+                        <Image
+                          src={URL.createObjectURL(file)}
+                          alt={`Anteprima ${index + 1}`}
+                          width={200}
+                          height={150}
+                          onLoad={() => URL.revokeObjectURL(URL.createObjectURL(file))}
+                          className="object-cover w-full h-24 rounded-md"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeImage(index)}
+                          className="absolute top-1 right-1 bg-destructive text-destructive-foreground rounded-full p-1 opacity-75 group-hover:opacity-100 transition-opacity"
+                          aria-label="Rimuovi immagine"
+                          disabled={isSubmitting}
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
+              {uploadProgress !== null && (
+                  <div className="space-y-2">
+                      <FormLabel>{uploadProgress === 100 ? 'Finalizzazione...' : 'Caricamento in corso...'}</FormLabel>
+                      <Progress value={uploadProgress} />
+                      <p className="text-sm text-muted-foreground text-center">{Math.round(uploadProgress)}%</p>
+                  </div>
+              )}
+              
               <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting ? 'Salvataggio...' : 'Salva veicolo'}
               </Button>
