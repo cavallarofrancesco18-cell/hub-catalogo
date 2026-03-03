@@ -44,8 +44,14 @@ const vehicleSchema = z.object({
     errorMap: () => ({ message: 'Seleziona un tipo di cambio.' }),
   }),
   potenza: z.coerce.number().min(1, 'Potenza non valida'),
-  potenza_kw: z.coerce.number().optional(),
-  cilindrata: z.coerce.number().optional(),
+  potenza_kw: z.preprocess(
+    (val) => (val === "" || val === null ? undefined : val),
+    z.coerce.number({invalid_type_error: 'Potenza (kW) deve essere un numero.'}).positive('Potenza (kW) deve essere un numero positivo.').optional()
+  ),
+  cilindrata: z.preprocess(
+    (val) => (val === "" || val === null ? undefined : val),
+    z.coerce.number({invalid_type_error: 'Cilindrata deve essere un numero.'}).positive('Cilindrata deve essere un numero positivo.').optional()
+  ),
   classe_emissioni: z.string().optional(),
   colore_esterno: z.string().min(1, 'Il colore è obbligatorio'),
   colore_interni: z.string().optional(),
@@ -130,16 +136,18 @@ export default function AddVehiclePage() {
       router.push('/auto');
     } catch (error: any) {
       console.error('Error adding document: ', error);
-      let description = 'Impossibile aggiungere il veicolo. Riprova più tardi.';
-      if (error.code === 'permission-denied' || (error.message && error.message.includes('permission-denied'))){
+      
+      let description = error.message || 'Impossibile aggiungere il veicolo. Si è verificato un errore sconosciuto.';
+      
+      if (error.code === 'permission-denied') {
         description = 'Errore di permessi. Controlla le regole di sicurezza di Firestore.';
-      } else if (error.code === 'unavailable' || (error.message && error.message.toLowerCase().includes('fetch'))){
-        description = 'Errore di connessione al database. Verifica la configurazione di Firebase e la connessione internet.'
+      } else if (error.code === 'unavailable') {
+        description = 'Errore di connessione al database. Verifica la tua connessione internet e la configurazione di Firebase.'
       }
 
       toast({
         variant: 'destructive',
-        title: 'Errore',
+        title: 'Errore durante il salvataggio',
         description: description,
       });
     }
