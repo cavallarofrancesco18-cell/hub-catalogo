@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useForm } from 'react-hook-form';
@@ -37,8 +36,12 @@ const vehicleSchema = z.object({
   versione: z.string().min(1, 'La versione è obbligatoria'),
   anno: z.coerce.number().min(1900, 'Anno non valido').max(new Date().getFullYear() + 1),
   chilometraggio: z.coerce.number().min(0, 'Chilometraggio non valido'),
-  carburante: z.enum(['Benzina', 'Diesel', 'Elettrica', 'Ibrida']),
-  cambio: z.enum(['Manuale', 'Automatico']),
+  carburante: z.enum(['Benzina', 'Diesel', 'Elettrica', 'Ibrida'], {
+    errorMap: () => ({ message: 'Seleziona un tipo di carburante.' }),
+  }),
+  cambio: z.enum(['Manuale', 'Automatico'], {
+    errorMap: () => ({ message: 'Seleziona un tipo di cambio.' }),
+  }),
   potenza: z.coerce.number().min(1, 'Potenza non valida'),
   potenza_kw: z.coerce.number().optional(),
   cilindrata: z.coerce.number().optional(),
@@ -91,10 +94,9 @@ export default function AddVehiclePage() {
   async function onSubmit(data: VehicleFormValues) {
     const imageUrls = data.immagini.split('\n').map(url => url.trim()).filter(Boolean);
     if (imageUrls.length === 0) {
-      toast({
-        variant: 'destructive',
-        title: 'Errore',
-        description: 'Aggiungi almeno un URL di immagine.',
+      form.setError('immagini', {
+        type: 'manual',
+        message: 'Aggiungi almeno un URL di immagine.',
       });
       return;
     }
@@ -102,10 +104,9 @@ export default function AddVehiclePage() {
     const urlSchema = z.string().url();
     const invalidUrls = imageUrls.filter(url => !urlSchema.safeParse(url).success);
     if (invalidUrls.length > 0) {
-      toast({
-        variant: 'destructive',
-        title: 'URL Immagine non valido',
-        description: `Uno o più URL delle immagini non sono validi: ${invalidUrls.join(', ')}`,
+      form.setError('immagini', {
+        type: 'manual',
+        message: `Uno o più URL delle immagini non sono validi: ${invalidUrls.join(', ')}`,
       });
       return;
     }
@@ -124,12 +125,19 @@ export default function AddVehiclePage() {
         description: 'Veicolo aggiunto al catalogo.',
       });
       router.push('/auto');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error adding document: ', error);
+      let description = 'Impossibile aggiungere il veicolo. Riprova più tardi.';
+      if (error.code === 'permission-denied' || (error.message && error.message.includes('permission-denied'))){
+        description = 'Errore di permessi. Controlla le regole di sicurezza di Firestore.';
+      } else if (error.code === 'unavailable' || (error.message && error.message.toLowerCase().includes('fetch'))){
+        description = 'Errore di connessione al database. Verifica la configurazione di Firebase e la connessione internet.'
+      }
+
       toast({
         variant: 'destructive',
         title: 'Errore',
-        description: 'Impossibile aggiungere il veicolo. Riprova più tardi.',
+        description: description,
       });
     }
   }
