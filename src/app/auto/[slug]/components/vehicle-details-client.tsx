@@ -8,7 +8,7 @@ import {
   CarouselPrevious,
 } from '@/components/ui/carousel';
 import type { Vehicle } from '@/lib/types';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, getDirectImageUrl } from '@/lib/utils';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Camera } from 'lucide-react';
@@ -26,11 +26,13 @@ export function VehicleDetailsClient({ vehicle }: VehicleDetailsClientProps) {
       <div className="lg:col-span-3">
         <Carousel className="w-full">
           <CarouselContent>
-            {vehicle.immagini.map((img, index) => (
+            {vehicle.immagini.map((img, index) => {
+              const imageUrl = getDirectImageUrl(img);
+              return (
               <CarouselItem key={index}>
                 <div className="aspect-w-16 aspect-h-9">
                   <Image
-                    src={img}
+                    src={imageUrl}
                     alt={`Immagine ${index + 1} di ${vehicle.marca} ${vehicle.modello}`}
                     width={800}
                     height={600}
@@ -40,7 +42,8 @@ export function VehicleDetailsClient({ vehicle }: VehicleDetailsClientProps) {
                   />
                 </div>
               </CarouselItem>
-            ))}
+              )
+            })}
           </CarouselContent>
           <CarouselPrevious className="ml-14" />
           <CarouselNext className="mr-14" />

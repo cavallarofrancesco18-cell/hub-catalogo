@@ -1,7 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import type { Vehicle } from '@/lib/types';
-import { formatCurrency, formatNumber, generateSlug } from '@/lib/utils';
+import { formatCurrency, formatNumber, generateSlug, getDirectImageUrl } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
@@ -14,20 +14,27 @@ interface VehicleCardProps {
 
 export function VehicleCard({ vehicle }: VehicleCardProps) {
   const slug = generateSlug(vehicle);
+  const imageUrl = getDirectImageUrl(vehicle.immagini[0] || '');
 
   return (
     <Card className="overflow-hidden transition-all duration-300 hover:shadow-xl w-full relative">
       <Link href={`/auto/${slug}`} aria-label={`Vedi dettagli per ${vehicle.marca} ${vehicle.modello}`}>
         <div className="relative">
           <StatusBadge status={vehicle.stato} />
-          <Image
-            src={vehicle.immagini[0]}
-            alt={`Immagine di ${vehicle.marca} ${vehicle.modello}`}
-            width={600}
-            height={400}
-            className="w-full h-48 object-cover"
-            data-ai-hint={`${vehicle.marca} car`}
-          />
+          {imageUrl ? (
+            <Image
+              src={imageUrl}
+              alt={`Immagine di ${vehicle.marca} ${vehicle.modello}`}
+              width={600}
+              height={400}
+              className="w-full h-48 object-cover"
+              data-ai-hint={`${vehicle.marca} car`}
+            />
+          ) : (
+            <div className="w-full h-48 bg-muted flex items-center justify-center text-muted-foreground">
+              Nessuna immagine
+            </div>
+          )}
         </div>
       </Link>
       <CardContent className="p-4">

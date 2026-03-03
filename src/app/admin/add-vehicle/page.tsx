@@ -29,6 +29,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { List } from 'lucide-react';
 import Link from 'next/link';
+import { getDirectImageUrl } from '@/lib/utils';
 
 const vehicleSchema = z.object({
   marca: z.string().min(1, 'La marca è obbligatoria'),
@@ -92,14 +93,16 @@ export default function AddVehiclePage() {
   });
 
   async function onSubmit(data: VehicleFormValues) {
-    const imageUrls = data.immagini.split('\n').map(url => url.trim()).filter(Boolean);
-    if (imageUrls.length === 0) {
+    const rawImageUrls = data.immagini.split('\n').map(url => url.trim()).filter(Boolean);
+    if (rawImageUrls.length === 0) {
       form.setError('immagini', {
         type: 'manual',
         message: 'Aggiungi almeno un URL di immagine.',
       });
       return;
     }
+
+    const imageUrls = rawImageUrls.map(getDirectImageUrl);
 
     const urlSchema = z.string().url();
     const invalidUrls = imageUrls.filter(url => !urlSchema.safeParse(url).success);
