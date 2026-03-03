@@ -1,27 +1,57 @@
-import { vehicles as mockVehicles } from './data';
+import {
+  collection,
+  getDocs,
+  doc,
+  getDoc,
+  query,
+  where,
+  limit,
+} from 'firebase/firestore';
+import { getFirestore } from 'firebase/firestore';
 import type { Vehicle } from './types';
+import { initializeFirebase } from '@/firebase';
 
-// This API now uses local mock data for maximum speed.
+function getDb() {
+  return getFirestore(initializeFirebase().firebaseApp);
+}
 
 export async function getVehicles(): Promise<Vehicle[]> {
-  // Simulate a very short network delay
-  await new Promise(resolve => setTimeout(resolve, 50));
-  return mockVehicles;
+  const db = getDb();
+  const vehiclesCol = collection(db, 'vehicles');
+  const vehicleSnapshot = await getDocs(vehiclesCol);
+  const vehicleList = vehicleSnapshot.docs.map(doc => ({
+    ...(doc.data() as Omit<Vehicle, 'id'>),
+    id: doc.id,
+  }));
+  return vehicleList;
 }
 
 export async function getVehicle(id: string): Promise<Vehicle | null> {
-    // Simulate a very short network delay
-    await new Promise(resolve => setTimeout(resolve, 50));
-    const vehicle = mockVehicles.find(v => v.id === id) || null;
-    return vehicle;
-}
+  const db = getDb();
+  const docRef = doc(db, 'vehicles', id);
+  const docSnap = await getDoc(docRef);
 
+  if (docSnap.exists()) {
+    return { ...(docSnap.data() as Omit<Vehicle, 'id'>), id: docSnap.id };
+  } else {
+    return null;
+  }
+}
 
 export async function getVehicleBySlug(slug: string): Promise<Vehicle | null> {
-  const id = slug.split('-').pop();
-  if (!id) return null;
-  return getVehicle(id);
+  const db = getDb();
+  const vehiclesRef = collection(db, 'vehicles');
+  const q = query(vehiclesRef, where('slug', '==', slug), limit(1));
+  const querySnapshot = await getDocs(q);
+
+  if (!querySnapshot.empty) {
+    const doc = querySnapshot.docs[0];
+    return { ...(doc.data() as Omit<Vehicle, 'id'>), id: doc.id };
+  } else {
+    return null;
+  }
 }
+
 
 export async function getUniqueBrands(): Promise<string[]> {
   const allVehicles = await getVehicles();

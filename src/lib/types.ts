@@ -22,4 +22,5 @@ export type Vehicle = {
   descrizione: string;
   immagini: string[];
   link_canva?: string;
+  slug: string;
 };

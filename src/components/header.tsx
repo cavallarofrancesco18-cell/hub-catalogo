@@ -14,12 +14,19 @@ export function Header() {
             LuxDrive Catalog
           </span>
         </Link>
-        <Button asChild variant="outline">
-          <Link href="/auto">
-            <Home className="mr-2 h-4 w-4" />
-            Home
-          </Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button asChild variant="outline">
+            <Link href="/auto">
+              <Home className="mr-2 h-4 w-4" />
+              Home
+            </Link>
+          </Button>
+          <Button asChild>
+            <Link href="/admin">
+              Admin
+            </Link>
+          </Button>
+        </div>
       </div>
     </header>
   );

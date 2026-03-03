@@ -5,11 +5,16 @@ import type { Vehicle } from '@/lib/types';
 import { VehicleCard } from '@/components/vehicle-card';
 import { FilterSidebar } from './components/filter-sidebar';
 import { Skeleton } from '@/components/ui/skeleton';
-import { getVehicles } from '@/lib/api';
+import { useCollection } from '@/firebase/firestore/use-collection';
+import { collection, getFirestore } from 'firebase/firestore';
+import { useMemoFirebase } from '@/firebase';
+
 
 export default function AutoPage() {
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const firestore = getFirestore();
+  const vehiclesRef = useMemoFirebase(() => collection(firestore, 'vehicles'), [firestore]);
+  const { data: vehicles, isLoading: isLoadingVehicles } = useCollection<Vehicle>(vehiclesRef);
+  
   const [brands, setBrands] = useState<string[]>([]);
   const [initialPriceRange, setInitialPriceRange] = useState<[number, number]>([0, 100000]);
 
@@ -21,27 +26,24 @@ export default function AutoPage() {
   });
   const [sortBy, setSortBy] = useState('price-asc');
   
-  useEffect(() => {
-    async function loadData() {
-        const fetchedVehicles = await getVehicles();
-        setVehicles(fetchedVehicles);
-        
-        if (fetchedVehicles.length > 0) {
-            const uniqueBrands = Array.from(new Set(fetchedVehicles.map(v => v.marca))).sort();
-            setBrands(uniqueBrands);
+  const isLoading = isLoadingVehicles || !vehicles;
 
-            const prices = fetchedVehicles.map(v => v.prezzo);
-            const priceRange: [number, number] = [Math.min(...prices), Math.max(...prices)];
-            setInitialPriceRange(priceRange);
-            setFilters(prev => ({ ...prev, price: priceRange }));
-        }
-        setIsLoading(false);
+  useEffect(() => {
+    if (vehicles && vehicles.length > 0) {
+        const uniqueBrands = Array.from(new Set(vehicles.map(v => v.marca))).sort();
+        setBrands(uniqueBrands);
+
+        const prices = vehicles.map(v => v.prezzo);
+        const priceRange: [number, number] = [Math.min(...prices), Math.max(...prices)];
+        setInitialPriceRange(priceRange);
+        setFilters(prev => ({ ...prev, price: priceRange }));
     }
-    loadData();
-  }, []);
+  }, [vehicles]);
 
 
   const filteredAndSortedVehicles = useMemo(() => {
+    if (!vehicles) return [];
+    
     let filtered = vehicles.filter(v => {
       const { brand, fuel, transmission, price } = filters;
       return (

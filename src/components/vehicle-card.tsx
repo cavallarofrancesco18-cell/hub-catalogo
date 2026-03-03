@@ -13,8 +13,8 @@ interface VehicleCardProps {
 }
 
 export function VehicleCard({ vehicle }: VehicleCardProps) {
-  const slug = generateSlug(vehicle);
-  const imageUrl = getDirectImageUrl(vehicle.immagini[0] || '');
+  const slug = vehicle.slug || generateSlug(vehicle);
+  const imageUrl = vehicle.immagini && vehicle.immagini.length > 0 ? getDirectImageUrl(vehicle.immagini[0]) : '';
 
   return (
     <Card className="overflow-hidden transition-all duration-300 hover:shadow-xl w-full relative">

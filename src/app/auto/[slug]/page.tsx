@@ -4,33 +4,39 @@ import { formatCurrency, formatNumber } from '@/lib/utils';
 import { notFound, useParams } from 'next/navigation';
 import { VehicleDetailsClient } from './components/vehicle-details-client';
 import { Badge } from '@/components/ui/badge';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import type { Vehicle } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { getVehicleBySlug } from '@/lib/api';
+import { useDoc } from '@/firebase/firestore/use-doc';
+import { doc, getFirestore } from 'firebase/firestore';
+import { useMemoFirebase } from '@/firebase';
+
 
 export default function VehiclePage() {
   const params = useParams();
   const slug = params.slug as string;
   const [showTarga, setShowTarga] = useState(false);
-  const [vehicle, setVehicle] = useState<Vehicle | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [vehicleId, setVehicleId] = useState<string | null>(null);
 
   useEffect(() => {
     if (slug) {
-        setLoading(true);
-        async function loadVehicle() {
-            const v = await getVehicleBySlug(slug);
-            setVehicle(v);
-            setLoading(false);
+        // Naive way to get id from slug, assuming format 'brand-model-year-id'
+        const id = slug.split('-').pop();
+        if (id) {
+            setVehicleId(id);
         }
-        loadVehicle();
-    } else {
-        setLoading(false);
     }
   }, [slug]);
+
+  const firestore = getFirestore();
+  const vehicleRef = useMemoFirebase(() => {
+    if (!vehicleId) return null;
+    return doc(firestore, 'vehicles', vehicleId);
+  }, [firestore, vehicleId]);
+
+  const { data: vehicle, isLoading: loading } = useDoc<Vehicle>(vehicleRef);
 
   if (loading) {
     return (
@@ -62,7 +68,8 @@ export default function VehiclePage() {
   }
 
   if (!vehicle) {
-    notFound();
+    // This could also be a not found page
+    return notFound();
   }
 
   return (
