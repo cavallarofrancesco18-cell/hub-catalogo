@@ -1,0 +1,69 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "Represents a user's profile in the system.",
+      "type": "object",
+      "properties": {
+        "displayName": {
+          "type": "string",
+          "description": "The user's display name."
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "The user's email address."
+        },
+        "photoURL": {
+          "type": "string",
+          "format": "uri",
+          "description": "URL of the user's profile picture."
+        },
+        "role": {
+          "type": "string",
+          "description": "The role of the user.",
+          "enum": ["admin", "seller"],
+          "default": "seller"
+        }
+      },
+      "required": ["displayName", "email", "role"]
+    },
+    "Vehicle": {
+      "title": "Vehicle",
+      "description": "Represents a vehicle for sale.",
+      "type": "object",
+      "properties": {
+        "marca": { "type": "string" },
+        "modello": { "type": "string" },
+        "versione": { "type": "string" },
+        "anno": { "type": "number" },
+        "chilometraggio": { "type": "number" },
+        "carburante": { "type": "string", "enum": ["Benzina", "Diesel", "Elettrica", "Ibrida"] },
+        "cambio": { "type": "string", "enum": ["Manuale", "Automatico"] },
+        "potenza": { "type": "number" },
+        "colore_esterno": { "type": "string" },
+        "prezzo": { "type": "number" },
+        "descrizione": { "type": "string" },
+        "immagini": { "type": "array", "items": { "type": "string", "format": "uri" } },
+        "link_canva": { "type": "string", "format": "uri" },
+        "stato": { "type": "string", "enum": ["Pubblicato", "Opzionato", "Venduto"] },
+        "consulente": { "type": "string" },
+        "telefono_consulente": { "type": "string" }
+      },
+      "required": ["marca", "modello", "anno", "prezzo"]
+    }
+  },
+  "auth": {
+    "providers": ["google.com"]
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Stores user profile information."
+    },
+    "/vehicles/{vehicleId}": {
+      "schema": { "$ref": "#/entities/Vehicle" },
+      "description": "Stores vehicle listings."
+    }
+  }
+}

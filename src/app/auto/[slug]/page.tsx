@@ -1,67 +1,54 @@
-import { getVehicleBySlug, getVehicles } from '@/lib/api';
-import { generateSlug, formatCurrency, formatNumber } from '@/lib/utils';
-import { notFound } from 'next/navigation';
-import type { Metadata } from 'next';
-import { generateSeoMetaDescription } from '@/ai/flows/generate-seo-meta-description-flow';
+'use client';
+
+import { formatCurrency, formatNumber } from '@/lib/utils';
+import { notFound, useParams } from 'next/navigation';
 import { VehicleDetailsClient } from './components/vehicle-details-client';
 import { Badge } from '@/components/ui/badge';
+import { useDoc } from '@/firebase/firestore/use-doc';
+import { doc, getFirestore } from 'firebase/firestore';
+import { useMemo } from 'react';
+import type { Vehicle } from '@/lib/types';
+import { Skeleton } from '@/components/ui/skeleton';
 
-type VehiclePageProps = {
-  params: {
-    slug: string;
-  };
-};
+export default function VehiclePage() {
+  const params = useParams();
+  const slug = params.slug as string;
+  const vehicleId = useMemo(() => slug.split('-').pop(), [slug]);
 
-export async function generateStaticParams() {
-  const vehicles = await getVehicles();
-  return vehicles.map(vehicle => ({
-    slug: generateSlug(vehicle),
-  }));
-}
+  const vehicleRef = useMemo(
+    () => (vehicleId ? doc(getFirestore(), 'vehicles', vehicleId) : null),
+    [vehicleId]
+  );
+  const { data: vehicle, loading } = useDoc<Vehicle>(vehicleRef);
 
-export async function generateMetadata({ params }: VehiclePageProps): Promise<Metadata> {
-  const vehicle = await getVehicleBySlug(params.slug);
-
-  if (!vehicle) {
-    return {
-      title: 'Veicolo non trovato',
-    };
+  if (loading) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="mb-6">
+          <Skeleton className="h-10 w-3/4" />
+          <Skeleton className="h-6 w-1/2 mt-2" />
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
+          <div className="lg:col-span-3">
+             <Skeleton className="w-full h-[450px] rounded-lg" />
+          </div>
+          <div className="lg:col-span-2">
+            <Skeleton className="w-full h-[250px] rounded-lg" />
+          </div>
+        </div>
+         <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="md:col-span-2 space-y-4">
+                 <Skeleton className="h-8 w-1/4" />
+                 <Skeleton className="h-20 w-full" />
+            </div>
+            <div className="space-y-4">
+                 <Skeleton className="h-8 w-1/4" />
+                 <Skeleton className="h-40 w-full" />
+            </div>
+         </div>
+      </div>
+    );
   }
-  
-  const pageTitle = `${vehicle.marca} ${vehicle.modello} | LuxDrive Catalog`;
-
-  try {
-    const seoInput = {
-      brand: vehicle.marca,
-      model: vehicle.modello,
-      version: vehicle.versione,
-      year: vehicle.anno,
-      mileage: vehicle.chilometraggio,
-      fuel: vehicle.carburante,
-      transmission: vehicle.cambio,
-      power: vehicle.potenza,
-      exteriorColor: vehicle.colore_esterno,
-      price: vehicle.prezzo,
-      description: vehicle.descrizione,
-    };
-
-    const { metaDescription } = await generateSeoMetaDescription(seoInput);
-
-    return {
-      title: pageTitle,
-      description: metaDescription,
-    };
-  } catch (error) {
-    console.error("AI meta description generation failed:", error);
-    return {
-      title: pageTitle,
-      description: `Scopri i dettagli di questa ${vehicle.marca} ${vehicle.modello} del ${vehicle.anno}. Chilometraggio: ${formatNumber(vehicle.chilometraggio)} km. Prezzo: ${formatCurrency(vehicle.prezzo)}.`,
-    };
-  }
-}
-
-export default async function VehiclePage({ params }: VehiclePageProps) {
-  const vehicle = await getVehicleBySlug(params.slug);
 
   if (!vehicle) {
     notFound();

@@ -17,3 +17,11 @@ export type Vehicle = {
   consulente: string;
   telefono_consulente: string;
 };
+
+export type UserProfile = {
+  uid: string;
+  displayName: string;
+  email: string;
+  photoURL: string;
+  role: 'admin' | 'seller';
+};

@@ -2,16 +2,25 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import type { Vehicle } from '@/lib/types';
-import { getVehicles, getUniqueBrands, getPriceRange } from '@/lib/api';
 import { VehicleCard } from '@/components/vehicle-card';
 import { FilterSidebar } from './components/filter-sidebar';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useCollection } from '@/firebase/firestore/use-collection';
+import { collection, getFirestore } from 'firebase/firestore';
+import { Button } from '@/components/ui/button';
+import { useAuth } from '@/hooks/use-auth';
+import Link from 'next/link';
 
 export default function AutoPage() {
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const { isAdmin, loading: authLoading } = useAuth();
   const [brands, setBrands] = useState<string[]>([]);
   const [initialPriceRange, setInitialPriceRange] = useState<[number, number]>([0, 100000]);
-  const [isLoading, setIsLoading] = useState(true);
+
+  const { data: vehicles = [], loading: vehiclesLoading } = useCollection<Vehicle>(
+    useMemo(() => collection(getFirestore(), 'vehicles'), [])
+  );
+  
+  const isLoading = authLoading || vehiclesLoading;
 
   const [filters, setFilters] = useState({
     brand: 'all',
@@ -22,26 +31,18 @@ export default function AutoPage() {
   const [sortBy, setSortBy] = useState('price-asc');
 
   useEffect(() => {
-    async function fetchData() {
-      setIsLoading(true);
-      try {
-        const [fetchedVehicles, fetchedBrands, fetchedPriceRange] = await Promise.all([
-          getVehicles(),
-          getUniqueBrands(),
-          getPriceRange(),
-        ]);
-        setVehicles(fetchedVehicles);
-        setBrands(fetchedBrands);
-        setInitialPriceRange(fetchedPriceRange);
-        setFilters(prev => ({ ...prev, price: fetchedPriceRange }));
-      } catch (error) {
-        console.error("Failed to fetch vehicle data:", error);
-      } finally {
-        setIsLoading(false);
+    if (vehicles.length > 0) {
+      const uniqueBrands = Array.from(new Set(vehicles.map(v => v.marca))).sort();
+      setBrands(uniqueBrands);
+
+      const prices = vehicles.map(v => v.prezzo);
+      const priceRange: [number, number] = [Math.min(...prices), Math.max(...prices)];
+      setInitialPriceRange(priceRange);
+      if (filters.price[0] === 0 && filters.price[1] === 100000) {
+         setFilters(prev => ({ ...prev, price: priceRange }));
       }
     }
-    fetchData();
-  }, []);
+  }, [vehicles]);
 
   const filteredAndSortedVehicles = useMemo(() => {
     let filtered = vehicles.filter(v => {
@@ -72,6 +73,13 @@ export default function AutoPage() {
 
   return (
     <div className="container mx-auto px-4 py-8">
+      {isAdmin && !authLoading && (
+        <div className="mb-4 flex justify-end">
+          <Button asChild>
+            <Link href="/admin">Pannello Admin</Link>
+          </Button>
+        </div>
+      )}
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-4">
         <FilterSidebar
           brands={brands}

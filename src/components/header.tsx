@@ -1,5 +1,6 @@
 import { Car } from 'lucide-react';
 import Link from 'next/link';
+import { AuthButton } from './auth-button';
 
 export function Header() {
   return (
@@ -13,6 +14,9 @@ export function Header() {
             LuxDrive Catalog
           </span>
         </Link>
+        <div className="ml-auto">
+          <AuthButton />
+        </div>
       </div>
     </header>
   );
