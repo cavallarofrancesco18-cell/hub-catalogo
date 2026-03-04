@@ -4,7 +4,7 @@ service firebase.storage {
   match /b/{bucket}/o {
     // Allow public read access to all files.
     // This is necessary for the app to display images.
-    match /vehicles/{vehicleId}/{allPaths=**} {
+    match /download/{vehicleId}/{allPaths=**} {
       allow read: if true;
 
       // Allow authenticated users to write (create, update, delete).

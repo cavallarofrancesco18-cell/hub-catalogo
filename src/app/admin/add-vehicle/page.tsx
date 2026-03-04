@@ -152,7 +152,7 @@ export default function AddVehiclePage() {
       setUploadProgress({});
       try {
         const uploadPromises = filesToUpload.map(({ file }) => {
-          const storageRef = ref(storage, `vehicles/${newDocRef.id}/${file.name}`);
+          const storageRef = ref(storage, `download/${newDocRef.id}/${file.name}`);
           const uploadTask = uploadBytesResumable(storageRef, file);
           return new Promise<string>((resolve, reject) => {
             uploadTask.on('state_changed',
