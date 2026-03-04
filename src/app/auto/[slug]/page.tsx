@@ -4,13 +4,13 @@ import { formatCurrency, formatNumber } from '@/lib/utils';
 import { notFound, useParams } from 'next/navigation';
 import { VehicleDetailsClient } from './components/vehicle-details-client';
 import { Badge } from '@/components/ui/badge';
-import { useEffect, useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import type { Vehicle } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useDoc } from '@/firebase/firestore/use-doc';
-import { doc } from 'firebase/firestore';
+import { useCollection } from '@/firebase/firestore/use-collection';
+import { collection, query, where, limit } from 'firebase/firestore';
 import { useFirestore, useMemoFirebase } from '@/firebase';
 
 
@@ -18,25 +18,16 @@ export default function VehiclePage() {
   const params = useParams();
   const slug = params.slug as string;
   const [showTarga, setShowTarga] = useState(false);
-  const [vehicleId, setVehicleId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (slug) {
-        // Naive way to get id from slug, assuming format 'brand-model-year-id'
-        const id = slug.split('-').pop();
-        if (id) {
-            setVehicleId(id);
-        }
-    }
-  }, [slug]);
 
   const firestore = useFirestore();
-  const vehicleRef = useMemoFirebase(() => {
-    if (!vehicleId) return null;
-    return doc(firestore, 'vehicles', vehicleId);
-  }, [firestore, vehicleId]);
+  const vehicleQuery = useMemoFirebase(() => {
+    if (!slug || !firestore) return null;
+    return query(collection(firestore, 'vehicles'), where('slug', '==', slug), limit(1));
+  }, [firestore, slug]);
 
-  const { data: vehicle, isLoading: loading } = useDoc<Vehicle>(vehicleRef);
+  const { data: vehicles, isLoading: loading } = useCollection<Vehicle>(vehicleQuery);
+
+  const vehicle = useMemo(() => vehicles?.[0], [vehicles]);
 
   if (loading) {
     return (
@@ -68,7 +59,6 @@ export default function VehiclePage() {
   }
 
   if (!vehicle) {
-    // This could also be a not found page
     return notFound();
   }
 
