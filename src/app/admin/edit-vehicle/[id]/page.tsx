@@ -63,6 +63,7 @@ const vehicleSchema = z.object({
   classe_emissioni: z.string().optional(),
   bollo: z.string().optional(),
   descrizione: z.string().min(10, 'La descrizione è troppo corta.'),
+  immagini: z.string().optional(),
   link_canva: z.string().url('URL non valido.').optional().or(z.literal('')),
   stato: z.enum(['In vendita', 'Venduto']),
 });
@@ -107,6 +108,7 @@ export default function EditVehiclePage() {
       classe_emissioni: '',
       bollo: '',
       descrizione: '',
+      immagini: '',
       link_canva: '',
       stato: 'In vendita',
     },
@@ -133,6 +135,7 @@ export default function EditVehiclePage() {
             classe_emissioni: vehicleData.classe_emissioni ?? '',
             bollo: vehicleData.bollo ?? '',
             link_canva: vehicleData.link_canva ?? '',
+            immagini: '', // Keep textarea for new URLs empty
           };
           form.reset(dataForForm as VehicleFormValues);
           setExistingImages(vehicleData.immagini || []);
@@ -189,15 +192,16 @@ export default function EditVehiclePage() {
         return;
     }
     
+    const hasImageUrlsFromTextArea = data.immagini && data.immagini.trim() !== '';
     const hasExistingImages = existingImages.length > 0;
     const hasFiles = filesToUpload.length > 0;
     const hasCanvaLink = data.link_canva && data.link_canva.trim() !== '';
 
-    if (!hasExistingImages && !hasFiles && !hasCanvaLink) {
+    if (!hasExistingImages && !hasFiles && !hasCanvaLink && !hasImageUrlsFromTextArea) {
         toast({
             variant: "destructive",
             title: "Nessuna immagine fornita",
-            description: "È necessario avere almeno un'immagine, un link Canva o caricare un nuovo file.",
+            description: "È necessario avere almeno un'immagine, un link Canva, caricare un nuovo file o inserire un URL.",
         });
         return;
     }
@@ -242,20 +246,27 @@ export default function EditVehiclePage() {
     setIsUploading(false);
 
     const vehicleRef = doc(firestore, 'vehicles', vehicleId);
-    const allImageUrls = [...existingImages, ...uploadedImageUrls];
+    
+    const textAreaUrls = data.immagini?.split('\n').filter(url => url.trim() !== '') ?? [];
+    const allImageUrls = [...existingImages, ...uploadedImageUrls, ...textAreaUrls];
+
     const slug = generateSlug({
       ...data,
       id: vehicleId,
     });
+    
+    const { immagini, ...restOfData } = data;
 
-    updateDocumentNonBlocking(vehicleRef, {
-      ...data,
-      immagini: allImageUrls,
-      slug,
-      potenza_kw: data.potenza_kw ? Number(data.potenza_kw) : null,
-      cilindrata: data.cilindrata ? Number(data.cilindrata) : null,
-      updatedAt: serverTimestamp(),
-    })
+    const dataToSave = {
+        ...restOfData,
+        immagini: allImageUrls,
+        slug,
+        potenza_kw: data.potenza_kw ? Number(data.potenza_kw) : null,
+        cilindrata: data.cilindrata ? Number(data.cilindrata) : null,
+        updatedAt: serverTimestamp(),
+    };
+    
+    updateDocumentNonBlocking(vehicleRef, dataToSave)
     .then(() => {
         toast({
             title: 'Veicolo aggiornato!',
@@ -614,7 +625,7 @@ export default function EditVehiclePage() {
             <CardHeader>
                 <CardTitle>Immagini e Galleria</CardTitle>
                 <CardDescription>
-                    Gestisci le immagini del veicolo. La prima immagine nell'elenco sarà quella di copertina.
+                    Gestisci le immagini del veicolo. Devi fornire almeno un'immagine. La prima sarà quella di copertina.
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -627,7 +638,8 @@ export default function EditVehiclePage() {
                                     <Image
                                         src={getDirectImageUrl(url)}
                                         alt="Immagine veicolo esistente"
-                                        layout="fill"
+                                        fill
+                                        sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
                                         className="object-cover rounded-md"
                                     />
                                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
@@ -686,7 +698,7 @@ export default function EditVehiclePage() {
                                         </div>
                                         {isUploading && uploadProgress[file.name] != null && (
                                             <div className="mt-2 flex items-center gap-2">
-                                                <Progress value={uploadProgress[file.name]} />
+                                                <Progress value={uploadProgress[file.name]} className="h-1.5" />
                                                 <span className="text-xs font-mono text-muted-foreground w-10 text-right shrink-0">
                                                     {`${Math.round(uploadProgress[file.name])}%`}
                                                 </span>
@@ -710,6 +722,37 @@ export default function EditVehiclePage() {
                   </div>
                 </div>
               
+                <FormField
+                control={form.control}
+                name="immagini"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>URL Immagini (uno per riga, per nuove immagini)</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="https://.../immagine1.jpg&#x000A;https://.../immagine2.png"
+                        className="min-h-[100px]"
+                        {...field}
+                        value={field.value ?? ''}
+                      />
+                    </FormControl>
+                    <FormDescription>Aggiungi qui nuovi URL di immagini. Le immagini esistenti sono mostrate sopra.</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+               <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-card px-2 text-muted-foreground">
+                      Oppure
+                    </span>
+                  </div>
+                </div>
+
               <FormField
                   control={form.control}
                   name="link_canva"
