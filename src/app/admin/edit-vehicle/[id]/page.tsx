@@ -5,9 +5,11 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useRouter, useParams } from 'next/navigation';
-import { doc, getDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import Image from 'next/image';
 
-import { useFirestore } from '@/firebase';
+import { useFirestore, useFirebaseApp } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -36,9 +38,11 @@ import {
 } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
-import { generateSlug } from '@/lib/utils';
+import { generateSlug, getDirectImageUrl } from '@/lib/utils';
 import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import Link from 'next/link';
+import { Progress } from '@/components/ui/progress';
+import { X } from 'lucide-react';
 
 const vehicleSchema = z.object({
   marca: z.string().min(1, 'La marca è obbligatoria.'),
@@ -59,7 +63,6 @@ const vehicleSchema = z.object({
   classe_emissioni: z.string().optional(),
   bollo: z.string().optional(),
   descrizione: z.string().min(10, 'La descrizione è troppo corta.'),
-  immagini: z.string().min(1, 'Inserire almeno un URL di immagine.'),
   link_canva: z.string().url('URL non valido.').optional().or(z.literal('')),
   stato: z.enum(['In vendita', 'Venduto']),
 });
@@ -70,10 +73,18 @@ export default function EditVehiclePage() {
   const router = useRouter();
   const params = useParams();
   const firestore = useFirestore();
+  const app = useFirebaseApp();
+  const storage = getStorage(app);
   const { toast } = useToast();
+  
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const vehicleId = params.id as string;
+  
+  const [existingImages, setExistingImages] = useState<string[]>([]);
+  const [filesToUpload, setFilesToUpload] = useState<File[]>([]);
+  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
+  const [isUploading, setIsUploading] = useState(false);
 
   const form = useForm<VehicleFormValues>({
     resolver: zodResolver(vehicleSchema),
@@ -96,7 +107,6 @@ export default function EditVehiclePage() {
       classe_emissioni: '',
       bollo: '',
       descrizione: '',
-      immagini: '',
       link_canva: '',
       stato: 'In vendita',
     },
@@ -113,10 +123,8 @@ export default function EditVehiclePage() {
 
         if (docSnap.exists()) {
           const vehicleData = docSnap.data();
-          form.reset({
-            ...vehicleData,
-            immagini: (vehicleData.immagini || []).join('\n'),
-          } as VehicleFormValues);
+          form.reset(vehicleData as VehicleFormValues);
+          setExistingImages(vehicleData.immagini || []);
         } else {
           toast({
             variant: 'destructive',
@@ -140,6 +148,26 @@ export default function EditVehiclePage() {
     fetchVehicle();
   }, [vehicleId, firestore, form, router, toast]);
 
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files) {
+      const newFiles = Array.from(event.target.files);
+      setFilesToUpload(prevFiles => {
+        const uniqueNewFiles = newFiles.filter(
+          newFile => !prevFiles.some(prevFile => prevFile.name === newFile.name)
+        );
+        return [...prevFiles, ...uniqueNewFiles];
+      });
+    }
+  };
+
+  const removeNewFile = (fileName: string) => {
+    setFilesToUpload(prevFiles => prevFiles.filter(file => file.name !== fileName));
+  };
+  
+  const removeExistingImage = (urlToRemove: string) => {
+    setExistingImages(prev => prev.filter(url => url !== urlToRemove));
+  };
+
   async function onSubmit(data: VehicleFormValues) {
     if (!firestore) {
         toast({
@@ -149,12 +177,48 @@ export default function EditVehiclePage() {
         });
         return;
     }
+    
+    const hasExistingImages = existingImages.length > 0;
+    const hasFiles = filesToUpload.length > 0;
+    const hasCanvaLink = data.link_canva && data.link_canva.trim() !== '';
+
+    if (!hasExistingImages && !hasFiles && !hasCanvaLink) {
+        toast({
+            variant: "destructive",
+            title: "Nessuna immagine fornita",
+            description: "È necessario avere almeno un'immagine, un link Canva o caricare un nuovo file.",
+        });
+        return;
+    }
+
     setIsSubmitting(true);
     try {
+      let uploadedImageUrls: string[] = [];
+      if (filesToUpload.length > 0) {
+        setIsUploading(true);
+        setUploadProgress({});
+        const uploadPromises = filesToUpload.map(file => {
+          const storageRef = ref(storage, `vehicles/${vehicleId}/${Date.now()}-${file.name}`);
+          const uploadTask = uploadBytesResumable(storageRef, file);
+          return new Promise<string>((resolve, reject) => {
+            uploadTask.on('state_changed',
+              (snapshot) => {
+                const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                setUploadProgress(prev => ({ ...prev, [file.name]: progress }));
+              },
+              (error) => reject(error),
+              () => {
+                getDownloadURL(uploadTask.snapshot.ref).then(resolve).catch(reject);
+              }
+            );
+          });
+        });
+        uploadedImageUrls = await Promise.all(uploadPromises);
+        setIsUploading(false);
+      }
+
       const vehicleRef = doc(firestore, 'vehicles', vehicleId);
-
-      const immaginiArray = data.immagini.split('\n').filter(url => url.trim() !== '');
-
+      const allImageUrls = [...existingImages, ...uploadedImageUrls];
       const slug = generateSlug({
         ...data,
         id: vehicleId,
@@ -162,7 +226,7 @@ export default function EditVehiclePage() {
 
       await updateDocumentNonBlocking(vehicleRef, {
         ...data,
-        immagini: immaginiArray,
+        immagini: allImageUrls,
         slug,
         potenza_kw: data.potenza_kw ? Number(data.potenza_kw) : null,
         cilindrata: data.cilindrata ? Number(data.cilindrata) : null,
@@ -183,6 +247,7 @@ export default function EditVehiclePage() {
       });
     } finally {
       setIsSubmitting(false);
+      setIsUploading(false);
     }
   }
 
@@ -495,11 +560,11 @@ export default function EditVehiclePage() {
             </CardContent>
            </Card>
 
-          <Card>
+           <Card>
             <CardHeader>
-              <CardTitle>Descrizione e Immagini</CardTitle>
+              <CardTitle>Descrizione</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-6">
+            <CardContent>
               <FormField
                 control={form.control}
                 name="descrizione"
@@ -517,32 +582,104 @@ export default function EditVehiclePage() {
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="immagini"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>URL Immagini</FormLabel>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+                <CardTitle>Immagini e Galleria</CardTitle>
+                <CardDescription>
+                    Gestisci le immagini del veicolo. La prima immagine nell'elenco sarà quella di copertina.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+                 <div>
+                    <FormLabel>Immagini Esistenti</FormLabel>
+                    {existingImages.length > 0 ? (
+                        <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                            {existingImages.map((url) => (
+                                <div key={url} className="relative group aspect-w-16 aspect-h-9">
+                                    <Image
+                                        src={getDirectImageUrl(url)}
+                                        alt="Immagine veicolo esistente"
+                                        layout="fill"
+                                        className="object-cover rounded-md"
+                                    />
+                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                        <Button type="button" variant="destructive" size="icon" className="h-8 w-8" onClick={() => removeExistingImage(url)} disabled={isSubmitting}>
+                                            <X className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <p className="mt-2 text-sm text-muted-foreground">Nessuna immagine esistente. Caricane di nuove qui sotto.</p>
+                    )}
+                </div>
+
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-card px-2 text-muted-foreground">
+                      Aggiungi Nuove Immagini
+                    </span>
+                  </div>
+                </div>
+
+                 <div>
+                    <FormLabel>Carica da dispositivo</FormLabel>
                     <FormControl>
-                      <Textarea
-                        placeholder="Inserisci un URL per riga..."
-                        className="min-h-[100px]"
-                        {...field}
-                      />
+                        <Input 
+                            type="file" 
+                            multiple 
+                            onChange={handleFileChange}
+                            className="mt-2 h-auto p-4 border-dashed cursor-pointer"
+                            accept="image/png, image/jpeg, image/gif, image/webp"
+                        />
                     </FormControl>
-                    <FormDescription>
-                      Inserisci un link per ogni immagine, uno per riga. La prima sarà l'immagine di copertina.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                    {filesToUpload.length > 0 && (
+                        <div className="mt-4 space-y-2">
+                            <p className="text-sm font-medium">File pronti per il caricamento:</p>
+                            <ul className="space-y-3">
+                                {filesToUpload.map((file) => (
+                                    <li key={file.name} className="text-sm flex items-center justify-between bg-muted p-2 rounded-md">
+                                        <span className="truncate max-w-[200px] md:max-w-xs">{file.name}</span>
+                                        {isUploading && uploadProgress[file.name] < 100 && (
+                                            <Progress value={uploadProgress[file.name]} className="w-1/3 mx-4" />
+                                        )}
+                                        {isUploading && uploadProgress[file.name] === 100 && (
+                                            <span className="text-green-600 text-xs">Completato</span>
+                                        )}
+                                        <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeNewFile(file.name)} disabled={isUploading}>
+                                            <X className="h-4 w-4" />
+                                        </Button>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+                 </div>
+
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-card px-2 text-muted-foreground">
+                      Oppure
+                    </span>
+                  </div>
+                </div>
+              
               <FormField
                   control={form.control}
                   name="link_canva"
                   render={({ field }) => (
                   <FormItem>
-                      <FormLabel>Link Galleria Completa (Canva - Opzionale)</FormLabel>
+                      <FormLabel>Link Galleria Completa (Canva)</FormLabel>
                       <FormControl>
                       <Input placeholder="https://..." {...field} value={field.value ?? ''} />
                       </FormControl>
@@ -559,7 +696,7 @@ export default function EditVehiclePage() {
                 <Link href="/admin">Annulla</Link>
             </Button>
             <Button type="submit" disabled={isSubmitting || isLoading}>
-              {isSubmitting ? 'Salvataggio in corso...' : 'Salva Modifiche'}
+              {isSubmitting ? (isUploading ? 'Caricamento immagini...' : 'Salvataggio in corso...') : 'Salva Modifiche'}
             </Button>
           </div>
         </form>
@@ -567,5 +704,3 @@ export default function EditVehiclePage() {
     </div>
   );
 }
-
-    

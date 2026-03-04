@@ -1,17 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { useForm, Controller } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useRouter } from 'next/navigation';
-import {
-  doc,
-  collection,
-  serverTimestamp,
-} from 'firebase/firestore';
+import { doc, collection, serverTimestamp } from 'firebase/firestore';
+import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 
-import { useFirestore } from '@/firebase';
+import { useFirestore, useFirebaseApp } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -42,6 +39,8 @@ import { useToast } from '@/hooks/use-toast';
 import { generateSlug } from '@/lib/utils';
 import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import Link from 'next/link';
+import { Progress } from '@/components/ui/progress';
+import { X } from 'lucide-react';
 
 const vehicleSchema = z.object({
   marca: z.string().min(1, 'La marca è obbligatoria.'),
@@ -62,8 +61,8 @@ const vehicleSchema = z.object({
   classe_emissioni: z.string().optional(),
   bollo: z.string().optional(),
   descrizione: z.string().min(10, 'La descrizione è troppo corta.'),
-  immagini: z.string().min(1, 'Inserire almeno un URL di immagine.'),
-  link_canva: z.string().url('URL non valido.').optional().or(z.literal('')),
+  immagini: z.string().optional(),
+  link_canva: z.string().url({ message: "URL non valido." }).optional().or(z.literal('')),
   stato: z.enum(['In vendita', 'Venduto']),
   data_inserimento: z.string().optional(),
 });
@@ -73,8 +72,14 @@ type VehicleFormValues = z.infer<typeof vehicleSchema>;
 export default function AddVehiclePage() {
   const router = useRouter();
   const firestore = useFirestore();
+  const app = useFirebaseApp();
+  const storage = getStorage(app);
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  const [filesToUpload, setFilesToUpload] = useState<File[]>([]);
+  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
+  const [isUploading, setIsUploading] = useState(false);
 
   const form = useForm<VehicleFormValues>({
     resolver: zodResolver(vehicleSchema),
@@ -101,6 +106,23 @@ export default function AddVehiclePage() {
     },
   });
 
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files) {
+      const newFiles = Array.from(event.target.files);
+      setFilesToUpload(prevFiles => {
+        const uniqueNewFiles = newFiles.filter(
+          newFile => !prevFiles.some(prevFile => prevFile.name === newFile.name)
+        );
+        return [...prevFiles, ...uniqueNewFiles];
+      });
+    }
+  };
+
+  const removeFile = (fileName: string) => {
+    setFilesToUpload(prevFiles => prevFiles.filter(file => file.name !== fileName));
+  };
+
+
   async function onSubmit(data: VehicleFormValues) {
     if (!firestore) {
         toast({
@@ -110,10 +132,50 @@ export default function AddVehiclePage() {
         });
         return;
     }
+
+    const hasImageUrls = data.immagini && data.immagini.trim() !== '';
+    const hasCanvaLink = data.link_canva && data.link_canva.trim() !== '';
+    const hasFiles = filesToUpload.length > 0;
+
+    if (!hasImageUrls && !hasCanvaLink && !hasFiles) {
+      toast({
+        variant: 'destructive',
+        title: 'Nessuna immagine fornita',
+        description: "È necessario caricare almeno un'immagine, inserire URL o fornire un link Canva.",
+      });
+      return;
+    }
+
     setIsSubmitting(true);
+
     try {
+      let uploadedImageUrls: string[] = [];
+      if (filesToUpload.length > 0) {
+        setIsUploading(true);
+        setUploadProgress({});
+        const uploadPromises = filesToUpload.map(file => {
+          const storageRef = ref(storage, `vehicles/${Date.now()}-${file.name}`);
+          const uploadTask = uploadBytesResumable(storageRef, file);
+          return new Promise<string>((resolve, reject) => {
+            uploadTask.on('state_changed',
+              (snapshot) => {
+                const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                setUploadProgress(prev => ({ ...prev, [file.name]: progress }));
+              },
+              (error) => reject(error),
+              () => {
+                getDownloadURL(uploadTask.snapshot.ref).then(resolve).catch(reject);
+              }
+            );
+          });
+        });
+        uploadedImageUrls = await Promise.all(uploadPromises);
+        setIsUploading(false);
+      }
+
       const vehicleCollection = collection(firestore, 'vehicles');
-      const immaginiArray = data.immagini.split('\n').filter(url => url.trim() !== '');
+      const textAreaUrls = data.immagini?.split('\n').filter(url => url.trim() !== '') ?? [];
+      const allImageUrls = [...textAreaUrls, ...uploadedImageUrls];
       
       const newDocRef = doc(vehicleCollection);
       
@@ -125,7 +187,7 @@ export default function AddVehiclePage() {
       const dataToSave = {
         ...data,
         id: newDocRef.id,
-        immagini: immaginiArray,
+        immagini: allImageUrls,
         slug,
         potenza_kw: data.potenza_kw ? Number(data.potenza_kw) : null,
         cilindrata: data.cilindrata ? Number(data.cilindrata) : null,
@@ -154,6 +216,7 @@ export default function AddVehiclePage() {
       });
     } finally {
       setIsSubmitting(false);
+      setIsUploading(false);
     }
   }
 
@@ -452,12 +515,12 @@ export default function AddVehiclePage() {
             </CardContent>
            </Card>
 
-          <Card>
+           <Card>
             <CardHeader>
-              <CardTitle>Descrizione e Immagini</CardTitle>
+              <CardTitle>Descrizione</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <FormField
+            <CardContent>
+               <FormField
                 control={form.control}
                 name="descrizione"
                 render={({ field }) => (
@@ -474,32 +537,100 @@ export default function AddVehiclePage() {
                   </FormItem>
                 )}
               />
+            </CardContent>
+          </Card>
+
+
+          <Card>
+            <CardHeader>
+                <CardTitle>Immagini e Galleria</CardTitle>
+                <CardDescription>
+                    Fornisci almeno una delle seguenti opzioni. L'upload da dispositivo è consigliato. La prima immagine sarà quella di copertina.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+                 <div>
+                    <FormLabel>Carica da dispositivo</FormLabel>
+                    <FormControl>
+                        <Input 
+                            type="file" 
+                            multiple 
+                            onChange={handleFileChange}
+                            className="mt-2 h-auto p-4 border-dashed cursor-pointer"
+                            accept="image/png, image/jpeg, image/gif, image/webp"
+                        />
+                    </FormControl>
+                    {filesToUpload.length > 0 && (
+                        <div className="mt-4 space-y-2">
+                            <p className="text-sm font-medium">File pronti per il caricamento:</p>
+                            <ul className="space-y-3">
+                                {filesToUpload.map((file) => (
+                                    <li key={file.name} className="text-sm flex items-center justify-between bg-muted p-2 rounded-md">
+                                        <span className="truncate max-w-[200px] md:max-w-xs">{file.name}</span>
+                                        {isUploading && uploadProgress[file.name] < 100 && (
+                                            <Progress value={uploadProgress[file.name]} className="w-1/3 mx-4" />
+                                        )}
+                                        {isUploading && uploadProgress[file.name] === 100 && (
+                                            <span className="text-green-600 text-xs">Completato</span>
+                                        )}
+                                        <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeFile(file.name)} disabled={isUploading}>
+                                            <X className="h-4 w-4" />
+                                        </Button>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+                 </div>
+
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-card px-2 text-muted-foreground">
+                      Oppure
+                    </span>
+                  </div>
+                </div>
+
               <FormField
                 control={form.control}
                 name="immagini"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>URL Immagini</FormLabel>
+                    <FormLabel>URL Immagini (uno per riga)</FormLabel>
                     <FormControl>
                       <Textarea
-                        placeholder="Inserisci un URL per riga..."
+                        placeholder="https://.../immagine1.jpg
+https://.../immagine2.png"
                         className="min-h-[100px]"
                         {...field}
+                        value={field.value ?? ''}
                       />
                     </FormControl>
-                    <FormDescription>
-                      Inserisci un link per ogni immagine, uno per riga. La prima sarà l&apos;immagine di copertina.
-                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+
+               <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-card px-2 text-muted-foreground">
+                      Oppure
+                    </span>
+                  </div>
+                </div>
+
               <FormField
                   control={form.control}
                   name="link_canva"
                   render={({ field }) => (
                   <FormItem>
-                      <FormLabel>Link Galleria Completa (Canva - Opzionale)</FormLabel>
+                      <FormLabel>Link Galleria Completa (Canva)</FormLabel>
                       <FormControl>
                       <Input placeholder="https://..." {...field} value={field.value ?? ''} />
                       </FormControl>
@@ -515,7 +646,7 @@ export default function AddVehiclePage() {
                 <Link href="/admin">Annulla</Link>
             </Button>
             <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? 'Salvataggio in corso...' : 'Salva Veicolo'}
+              {isSubmitting ? (isUploading ? 'Caricamento immagini...' : 'Salvataggio in corso...') : 'Salva Veicolo'}
             </Button>
           </div>
         </form>
