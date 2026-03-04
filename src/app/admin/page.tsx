@@ -159,7 +159,7 @@ export default function AdminPage() {
                       <div className="font-medium">{`${vehicle.marca} ${vehicle.modello}`}</div>
                       <div className="text-sm text-muted-foreground">{vehicle.versione}</div>
                     </TableCell>
-                    <TableCell>{vehicle.anno}</TableCell>
+                    <TableCell>{vehicle.data_immatricolazione ? new Date(vehicle.data_immatricolazione).getFullYear() : vehicle.anno}</TableCell>
                     <TableCell>{formatCurrency(vehicle.prezzo)}</TableCell>
                     <TableCell>
                       <Badge variant={vehicle.stato === 'Venduto' ? 'destructive' : 'secondary'}>
