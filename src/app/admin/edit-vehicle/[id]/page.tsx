@@ -65,25 +65,26 @@ const vehicleSchema = z.object({
   marca: z.string().min(1, 'La marca è obbligatoria.'),
   modello: z.string().min(1, 'Il modello è obbligatorio.'),
   versione: z.string().min(1, 'La versione è obbligatoria.'),
-  data_immatricolazione: z.string({ required_error: 'La data di immatricolazione è obbligatoria.'}),
-  chilometraggio: z.coerce.number().int().min(0, 'Chilometraggio non valido.'),
-  carburante: z.enum(['Benzina', 'Diesel', 'Elettrica', 'Ibrida']),
-  cambio: z.enum(['Manuale', 'Automatico']),
-  potenza: z.coerce.number().int().min(1, 'Potenza non valida.'),
-  potenza_kw: z.coerce.number().int().min(1, 'Potenza non valida.').optional().or(z.literal('')),
-  cilindrata: z.coerce.number().int().min(1, 'Cilindrata non valida.').optional().or(z.literal('')),
-  colore_esterno: z.string().min(1, 'Il colore è obbligatorio.'),
+  data_immatricolazione: z.string({ required_error: 'La data di immatricolazione è obbligatoria.' }),
+  targa: z.string().min(1, 'La targa è obbligatoria.'),
+  chilometraggio: z.coerce.number().int().optional().or(z.literal('')),
+  carburante: z.enum(['Benzina', 'Diesel', 'Elettrica', 'Ibrida']).optional(),
+  cambio: z.enum(['Manuale', 'Automatico']).optional(),
+  potenza: z.coerce.number().int().optional().or(z.literal('')),
+  potenza_kw: z.coerce.number().int().optional().or(z.literal('')),
+  cilindrata: z.coerce.number().int().optional().or(z.literal('')),
+  colore_esterno: z.string().optional(),
   colore_interni: z.string().optional(),
-  prezzo: z.coerce.number().min(0, 'Prezzo non valido.'),
-  targa: z.string().optional(),
+  prezzo: z.coerce.number().optional().or(z.literal('')),
   garanzia: z.string().optional(),
   classe_emissioni: z.string().optional(),
   bollo: z.string().optional(),
-  descrizione: z.string().min(10, 'La descrizione è troppo corta.'),
+  descrizione: z.string().optional(),
   immagini: z.string().optional(),
   link_canva: z.string().url('URL non valido.').optional().or(z.literal('')),
-  stato: z.enum(['In vendita', 'Venduto']),
+  stato: z.enum(['In vendita', 'Venduto']).optional(),
 });
+
 
 type VehicleFormValues = z.infer<typeof vehicleSchema>;
 
@@ -92,7 +93,7 @@ export default function EditVehiclePage() {
   const params = useParams();
   const firestore = useFirestore();
   const app = useFirebaseApp();
-  const storage = getStorage(app, 'gs://studio-3074982188-44660.firebasestorage.app');
+  const storage = getStorage(app, 'gs://studio-3074982188-44660.appspot.com');
   const { toast } = useToast();
   
   const [isLoading, setIsLoading] = useState(true);
@@ -112,15 +113,13 @@ export default function EditVehiclePage() {
       modello: '',
       versione: '',
       data_immatricolazione: new Date().toISOString(),
-      chilometraggio: 0,
-      carburante: 'Benzina',
-      cambio: 'Manuale',
-      potenza: 0,
+      chilometraggio: '',
+      potenza: '',
       potenza_kw: '',
       cilindrata: '',
       colore_esterno: '',
       colore_interni: '',
-      prezzo: 0,
+      prezzo: '',
       targa: '',
       garanzia: '',
       classe_emissioni: '',
@@ -145,18 +144,26 @@ export default function EditVehiclePage() {
           const vehicleData = docSnap.data();
           const dataForForm = {
             ...vehicleData,
+            chilometraggio: vehicleData.chilometraggio ?? '',
+            potenza: vehicleData.potenza ?? '',
+            prezzo: vehicleData.prezzo ?? '',
+            carburante: vehicleData.carburante ?? undefined,
+            cambio: vehicleData.cambio ?? undefined,
+            colore_esterno: vehicleData.colore_esterno ?? '',
+            descrizione: vehicleData.descrizione ?? '',
+            stato: vehicleData.stato ?? 'In vendita',
+            targa: vehicleData.targa ?? '',
             data_immatricolazione: vehicleData.data_immatricolazione || (vehicleData.anno ? new Date(vehicleData.anno, 0, 1).toISOString() : new Date().toISOString()),
             potenza_kw: vehicleData.potenza_kw ?? '',
             cilindrata: vehicleData.cilindrata ?? '',
             colore_interni: vehicleData.colore_interni ?? '',
-            targa: vehicleData.targa ?? '',
             garanzia: vehicleData.garanzia ?? '',
             classe_emissioni: vehicleData.classe_emissioni ?? '',
             bollo: vehicleData.bollo ?? '',
             link_canva: vehicleData.link_canva ?? '',
             immagini: '', // Keep textarea for new URLs empty
           };
-          form.reset(dataForForm as VehicleFormValues);
+          form.reset(dataForForm as any);
           setExistingImages(vehicleData.immagini || []);
         } else {
           toast({
@@ -333,6 +340,9 @@ export default function EditVehiclePage() {
         ...restOfData,
         immagini: allImageUrls,
         slug,
+        chilometraggio: data.chilometraggio ? Number(data.chilometraggio) : null,
+        potenza: data.potenza ? Number(data.potenza) : null,
+        prezzo: data.prezzo ? Number(data.prezzo) : null,
         potenza_kw: data.potenza_kw ? Number(data.potenza_kw) : null,
         cilindrata: data.cilindrata ? Number(data.cilindrata) : null,
         updatedAt: serverTimestamp(),
@@ -385,7 +395,7 @@ export default function EditVehiclePage() {
             <CardHeader>
               <CardTitle>Informazioni Principali</CardTitle>
               <CardDescription>
-                Modifica i dati base del veicolo.
+                Modifica i dati base del veicolo. I campi con * sono obbligatori.
               </CardDescription>
             </CardHeader>
             <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -394,7 +404,7 @@ export default function EditVehiclePage() {
                 name="marca"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Marca</FormLabel>
+                    <FormLabel>Marca *</FormLabel>
                     <FormControl>
                       <Input placeholder="Es. Audi" {...field} />
                     </FormControl>
@@ -407,7 +417,7 @@ export default function EditVehiclePage() {
                 name="modello"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Modello</FormLabel>
+                    <FormLabel>Modello *</FormLabel>
                     <FormControl>
                       <Input placeholder="Es. A3" {...field} />
                     </FormControl>
@@ -420,7 +430,7 @@ export default function EditVehiclePage() {
                 name="versione"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Versione/Allestimento</FormLabel>
+                    <FormLabel>Versione/Allestimento *</FormLabel>
                     <FormControl>
                       <Input placeholder="Es. Sportback 35 TFSI" {...field} />
                     </FormControl>
@@ -433,7 +443,7 @@ export default function EditVehiclePage() {
                 name="data_immatricolazione"
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
-                    <FormLabel>Data di Immatricolazione</FormLabel>
+                    <FormLabel>Data di Immatricolazione *</FormLabel>
                     <Popover>
                       <PopoverTrigger asChild>
                         <FormControl>
@@ -469,17 +479,17 @@ export default function EditVehiclePage() {
                   </FormItem>
                 )}
               />
-              <FormField
+               <FormField
                 control={form.control}
-                name="chilometraggio"
+                name="targa"
                 render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Chilometraggio</FormLabel>
+                <FormItem>
+                    <FormLabel>Targa *</FormLabel>
                     <FormControl>
-                      <Input type="number" placeholder="Es. 45000" {...field} />
+                    <Input placeholder="Es. AB123CD" {...field} value={field.value ?? ''} />
                     </FormControl>
                     <FormMessage />
-                  </FormItem>
+                </FormItem>
                 )}
               />
               <FormField
@@ -487,9 +497,9 @@ export default function EditVehiclePage() {
                 name="prezzo"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Prezzo</FormLabel>
+                    <FormLabel>Prezzo (Opzionale)</FormLabel>
                     <FormControl>
-                      <Input type="number" placeholder="Es. 32000" {...field} />
+                      <Input type="number" placeholder="Es. 32000" {...field} value={field.value ?? ''} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -500,9 +510,22 @@ export default function EditVehiclePage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Dati Tecnici</CardTitle>
+              <CardTitle>Dati Tecnici (Opzionali)</CardTitle>
             </CardHeader>
             <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+               <FormField
+                control={form.control}
+                name="chilometraggio"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Chilometraggio</FormLabel>
+                    <FormControl>
+                      <Input type="number" placeholder="Es. 45000" {...field} value={field.value ?? ''} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <FormField
                 control={form.control}
                 name="carburante"
@@ -554,7 +577,7 @@ export default function EditVehiclePage() {
                   <FormItem>
                     <FormLabel>Potenza (CV)</FormLabel>
                     <FormControl>
-                      <Input type="number" placeholder="Es. 150" {...field} />
+                      <Input type="number" placeholder="Es. 150" {...field} value={field.value ?? ''} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -565,7 +588,7 @@ export default function EditVehiclePage() {
                 name="potenza_kw"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Potenza (kW) (Opzionale)</FormLabel>
+                    <FormLabel>Potenza (kW)</FormLabel>
                     <FormControl>
                       <Input type="number" placeholder="Es. 110" {...field} value={field.value ?? ''} />
                     </FormControl>
@@ -578,7 +601,7 @@ export default function EditVehiclePage() {
                 name="cilindrata"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Cilindrata (cc) (Opzionale)</FormLabel>
+                    <FormLabel>Cilindrata (cc)</FormLabel>
                     <FormControl>
                       <Input type="number" placeholder="Es. 1998" {...field} value={field.value ?? ''} />
                     </FormControl>
@@ -591,7 +614,7 @@ export default function EditVehiclePage() {
                 name="classe_emissioni"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Classe Emissioni (Opzionale)</FormLabel>
+                    <FormLabel>Classe Emissioni</FormLabel>
                     <FormControl>
                       <Input placeholder="Es. Euro 6d" {...field} value={field.value ?? ''} />
                     </FormControl>
@@ -604,7 +627,7 @@ export default function EditVehiclePage() {
 
            <Card>
             <CardHeader>
-              <CardTitle>Estetica e Dati Amministrativi</CardTitle>
+              <CardTitle>Estetica e Dati Amministrativi (Opzionali)</CardTitle>
             </CardHeader>
             <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <FormField
@@ -614,7 +637,7 @@ export default function EditVehiclePage() {
                     <FormItem>
                         <FormLabel>Colore Esterno</FormLabel>
                         <FormControl>
-                        <Input placeholder="Es. Grigio Daytona" {...field} />
+                        <Input placeholder="Es. Grigio Daytona" {...field} value={field.value ?? ''} />
                         </FormControl>
                         <FormMessage />
                     </FormItem>
@@ -625,22 +648,9 @@ export default function EditVehiclePage() {
                     name="colore_interni"
                     render={({ field }) => (
                     <FormItem>
-                        <FormLabel>Colore Interni (Opzionale)</FormLabel>
+                        <FormLabel>Colore Interni</FormLabel>
                         <FormControl>
                         <Input placeholder="Es. Pelle Nera" {...field} value={field.value ?? ''} />
-                        </FormControl>
-                        <FormMessage />
-                    </FormItem>
-                    )}
-                />
-                 <FormField
-                    control={form.control}
-                    name="targa"
-                    render={({ field }) => (
-                    <FormItem>
-                        <FormLabel>Targa (Opzionale)</FormLabel>
-                        <FormControl>
-                        <Input placeholder="Es. AB123CD" {...field} value={field.value ?? ''} />
                         </FormControl>
                         <FormMessage />
                     </FormItem>
@@ -651,7 +661,7 @@ export default function EditVehiclePage() {
                     name="garanzia"
                     render={({ field }) => (
                     <FormItem>
-                        <FormLabel>Garanzia (Opzionale)</FormLabel>
+                        <FormLabel>Garanzia</FormLabel>
                         <FormControl>
                         <Input placeholder="Es. 12 mesi" {...field} value={field.value ?? ''} />
                         </FormControl>
@@ -664,7 +674,7 @@ export default function EditVehiclePage() {
                     name="bollo"
                     render={({ field }) => (
                     <FormItem>
-                        <FormLabel>Bollo (Opzionale)</FormLabel>
+                        <FormLabel>Bollo</FormLabel>
                         <FormControl>
                         <Input placeholder="Es. Pagato fino a 12/2024" {...field} value={field.value ?? ''} />
                         </FormControl>
@@ -698,7 +708,7 @@ export default function EditVehiclePage() {
 
            <Card>
             <CardHeader>
-              <CardTitle>Descrizione</CardTitle>
+              <CardTitle>Descrizione (Opzionale)</CardTitle>
             </CardHeader>
             <CardContent>
               <FormField
@@ -920,3 +930,5 @@ https://.../immagine2.png"
     </div>
   );
 }
+
+    
