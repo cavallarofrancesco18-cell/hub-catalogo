@@ -1,23 +1,20 @@
 'use client';
 
-import { formatCurrency, formatNumber } from '@/lib/utils';
+import { formatNumber } from '@/lib/utils';
 import { notFound, useParams } from 'next/navigation';
 import { VehicleDetailsClient } from './components/vehicle-details-client';
 import { Badge } from '@/components/ui/badge';
-import { useState, useMemo } from 'react';
+import { useMemo } from 'react';
 import type { Vehicle } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Eye, EyeOff } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { useCollection } from '@/firebase/firestore/use-collection';
 import { collection, query, where, limit } from 'firebase/firestore';
 import { useFirestore, useMemoFirebase } from '@/firebase';
-
+import { format } from 'date-fns';
 
 export default function VehiclePage() {
   const params = useParams();
   const slug = params.slug as string;
-  const [showTarga, setShowTarga] = useState(false);
 
   const firestore = useFirestore();
   const vehicleQuery = useMemoFirebase(() => {
@@ -28,6 +25,7 @@ export default function VehiclePage() {
   const { data: vehicles, isLoading: loading } = useCollection<Vehicle>(vehicleQuery);
 
   const vehicle = useMemo(() => vehicles?.[0], [vehicles]);
+  const registrationDate = vehicle?.data_immatricolazione ? format(new Date(vehicle.data_immatricolazione), 'dd/MM/yyyy') : vehicle?.anno;
 
   if (loading) {
     return (
@@ -80,8 +78,8 @@ export default function VehiclePage() {
             <h2 className="text-2xl font-bold mb-4 font-headline">Dati Tecnici</h2>
             <div className="space-y-3 text-sm">
               <div className="flex justify-between">
-                <span className="font-medium text-muted-foreground">Anno</span>
-                <span className="font-semibold">{vehicle.anno}</span>
+                <span className="font-medium text-muted-foreground">Immatricolazione</span>
+                <span className="font-semibold">{registrationDate}</span>
               </div>
               <div className="flex justify-between">
                 <span className="font-medium text-muted-foreground">Chilometraggio</span>
@@ -131,17 +129,6 @@ export default function VehiclePage() {
                 <div className="flex justify-between">
                   <span className="font-medium text-muted-foreground">Bollo</span>
                   <span className="font-semibold">{vehicle.bollo}</span>
-                </div>
-              )}
-               {vehicle.targa && (
-                <div className="flex justify-between items-center">
-                    <span className="font-medium text-muted-foreground">Targa</span>
-                    <div className="flex items-center gap-2">
-                        <span className="font-semibold tracking-wider">{showTarga ? vehicle.targa : '•• ••••• ••'}</span>
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowTarga(!showTarga)}>
-                            {showTarga ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </Button>
-                    </div>
                 </div>
               )}
               <div className="flex justify-between items-center">

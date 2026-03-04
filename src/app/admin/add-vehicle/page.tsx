@@ -37,17 +37,21 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
-import { generateSlug } from '@/lib/utils';
+import { generateSlug, cn } from '@/lib/utils';
 import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import Link from 'next/link';
 import { Progress } from '@/components/ui/progress';
-import { X } from 'lucide-react';
+import { X, Calendar as CalendarIcon } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { format } from 'date-fns';
+import { it } from 'date-fns/locale';
 
 const vehicleSchema = z.object({
   marca: z.string().min(1, 'La marca è obbligatoria.'),
   modello: z.string().min(1, 'Il modello è obbligatorio.'),
   versione: z.string().min(1, 'La versione è obbligatoria.'),
-  anno: z.coerce.number().int().min(1900, 'Anno non valido.').max(new Date().getFullYear() + 1),
+  data_immatricolazione: z.string({ required_error: 'La data di immatricolazione è obbligatoria.'}),
   chilometraggio: z.coerce.number().int().min(0, 'Chilometraggio non valido.'),
   carburante: z.enum(['Benzina', 'Diesel', 'Elettrica', 'Ibrida'], { required_error: 'Seleziona un tipo di carburante.'}),
   cambio: z.enum(['Manuale', 'Automatico'], { required_error: 'Seleziona un tipo di cambio.'}),
@@ -65,7 +69,6 @@ const vehicleSchema = z.object({
   immagini: z.string().optional(),
   link_canva: z.string().url({ message: "URL non valido." }).optional().or(z.literal('')),
   stato: z.enum(['In vendita', 'Venduto']),
-  data_inserimento: z.string().optional(),
 });
 
 type VehicleFormValues = z.infer<typeof vehicleSchema>;
@@ -88,7 +91,7 @@ export default function AddVehiclePage() {
       marca: '',
       modello: '',
       versione: '',
-      anno: new Date().getFullYear(),
+      data_immatricolazione: new Date().toISOString(),
       chilometraggio: 0,
       potenza: 0,
       potenza_kw: '',
@@ -299,13 +302,41 @@ export default function AddVehiclePage() {
               />
               <FormField
                 control={form.control}
-                name="anno"
+                name="data_immatricolazione"
                 render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Anno</FormLabel>
-                    <FormControl>
-                      <Input type="number" placeholder="Es. 2022" {...field} />
-                    </FormControl>
+                  <FormItem className="flex flex-col">
+                    <FormLabel>Data di Immatricolazione</FormLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            variant={"outline"}
+                            className={cn(
+                              "w-full pl-3 text-left font-normal",
+                              !field.value && "text-muted-foreground"
+                            )}
+                          >
+                            {field.value ? (
+                              format(new Date(field.value), "PPP", { locale: it })
+                            ) : (
+                              <span>Scegli una data</span>
+                            )}
+                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={field.value ? new Date(field.value) : undefined}
+                          onSelect={(date) => field.onChange(date?.toISOString())}
+                          disabled={(date) =>
+                            date > new Date() || date < new Date("1900-01-01")
+                          }
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -647,7 +678,7 @@ https://.../immagine2.png"
                       />
                     </FormControl>
                      <FormDescription>
-                      Per usare immagini già caricate su Firebase Storage, copia e incolla qui il loro "URL di download".
+                      Per usare immagini già caricate su Firebase Storage, apri la console di Storage, trova il file e copia il suo "URL di download".
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

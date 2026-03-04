@@ -22,9 +22,10 @@
           "type": "string",
           "description": "The specific version or trim level of the vehicle (e.g., '320d Business', 'C 220 d Premium')."
         },
-        "year": {
-          "type": "number",
-          "description": "The manufacturing year of the vehicle."
+        "data_immatricolazione": {
+          "type": "string",
+          "format": "date",
+          "description": "The first registration date of the vehicle."
         },
         "mileage": {
           "type": "number",
@@ -102,7 +103,7 @@
         "id",
         "brand",
         "model",
-        "year",
+        "data_immatricolazione",
         "mileage",
         "fuelType",
         "transmissionType",

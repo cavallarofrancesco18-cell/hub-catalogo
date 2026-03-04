@@ -20,8 +20,9 @@ export function formatNumber(num: number) {
 }
 
 
-export function generateSlug(vehicle: Vehicle) {
-  return `${vehicle.marca.toLowerCase()}-${vehicle.modello.toLowerCase()}-${vehicle.anno}-${vehicle.id}`.replace(/\s+/g, '-');
+export function generateSlug(vehicle: any) {
+  const year = new Date(vehicle.data_immatricolazione).getFullYear();
+  return `${vehicle.marca.toLowerCase()}-${vehicle.modello.toLowerCase()}-${year}-${vehicle.id}`.replace(/\s+/g, '-');
 }
 
 export function getVehicleFromSlug(slug: string, vehicles: Vehicle[]) {

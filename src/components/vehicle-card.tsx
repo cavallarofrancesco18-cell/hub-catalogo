@@ -26,6 +26,8 @@ export function VehicleCard({ vehicle }: VehicleCardProps) {
     setImageUrl('');
   };
 
+  const year = vehicle.data_immatricolazione ? new Date(vehicle.data_immatricolazione).getFullYear() : vehicle.anno;
+
   return (
     <Card className="overflow-hidden transition-all duration-300 hover:shadow-xl w-full relative">
       <Link href={`/auto/${slug}`} aria-label={`Vedi dettagli per ${vehicle.marca} ${vehicle.modello}`}>
@@ -56,7 +58,7 @@ export function VehicleCard({ vehicle }: VehicleCardProps) {
         <div className="my-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm text-muted-foreground">
           <div className="flex items-center gap-2">
             <Calendar className="h-4 w-4 text-primary" />
-            <span>{vehicle.anno}</span>
+            <span>{year}</span>
           </div>
           <div className="flex items-center gap-2">
             <Gauge className="h-4 w-4 text-primary" />

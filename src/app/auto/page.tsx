@@ -61,9 +61,9 @@ export default function AutoPage() {
         case 'price-desc':
           return b.prezzo - a.prezzo;
         case 'year-desc':
-          return b.anno - a.anno;
+          return new Date(b.data_immatricolazione).getTime() - new Date(a.data_immatricolazione).getTime();
         case 'year-asc':
-          return a.anno - b.anno;
+          return new Date(a.data_immatricolazione).getTime() - new Date(b.data_immatricolazione).getTime();
         default:
           return 0;
       }

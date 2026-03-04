@@ -5,7 +5,7 @@ export type Vehicle = {
   marca: string;
   modello: string;
   versione: string;
-  anno: number;
+  data_immatricolazione: string;
   chilometraggio: number;
   carburante: 'Benzina' | 'Diesel' | 'Elettrica' | 'Ibrida';
   cambio: 'Manuale' | 'Automatico';
@@ -23,4 +23,5 @@ export type Vehicle = {
   immagini: string[];
   link_canva?: string;
   slug: string;
+  anno?: number; // For legacy data
 };

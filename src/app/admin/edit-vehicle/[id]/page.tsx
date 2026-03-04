@@ -38,11 +38,11 @@ import {
 } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
-import { generateSlug, getDirectImageUrl } from '@/lib/utils';
+import { generateSlug, getDirectImageUrl, cn } from '@/lib/utils';
 import { updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import Link from 'next/link';
 import { Progress } from '@/components/ui/progress';
-import { X, Trash2 } from 'lucide-react';
+import { X, Trash2, Star, Calendar as CalendarIcon } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -54,13 +54,18 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { format } from 'date-fns';
+import { it } from 'date-fns/locale';
 
 
 const vehicleSchema = z.object({
   marca: z.string().min(1, 'La marca è obbligatoria.'),
   modello: z.string().min(1, 'Il modello è obbligatorio.'),
   versione: z.string().min(1, 'La versione è obbligatoria.'),
-  anno: z.coerce.number().int().min(1900, 'Anno non valido.').max(new Date().getFullYear() + 1),
+  data_immatricolazione: z.string({ required_error: 'La data di immatricolazione è obbligatoria.'}),
   chilometraggio: z.coerce.number().int().min(0, 'Chilometraggio non valido.'),
   carburante: z.enum(['Benzina', 'Diesel', 'Elettrica', 'Ibrida']),
   cambio: z.enum(['Manuale', 'Automatico']),
@@ -106,7 +111,7 @@ export default function EditVehiclePage() {
       marca: '',
       modello: '',
       versione: '',
-      anno: new Date().getFullYear(),
+      data_immatricolazione: new Date().toISOString(),
       chilometraggio: 0,
       carburante: 'Benzina',
       cambio: 'Manuale',
@@ -140,6 +145,7 @@ export default function EditVehiclePage() {
           const vehicleData = docSnap.data();
           const dataForForm = {
             ...vehicleData,
+            data_immatricolazione: vehicleData.data_immatricolazione || (vehicleData.anno ? new Date(vehicleData.anno, 0, 1).toISOString() : new Date().toISOString()),
             potenza_kw: vehicleData.potenza_kw ?? '',
             cilindrata: vehicleData.cilindrata ?? '',
             colore_interni: vehicleData.colore_interni ?? '',
@@ -201,6 +207,14 @@ export default function EditVehiclePage() {
   
   const removeExistingImage = (urlToRemove: string) => {
     setExistingImages(prev => prev.filter(url => url !== urlToRemove));
+  };
+
+  const setAsCoverImage = (urlToSet: string) => {
+    setExistingImages(prev => {
+      const newOrder = prev.filter(url => url !== urlToSet);
+      newOrder.unshift(urlToSet);
+      return newOrder;
+    });
   };
 
   const handleDelete = async () => {
@@ -416,13 +430,41 @@ export default function EditVehiclePage() {
               />
               <FormField
                 control={form.control}
-                name="anno"
+                name="data_immatricolazione"
                 render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Anno</FormLabel>
-                    <FormControl>
-                      <Input type="number" placeholder="Es. 2022" {...field} />
-                    </FormControl>
+                  <FormItem className="flex flex-col">
+                    <FormLabel>Data di Immatricolazione</FormLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            variant={"outline"}
+                            className={cn(
+                              "w-full pl-3 text-left font-normal",
+                              !field.value && "text-muted-foreground"
+                            )}
+                          >
+                            {field.value ? (
+                              format(new Date(field.value), "PPP", { locale: it })
+                            ) : (
+                              <span>Scegli una data</span>
+                            )}
+                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={field.value ? new Date(field.value) : undefined}
+                          onSelect={(date) => field.onChange(date?.toISOString())}
+                          disabled={(date) =>
+                            date > new Date() || date < new Date("1900-01-01")
+                          }
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -683,7 +725,7 @@ export default function EditVehiclePage() {
             <CardHeader>
                 <CardTitle>Immagini e Galleria</CardTitle>
                 <CardDescription>
-                    Gestisci le immagini del veicolo. Devi fornire almeno un'immagine. La prima sarà quella di copertina.
+                    Gestisci le immagini del veicolo. La prima immagine della lista sarà la foto di copertina.
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -693,6 +735,9 @@ export default function EditVehiclePage() {
                         <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
                             {existingImages.map((url, index) => (
                                 <div key={`${url}-${index}`} className="relative group aspect-w-16 aspect-h-9">
+                                    {index === 0 && (
+                                        <Badge variant="default" className="absolute top-2 left-2 z-10">Copertina</Badge>
+                                    )}
                                     <Image
                                         src={getDirectImageUrl(url)}
                                         alt="Immagine veicolo esistente"
@@ -700,8 +745,13 @@ export default function EditVehiclePage() {
                                         sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
                                         className="object-cover rounded-md"
                                     />
-                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                        <Button type="button" variant="destructive" size="icon" className="h-8 w-8" onClick={() => removeExistingImage(url)} disabled={isSubmitting}>
+                                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                        {index > 0 && (
+                                            <Button type="button" variant="secondary" size="icon" className="h-8 w-8" onClick={() => setAsCoverImage(url)} disabled={isSubmitting} title="Imposta come copertina">
+                                                <Star className="h-4 w-4" />
+                                            </Button>
+                                        )}
+                                        <Button type="button" variant="destructive" size="icon" className="h-8 w-8" onClick={() => removeExistingImage(url)} disabled={isSubmitting} title="Rimuovi immagine">
                                             <X className="h-4 w-4" />
                                         </Button>
                                     </div>
@@ -799,7 +849,7 @@ https://.../immagine2.png"
                         value={field.value ?? ''}
                       />
                     </FormControl>
-                    <FormDescription>Aggiungi qui nuovi URL. Per usare immagini da Firebase Storage, copia e incolla il loro "URL di download".</FormDescription>
+                    <FormDescription>Per usare immagini già caricate su Firebase Storage, apri la console di Storage, trova il file e copia il suo "URL di download".</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
