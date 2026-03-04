@@ -31,6 +31,14 @@ export function getVehicleFromSlug(slug: string, vehicles: Vehicle[]) {
 
 export function getDirectImageUrl(url: string): string {
   if (!url) return '';
+
+  if (url.startsWith('gs://')) {
+    const bucketAndPath = url.substring(5);
+    const [bucket, ...pathParts] = bucketAndPath.split('/');
+    const path = pathParts.join('/');
+    return `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encodeURIComponent(path)}?alt=media`;
+  }
+
   try {
     const urlObj = new URL(url);
 
