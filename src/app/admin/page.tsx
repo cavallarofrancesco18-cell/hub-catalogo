@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useCollection } from '@/firebase/firestore/use-collection';
@@ -29,12 +29,15 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatCurrency, getDirectImageUrl } from '@/lib/utils';
 import { Pencil, Trash2 } from 'lucide-react';
-import { useFirestore, useMemoFirebase } from '@/firebase';
+import { useFirestore, useFirebaseApp, useMemoFirebase } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { getStorage, ref, deleteObject } from 'firebase/storage';
 
 export default function AdminPage() {
   const firestore = useFirestore();
+  const app = useFirebaseApp();
+  const storage = useMemo(() => getStorage(app), [app]);
   const { toast } = useToast();
   const vehiclesRef = useMemoFirebase(() => collection(firestore, 'vehicles'), [firestore]);
   const { data: vehicles, isLoading } = useCollection<Vehicle>(vehiclesRef);
@@ -46,31 +49,42 @@ export default function AdminPage() {
     setVehicleToDelete(vehicle);
   };
 
-  const handleDeleteConfirm = () => {
+  const handleDeleteConfirm = async () => {
     if (!vehicleToDelete || !firestore) return;
 
     setIsDeleting(true);
     const vehicleRef = doc(firestore, 'vehicles', vehicleToDelete.id);
 
-    deleteDocumentNonBlocking(vehicleRef)
-      .then(() => {
-        toast({
-          title: 'Veicolo eliminato!',
-          description: `${vehicleToDelete.marca} ${vehicleToDelete.modello} è stato rimosso dal catalogo.`,
-        });
-      })
-      .catch(error => {
-        console.error("Errore durante l'eliminazione:", error);
-        toast({
-          variant: 'destructive',
-          title: 'Uh oh! Qualcosa è andato storto.',
-          description: 'Impossibile eliminare il veicolo.',
-        });
-      })
-      .finally(() => {
-        setIsDeleting(false);
-        setVehicleToDelete(null);
+    try {
+      const imagesToDelete = vehicleToDelete.immagini || [];
+      const deleteImagePromises = imagesToDelete.map(url => {
+        if (url.includes('firebasestorage.googleapis.com')) {
+          const imageRef = ref(storage, url);
+          return deleteObject(imageRef).catch(err => {
+            console.error(`Impossibile eliminare l'immagine ${url}:`, err);
+          });
+        }
+        return Promise.resolve();
       });
+
+      await Promise.all(deleteImagePromises);
+      await deleteDocumentNonBlocking(vehicleRef);
+
+      toast({
+        title: 'Veicolo eliminato!',
+        description: `${vehicleToDelete.marca} ${vehicleToDelete.modello} è stato rimosso dal catalogo.`,
+      });
+    } catch (error) {
+      console.error("Errore durante l'eliminazione:", error);
+      toast({
+        variant: 'destructive',
+        title: 'Uh oh! Qualcosa è andato storto.',
+        description: 'Impossibile eliminare il veicolo.',
+      });
+    } finally {
+      setIsDeleting(false);
+      setVehicleToDelete(null);
+    }
   };
 
   return (

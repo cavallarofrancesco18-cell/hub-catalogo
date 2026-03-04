@@ -74,7 +74,7 @@ export default function AddVehiclePage() {
   const router = useRouter();
   const firestore = useFirestore();
   const app = useFirebaseApp();
-  const storage = getStorage(app, 'gs://studio-3074982188-44660.appspot.com');
+  const storage = getStorage(app);
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   
@@ -156,6 +156,9 @@ export default function AddVehiclePage() {
     }
 
     setIsSubmitting(true);
+
+    const vehicleCollection = collection(firestore, 'vehicles');
+    const newDocRef = doc(vehicleCollection);
     
     let uploadedImageUrls: string[] = [];
     if (filesToUpload.length > 0) {
@@ -163,7 +166,7 @@ export default function AddVehiclePage() {
       setUploadProgress({});
       try {
         const uploadPromises = filesToUpload.map(({ file }) => {
-          const storageRef = ref(storage, `vehicles/${Date.now()}-${file.name}`);
+          const storageRef = ref(storage, `vehicles/${newDocRef.id}/${Date.now()}-${file.name}`);
           const uploadTask = uploadBytesResumable(storageRef, file);
           return new Promise<string>((resolve, reject) => {
             uploadTask.on('state_changed',
@@ -194,11 +197,8 @@ export default function AddVehiclePage() {
     
     setIsUploading(false);
 
-    const vehicleCollection = collection(firestore, 'vehicles');
     const textAreaUrls = data.immagini?.split('\n').filter(url => url.trim() !== '') ?? [];
     const allImageUrls = [...new Set([...textAreaUrls, ...uploadedImageUrls])];
-    
-    const newDocRef = doc(vehicleCollection);
     
     const slug = generateSlug({
       ...data,
@@ -217,7 +217,7 @@ export default function AddVehiclePage() {
       updatedAt: serverTimestamp(),
     };
     
-    setDocumentNonBlocking(newDocRef, dataToSave, {})
+    setDocumentNonBlocking(newDocRef, dataToSave, { merge: true })
         .then(() => {
             toast({
                 title: 'Veicolo aggiunto!',

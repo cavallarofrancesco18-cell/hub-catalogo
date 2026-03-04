@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useRouter, useParams } from 'next/navigation';
 import { doc, getDoc, serverTimestamp } from 'firebase/firestore';
-import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { getStorage, ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import Image from 'next/image';
 
 import { useFirestore, useFirebaseApp } from '@/firebase';
@@ -87,7 +87,7 @@ export default function EditVehiclePage() {
   const params = useParams();
   const firestore = useFirestore();
   const app = useFirebaseApp();
-  const storage = getStorage(app, 'gs://studio-3074982188-44660.appspot.com');
+  const storage = getStorage(app);
   const { toast } = useToast();
   
   const [isLoading, setIsLoading] = useState(true);
@@ -203,31 +203,41 @@ export default function EditVehiclePage() {
     setExistingImages(prev => prev.filter(url => url !== urlToRemove));
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!firestore || !vehicleId) return;
 
     setIsDeleting(true);
     const vehicleRef = doc(firestore, 'vehicles', vehicleId);
     
-    deleteDocumentNonBlocking(vehicleRef)
-      .then(() => {
-        toast({
-          title: "Veicolo eliminato!",
-          description: `Il veicolo è stato rimosso dal catalogo.`,
-        });
-        router.push("/admin");
-      })
-      .catch((error) => {
-        console.error("Errore durante l'eliminazione:", error);
-        toast({
-          variant: "destructive",
-          title: "Uh oh! Qualcosa è andato storto.",
-          description: "Impossibile eliminare il veicolo.",
-        });
-      })
-      .finally(() => {
-          setIsDeleting(false);
+    try {
+      const deleteImagePromises = existingImages.map(url => {
+        if (url.includes('firebasestorage.googleapis.com')) {
+          const imageRef = ref(storage, url);
+          return deleteObject(imageRef).catch(err => {
+              console.error(`Impossibile eliminare l'immagine ${url}:`, err);
+          });
+        }
+        return Promise.resolve();
       });
+      
+      await Promise.all(deleteImagePromises);
+      await deleteDocumentNonBlocking(vehicleRef);
+      
+      toast({
+        title: "Veicolo eliminato!",
+        description: `Il veicolo è stato rimosso dal catalogo.`,
+      });
+      router.push("/admin");
+    } catch (error) {
+      console.error("Errore durante l'eliminazione:", error);
+      toast({
+        variant: "destructive",
+        title: "Uh oh! Qualcosa è andato storto.",
+        description: "Impossibile eliminare il veicolo.",
+      });
+    } finally {
+        setIsDeleting(false);
+    }
   };
 
   async function onSubmit(data: VehicleFormValues) {
@@ -323,7 +333,7 @@ export default function EditVehiclePage() {
         router.push('/admin');
     })
     .catch((error) => {
-        console.error('Errore durante l\'aggiornamento:', error);
+        console.error('Errore during l\'aggiornamento:', error);
         toast({
             variant: 'destructive',
             title: 'Uh oh! Qualcosa è andato storto.',
