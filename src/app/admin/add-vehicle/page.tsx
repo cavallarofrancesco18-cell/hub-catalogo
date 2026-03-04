@@ -7,6 +7,7 @@ import * as z from 'zod';
 import { useRouter } from 'next/navigation';
 import { doc, collection, serverTimestamp } from 'firebase/firestore';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import Image from 'next/image';
 
 import { useFirestore, useFirebaseApp } from '@/firebase';
 import { Button } from '@/components/ui/button';
@@ -73,11 +74,11 @@ export default function AddVehiclePage() {
   const router = useRouter();
   const firestore = useFirestore();
   const app = useFirebaseApp();
-  const storage = getStorage(app, 'gs://studio-3074982188-44660.firebasestorage.app');
+  const storage = getStorage(app, 'gs://studio-3074982188-44660.appspot.com');
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  const [filesToUpload, setFilesToUpload] = useState<File[]>([]);
+  const [filesToUpload, setFilesToUpload] = useState<{ file: File; previewUrl: string }[]>([]);
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
   const [isUploading, setIsUploading] = useState(false);
 
@@ -110,16 +111,24 @@ export default function AddVehiclePage() {
     if (event.target.files) {
       const newFiles = Array.from(event.target.files);
       setFilesToUpload(prevFiles => {
-        const uniqueNewFiles = newFiles.filter(
-          newFile => !prevFiles.some(prevFile => prevFile.name === newFile.name)
-        );
+        const existingFileNames = new Set(prevFiles.map(f => f.file.name));
+        const uniqueNewFiles = newFiles
+          .filter(f => !existingFileNames.has(f.name))
+          .map(file => ({ file, previewUrl: URL.createObjectURL(file) }));
+        
         return [...prevFiles, ...uniqueNewFiles];
       });
     }
   };
 
   const removeFile = (fileName: string) => {
-    setFilesToUpload(prevFiles => prevFiles.filter(file => file.name !== fileName));
+    setFilesToUpload(prevFiles => {
+        const fileToRemove = prevFiles.find(f => f.file.name === fileName);
+        if (fileToRemove) {
+            URL.revokeObjectURL(fileToRemove.previewUrl);
+        }
+        return prevFiles.filter(f => f.file.name !== fileName);
+    });
   };
 
 
@@ -153,7 +162,7 @@ export default function AddVehiclePage() {
       setIsUploading(true);
       setUploadProgress({});
       try {
-        const uploadPromises = filesToUpload.map(file => {
+        const uploadPromises = filesToUpload.map(({ file }) => {
           const storageRef = ref(storage, `vehicles/${Date.now()}-${file.name}`);
           const uploadTask = uploadBytesResumable(storageRef, file);
           return new Promise<string>((resolve, reject) => {
@@ -574,36 +583,40 @@ export default function AddVehiclePage() {
                         />
                     </FormControl>
                     {filesToUpload.length > 0 && (
-                        <div className="mt-4 space-y-2">
-                            <p className="text-sm font-medium">File pronti per il caricamento:</p>
-                            <ul className="space-y-3">
-                                {filesToUpload.map((file) => (
-                                    <li key={file.name} className="text-sm bg-muted p-3 rounded-md">
-                                        <div className="flex items-start justify-between">
-                                            <span className="truncate pr-4 font-medium text-foreground">{file.name}</span>
-                                            <Button 
-                                                type="button" 
-                                                variant="ghost" 
-                                                size="icon" 
-                                                className="h-6 w-6 shrink-0" 
-                                                onClick={() => removeFile(file.name)}
-                                                disabled={isUploading}
-                                            >
-                                                <X className="h-4 w-4" />
-                                            </Button>
-                                        </div>
-                                        {isUploading && uploadProgress[file.name] != null && (
-                                            <div className="mt-2 flex items-center gap-2">
-                                                <Progress value={uploadProgress[file.name]} className="h-1.5" />
-                                                <span className="text-xs font-mono text-muted-foreground w-10 text-right shrink-0">
-                                                    {`${Math.round(uploadProgress[file.name])}%`}
-                                                </span>
-                                            </div>
-                                        )}
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
+                      <div className="mt-4">
+                          <p className="text-sm font-medium mb-2">Anteprima caricamento:</p>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                              {filesToUpload.map(({ file, previewUrl }) => (
+                                  <div key={file.name} className="relative group aspect-w-16 aspect-h-9">
+                                      <Image
+                                          src={previewUrl}
+                                          alt={`Anteprima di ${file.name}`}
+                                          fill
+                                          sizes="20vw"
+                                          className="object-cover rounded-md"
+                                      />
+                                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-2 text-center">
+                                          <Button 
+                                              type="button" 
+                                              variant="destructive" 
+                                              size="icon" 
+                                              className="h-7 w-7 shrink-0 absolute top-1 right-1 z-10"
+                                              onClick={() => removeFile(file.name)}
+                                              disabled={isUploading}
+                                          >
+                                              <X className="h-4 w-4" />
+                                          </Button>
+                                          <p className="text-xs text-white truncate w-full mt-auto">{file.name}</p>
+                                          {isUploading && uploadProgress[file.name] != null && (
+                                              <div className="w-full px-1 pt-1">
+                                                  <Progress value={uploadProgress[file.name]} className="h-1" />
+                                              </div>
+                                          )}
+                                      </div>
+                                  </div>
+                              ))}
+                          </div>
+                      </div>
                     )}
                  </div>
 
