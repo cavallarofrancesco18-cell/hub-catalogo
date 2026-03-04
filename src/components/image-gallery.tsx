@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { getDirectImageUrl } from '@/lib/utils';
 
 interface ImageGalleryProps {
   imageUrls: string[];
@@ -67,7 +66,7 @@ export function ImageGallery({ imageUrls, startIndex = 0, onClose }: ImageGaller
         <div className="relative h-full w-full max-h-[85vh] max-w-[85vw]">
           <Image
             key={currentIndex}
-            src={getDirectImageUrl(imageUrls[currentIndex])}
+            src={imageUrls[currentIndex]}
             alt={`Immagine ${currentIndex + 1}`}
             fill
             className="object-contain"
@@ -97,7 +96,7 @@ export function ImageGallery({ imageUrls, startIndex = 0, onClose }: ImageGaller
                 )}
               >
                 <Image
-                  src={getDirectImageUrl(url)}
+                  src={url}
                   alt={`Anteprima ${index + 1}`}
                   fill
                   className="object-cover"

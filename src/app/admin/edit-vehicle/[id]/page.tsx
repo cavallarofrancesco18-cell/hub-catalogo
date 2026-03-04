@@ -698,13 +698,17 @@ export default function EditVehiclePage() {
                     <FormLabel>Immagini Esistenti</FormLabel>
                     {existingImages.length > 0 ? (
                         <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                            {existingImages.map((url, index) => (
+                            {existingImages.map((url, index) => {
+                                const imageUrl = getDirectImageUrl(url);
+                                if (!imageUrl) return null;
+
+                                return (
                                 <div key={`${url}-${index}`} className="relative group aspect-[16/9]">
                                     {index === 0 && (
                                         <Badge variant="default" className="absolute top-2 left-2 z-10">Copertina</Badge>
                                     )}
                                     <Image
-                                        src={getDirectImageUrl(url)}
+                                        src={imageUrl}
                                         alt="Immagine veicolo esistente"
                                         fill
                                         sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
@@ -721,7 +725,8 @@ export default function EditVehiclePage() {
                                         </Button>
                                     </div>
                                 </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     ) : (
                         <p className="mt-2 text-sm text-muted-foreground">Nessuna immagine esistente. Caricane di nuove qui sotto.</p>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import type { Vehicle } from '@/lib/types';
 import { formatCurrency, getDirectImageUrl } from '@/lib/utils';
 import Image from 'next/image';
@@ -16,8 +16,13 @@ interface VehicleDetailsClientProps {
 }
 
 export function VehicleDetailsClient({ vehicle }: VehicleDetailsClientProps) {
-  const hasImages = vehicle.immagini && vehicle.immagini.length > 0;
-  const [mainImage, setMainImage] = useState(hasImages ? getDirectImageUrl(vehicle.immagini[0]) : '');
+  const validImageUrls = useMemo(
+    () => (vehicle.immagini || []).map(getDirectImageUrl).filter(Boolean),
+    [vehicle.immagini]
+  );
+
+  const hasImages = validImageUrls.length > 0;
+  const [mainImage, setMainImage] = useState(hasImages ? validImageUrls[0] : '');
 
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
   const [galleryStartIndex, setGalleryStartIndex] = useState(0);
@@ -30,12 +35,12 @@ export function VehicleDetailsClient({ vehicle }: VehicleDetailsClientProps) {
   const closeGallery = () => setIsGalleryOpen(false);
 
   // Find the index of the currently displayed main image
-  const currentMainImageIndex = hasImages ? vehicle.immagini.findIndex(url => getDirectImageUrl(url) === mainImage) : 0;
+  const currentMainImageIndex = hasImages ? validImageUrls.findIndex(url => url === mainImage) : 0;
 
   return (
     <>
       {isGalleryOpen && hasImages && (
-        <ImageGallery imageUrls={vehicle.immagini} startIndex={galleryStartIndex} onClose={closeGallery} />
+        <ImageGallery imageUrls={validImageUrls} startIndex={galleryStartIndex} onClose={closeGallery} />
       )}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
         <div className="lg:col-span-3">
@@ -61,20 +66,20 @@ export function VehicleDetailsClient({ vehicle }: VehicleDetailsClientProps) {
                     <Camera className="h-12 w-12 text-white" />
                 </div>
               </button>
-              {vehicle.immagini.length > 1 && (
+              {validImageUrls.length > 1 && (
                 <div className="mt-4 grid grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2">
-                  {vehicle.immagini.map((imageUrl, index) => (
+                  {validImageUrls.map((imageUrl, index) => (
                     <button
                       key={index}
                       className={cn(
                         'overflow-hidden rounded-lg aspect-[16/9] block focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 relative',
-                        getDirectImageUrl(imageUrl) === mainImage &&
+                        imageUrl === mainImage &&
                           'ring-2 ring-primary ring-offset-2'
                       )}
-                      onClick={() => setMainImage(getDirectImageUrl(imageUrl))}
+                      onClick={() => setMainImage(imageUrl)}
                     >
                       <Image
-                        src={getDirectImageUrl(imageUrl)}
+                        src={imageUrl}
                         alt={`Anteprima ${index + 1} di ${vehicle.marca} ${
                           vehicle.modello
                         }`}
@@ -101,7 +106,7 @@ export function VehicleDetailsClient({ vehicle }: VehicleDetailsClientProps) {
                  {hasImages && (
                     <Button onClick={() => openGallery(0)} className="w-full" size="lg" disabled={vehicle.stato === 'Venduto'}>
                         <Camera className="mr-2 h-5 w-5" />
-                        Guarda la galleria ({vehicle.immagini.length} foto)
+                        Guarda la galleria ({validImageUrls.length} foto)
                     </Button>
                 )}
                 {vehicle.link_canva && (
