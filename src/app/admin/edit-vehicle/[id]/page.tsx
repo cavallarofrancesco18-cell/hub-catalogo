@@ -744,7 +744,7 @@ export default function EditVehiclePage() {
                     {existingImages.length > 0 ? (
                         <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
                             {existingImages.map((url, index) => (
-                                <div key={`${url}-${index}`} className="relative group aspect-w-16 aspect-h-9">
+                                <div key={`${url}-${index}`} className="relative group aspect-[16/9]">
                                     {index === 0 && (
                                         <Badge variant="default" className="absolute top-2 left-2 z-10">Copertina</Badge>
                                     )}
@@ -800,7 +800,7 @@ export default function EditVehiclePage() {
                           <p className="text-sm font-medium mb-2">Nuove immagini da caricare:</p>
                           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
                               {filesToUpload.map(({ file, previewUrl }) => (
-                                  <div key={file.name} className="relative group aspect-w-16 aspect-h-9">
+                                  <div key={file.name} className="relative group aspect-[16/9]">
                                       <Image
                                           src={previewUrl}
                                           alt={`Anteprima di ${file.name}`}
@@ -930,5 +930,3 @@ https://.../immagine2.png"
     </div>
   );
 }
-
-    
