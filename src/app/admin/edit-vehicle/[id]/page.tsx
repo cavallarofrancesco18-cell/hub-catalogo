@@ -267,20 +267,6 @@ export default function EditVehiclePage() {
         return;
     }
     
-    const hasImageUrlsFromTextArea = data.immagini && data.immagini.trim() !== '';
-    const hasExistingImages = existingImages.length > 0;
-    const hasFiles = filesToUpload.length > 0;
-    const hasCanvaLink = data.link_canva && data.link_canva.trim() !== '';
-
-    if (!hasExistingImages && !hasFiles && !hasCanvaLink && !hasImageUrlsFromTextArea) {
-        toast({
-            variant: "destructive",
-            title: "Nessuna immagine fornita",
-            description: "È necessario avere almeno un'immagine, un link Canva, caricare un nuovo file o inserire un URL.",
-        });
-        return;
-    }
-
     setIsSubmitting(true);
 
     let uploadedImageUrls: string[] = [];
@@ -466,7 +452,7 @@ export default function EditVehiclePage() {
                 name="prezzo"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Prezzo (Opzionale)</FormLabel>
+                    <FormLabel>Prezzo</FormLabel>
                     <FormControl>
                       <Input type="number" placeholder="Es. 32000" {...field} value={field.value ?? ''} />
                     </FormControl>
@@ -479,7 +465,7 @@ export default function EditVehiclePage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Dati Tecnici (Opzionali)</CardTitle>
+              <CardTitle>Dati Tecnici</CardTitle>
             </CardHeader>
             <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                <FormField
@@ -596,7 +582,7 @@ export default function EditVehiclePage() {
 
            <Card>
             <CardHeader>
-              <CardTitle>Estetica e Dati Amministrativi (Opzionali)</CardTitle>
+              <CardTitle>Estetica e Dati Amministrativi</CardTitle>
             </CardHeader>
             <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <FormField
@@ -677,7 +663,7 @@ export default function EditVehiclePage() {
 
            <Card>
             <CardHeader>
-              <CardTitle>Descrizione (Opzionale)</CardTitle>
+              <CardTitle>Descrizione</CardTitle>
             </CardHeader>
             <CardContent>
               <FormField
@@ -704,7 +690,7 @@ export default function EditVehiclePage() {
             <CardHeader>
                 <CardTitle>Immagini e Galleria</CardTitle>
                 <CardDescription>
-                    Gestisci le immagini del veicolo. La prima immagine della lista sarà la foto di copertina.
+                    Gestisci le immagini del veicolo. La prima immagine sarà la copertina. Se non ci sono immagini, verrà mostrato un segnaposto.
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">

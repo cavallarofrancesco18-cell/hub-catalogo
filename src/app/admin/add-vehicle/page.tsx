@@ -141,19 +141,6 @@ export default function AddVehiclePage() {
         return;
     }
 
-    const hasImageUrls = data.immagini && data.immagini.trim() !== '';
-    const hasCanvaLink = data.link_canva && data.link_canva.trim() !== '';
-    const hasFiles = filesToUpload.length > 0;
-
-    if (!hasImageUrls && !hasCanvaLink && !hasFiles) {
-      toast({
-        variant: 'destructive',
-        title: 'Nessuna immagine fornita',
-        description: "È necessario caricare almeno un'immagine, inserire URL o fornire un link Canva.",
-      });
-      return;
-    }
-
     setIsSubmitting(true);
 
     const vehicleCollection = collection(firestore, 'vehicles');
@@ -331,7 +318,7 @@ export default function AddVehiclePage() {
                 name="prezzo"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Prezzo (Opzionale)</FormLabel>
+                    <FormLabel>Prezzo</FormLabel>
                     <FormControl>
                       <Input type="number" placeholder="Es. 32000" {...field} value={field.value ?? ''}/>
                     </FormControl>
@@ -344,7 +331,7 @@ export default function AddVehiclePage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Dati Tecnici (Opzionali)</CardTitle>
+              <CardTitle>Dati Tecnici</CardTitle>
             </CardHeader>
             <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                <FormField
@@ -461,7 +448,7 @@ export default function AddVehiclePage() {
 
            <Card>
             <CardHeader>
-              <CardTitle>Estetica e Dati Amministrativi (Opzionali)</CardTitle>
+              <CardTitle>Estetica e Dati Amministrativi</CardTitle>
             </CardHeader>
             <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <FormField
@@ -542,7 +529,7 @@ export default function AddVehiclePage() {
 
            <Card>
             <CardHeader>
-              <CardTitle>Descrizione (Opzionale)</CardTitle>
+              <CardTitle>Descrizione</CardTitle>
             </CardHeader>
             <CardContent>
                <FormField
@@ -570,7 +557,7 @@ export default function AddVehiclePage() {
             <CardHeader>
                 <CardTitle>Immagini e Galleria</CardTitle>
                 <CardDescription>
-                    Fornisci almeno una delle seguenti opzioni. L'upload da dispositivo è consigliato. La prima immagine sarà quella di copertina.
+                    Carica le immagini del veicolo. La prima immagine della lista sarà quella di copertina. Se non carichi immagini, verrà mostrato un segnaposto.
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">

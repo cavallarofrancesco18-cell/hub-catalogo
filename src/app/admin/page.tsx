@@ -140,14 +140,20 @@ export default function AdminPage() {
                 vehicles.map(vehicle => (
                   <TableRow key={vehicle.id}>
                     <TableCell>
-                      <Image
-                        src={getDirectImageUrl(vehicle.immagini[0] || '') || 'https://placehold.co/80x60'}
-                        alt={`Immagine di ${vehicle.marca} ${vehicle.modello}`}
-                        width={80}
-                        height={60}
-                        className="rounded-md object-cover"
-                        data-ai-hint={`${vehicle.marca} car`}
-                      />
+                      {vehicle.immagini && vehicle.immagini.length > 0 ? (
+                        <Image
+                          src={getDirectImageUrl(vehicle.immagini[0])}
+                          alt={`Immagine di ${vehicle.marca} ${vehicle.modello}`}
+                          width={80}
+                          height={60}
+                          className="rounded-md object-cover"
+                          data-ai-hint={`${vehicle.marca} car`}
+                        />
+                      ) : (
+                        <div className="flex h-[60px] w-[80px] items-center justify-center rounded-md bg-muted text-center text-xs text-muted-foreground">
+                          Foto non disponibile
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell>
                       <div className="font-medium">{`${vehicle.marca} ${vehicle.modello}`}</div>

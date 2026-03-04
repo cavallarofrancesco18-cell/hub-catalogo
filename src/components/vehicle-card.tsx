@@ -45,7 +45,7 @@ export function VehicleCard({ vehicle }: VehicleCardProps) {
             />
           ) : (
             <div className="w-full h-48 bg-muted flex items-center justify-center text-muted-foreground">
-              Nessuna immagine
+              Foto non disponibile
             </div>
           )}
         </div>

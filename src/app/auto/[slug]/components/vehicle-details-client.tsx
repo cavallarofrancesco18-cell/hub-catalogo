@@ -65,7 +65,7 @@ export function VehicleDetailsClient({ vehicle }: VehicleDetailsClientProps) {
           </>
         ) : (
           <div className="aspect-[16/9] bg-muted rounded-lg flex items-center justify-center text-muted-foreground">
-            Nessuna immagine disponibile
+            Foto non disponibile
           </div>
         )}
       </div>
