@@ -74,7 +74,7 @@ export default function AddVehiclePage() {
   const router = useRouter();
   const firestore = useFirestore();
   const app = useFirebaseApp();
-  const storage = getStorage(app, 'gs://studio-3074982188-44660.appspot.com');
+  const storage = getStorage(app, 'gs://studio-3074982188-44660.firebasestorage.app');
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   
@@ -646,6 +646,9 @@ https://.../immagine2.png"
                         value={field.value ?? ''}
                       />
                     </FormControl>
+                     <FormDescription>
+                      Per usare immagini già caricate su Firebase Storage, copia e incolla qui il loro "URL di download".
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
