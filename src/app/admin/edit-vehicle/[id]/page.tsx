@@ -231,15 +231,15 @@ export default function EditVehiclePage() {
         toast({
             variant: 'destructive',
             title: 'Uh oh! Qualcosa è andato storto.',
-            description: 'Impossibile caricare le nuove immagini.',
+            description: error instanceof Error ? error.message : 'Impossibile caricare le nuove immagini.',
         });
         setIsSubmitting(false);
         setIsUploading(false);
         return;
-      } finally {
-        setIsUploading(false);
       }
     }
+    
+    setIsUploading(false);
 
     const vehicleRef = doc(firestore, 'vehicles', vehicleId);
     const allImageUrls = [...existingImages, ...uploadedImageUrls];
@@ -670,17 +670,28 @@ export default function EditVehiclePage() {
                             <p className="text-sm font-medium">File pronti per il caricamento:</p>
                             <ul className="space-y-3">
                                 {filesToUpload.map((file) => (
-                                    <li key={file.name} className="text-sm flex items-center justify-between bg-muted p-2 rounded-md">
-                                        <span className="truncate max-w-[200px] md:max-w-xs">{file.name}</span>
-                                        {isUploading && uploadProgress[file.name] < 100 && (
-                                            <Progress value={uploadProgress[file.name]} className="w-1/3 mx-4" />
+                                     <li key={file.name} className="text-sm bg-muted p-3 rounded-md">
+                                        <div className="flex items-start justify-between">
+                                            <span className="truncate pr-4 font-medium text-foreground">{file.name}</span>
+                                            <Button 
+                                                type="button" 
+                                                variant="ghost" 
+                                                size="icon" 
+                                                className="h-6 w-6 shrink-0" 
+                                                onClick={() => removeNewFile(file.name)}
+                                                disabled={isUploading}
+                                            >
+                                                <X className="h-4 w-4" />
+                                            </Button>
+                                        </div>
+                                        {isUploading && uploadProgress[file.name] != null && (
+                                            <div className="mt-2 flex items-center gap-2">
+                                                <Progress value={uploadProgress[file.name]} />
+                                                <span className="text-xs font-mono text-muted-foreground w-10 text-right shrink-0">
+                                                    {`${Math.round(uploadProgress[file.name])}%`}
+                                                </span>
+                                            </div>
                                         )}
-                                        {isUploading && uploadProgress[file.name] === 100 && (
-                                            <span className="text-green-600 text-xs">Completato</span>
-                                        )}
-                                        <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeNewFile(file.name)} disabled={isUploading}>
-                                            <X className="h-4 w-4" />
-                                        </Button>
                                     </li>
                                 ))}
                             </ul>
