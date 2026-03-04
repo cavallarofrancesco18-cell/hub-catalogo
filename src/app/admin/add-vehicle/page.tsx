@@ -148,11 +148,11 @@ export default function AddVehiclePage() {
 
     setIsSubmitting(true);
 
-    try {
-      let uploadedImageUrls: string[] = [];
-      if (filesToUpload.length > 0) {
-        setIsUploading(true);
-        setUploadProgress({});
+    let uploadedImageUrls: string[] = [];
+    if (filesToUpload.length > 0) {
+      setIsUploading(true);
+      setUploadProgress({});
+      try {
         const uploadPromises = filesToUpload.map(file => {
           const storageRef = ref(storage, `vehicles/${Date.now()}-${file.name}`);
           const uploadTask = uploadBytesResumable(storageRef, file);
@@ -170,54 +170,67 @@ export default function AddVehiclePage() {
           });
         });
         uploadedImageUrls = await Promise.all(uploadPromises);
+      } catch (error) {
+        console.error('Errore durante il caricamento delle immagini:', error);
+        toast({
+          variant: 'destructive',
+          title: 'Uh oh! Qualcosa è andato storto.',
+          description: 'Impossibile caricare le immagini.',
+        });
+        setIsSubmitting(false);
+        setIsUploading(false);
+        return;
+      } finally {
         setIsUploading(false);
       }
-
-      const vehicleCollection = collection(firestore, 'vehicles');
-      const textAreaUrls = data.immagini?.split('\n').filter(url => url.trim() !== '') ?? [];
-      const allImageUrls = [...textAreaUrls, ...uploadedImageUrls];
-      
-      const newDocRef = doc(vehicleCollection);
-      
-      const slug = generateSlug({
-        ...data,
-        id: newDocRef.id,
-      });
-
-      const dataToSave = {
-        ...data,
-        id: newDocRef.id,
-        immagini: allImageUrls,
-        slug,
-        potenza_kw: data.potenza_kw ? Number(data.potenza_kw) : null,
-        cilindrata: data.cilindrata ? Number(data.cilindrata) : null,
-        data_inserimento: new Date().toISOString(),
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      };
-      
-      await setDocumentNonBlocking(newDocRef, dataToSave, {});
-
-      toast({
-        title: 'Veicolo aggiunto!',
-        description: `${data.marca} ${data.modello} è stato aggiunto al catalogo.`,
-      });
-      router.push('/admin');
-    } catch (error) {
-      console.error('Errore durante il salvataggio:', error);
-      let errorMessage = 'Si è verificato un errore durante il salvataggio.';
-      if (error instanceof Error) {
-        errorMessage = error.message;
-      }
-      toast({
-        variant: 'destructive',
-        title: 'Uh oh! Qualcosa è andato storto.',
-        description: errorMessage,
-      });
-    } finally {
-      setIsSubmitting(false);
-      setIsUploading(false);
     }
+
+    const vehicleCollection = collection(firestore, 'vehicles');
+    const textAreaUrls = data.immagini?.split('\n').filter(url => url.trim() !== '') ?? [];
+    const allImageUrls = [...textAreaUrls, ...uploadedImageUrls];
+    
+    const newDocRef = doc(vehicleCollection);
+    
+    const slug = generateSlug({
+      ...data,
+      id: newDocRef.id,
+    });
+
+    const dataToSave = {
+      ...data,
+      id: newDocRef.id,
+      immagini: allImageUrls,
+      slug,
+      potenza_kw: data.potenza_kw ? Number(data.potenza_kw) : null,
+      cilindrata: data.cilindrata ? Number(data.cilindrata) : null,
+      data_inserimento: new Date().toISOString(),
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    };
+    
+    setDocumentNonBlocking(newDocRef, dataToSave, {})
+        .then(() => {
+            toast({
+                title: 'Veicolo aggiunto!',
+                description: `${data.marca} ${data.modello} è stato aggiunto al catalogo.`,
+            });
+            router.push('/admin');
+        })
+        .catch((error) => {
+            console.error('Errore durante il salvataggio:', error);
+            let errorMessage = 'Si è verificato un errore durante il salvataggio.';
+            if (error instanceof Error) {
+                errorMessage = error.message;
+            }
+            toast({
+                variant: 'destructive',
+                title: 'Uh oh! Qualcosa è andato storto.',
+                description: errorMessage,
+            });
+        })
+        .finally(() => {
+            setIsSubmitting(false);
+        });
   }
 
   return (

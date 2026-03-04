@@ -123,7 +123,18 @@ export default function EditVehiclePage() {
 
         if (docSnap.exists()) {
           const vehicleData = docSnap.data();
-          form.reset(vehicleData as VehicleFormValues);
+          const dataForForm = {
+            ...vehicleData,
+            potenza_kw: vehicleData.potenza_kw ?? '',
+            cilindrata: vehicleData.cilindrata ?? '',
+            colore_interni: vehicleData.colore_interni ?? '',
+            targa: vehicleData.targa ?? '',
+            garanzia: vehicleData.garanzia ?? '',
+            classe_emissioni: vehicleData.classe_emissioni ?? '',
+            bollo: vehicleData.bollo ?? '',
+            link_canva: vehicleData.link_canva ?? '',
+          };
+          form.reset(dataForForm as VehicleFormValues);
           setExistingImages(vehicleData.immagini || []);
         } else {
           toast({
@@ -192,11 +203,12 @@ export default function EditVehiclePage() {
     }
 
     setIsSubmitting(true);
-    try {
-      let uploadedImageUrls: string[] = [];
-      if (filesToUpload.length > 0) {
-        setIsUploading(true);
-        setUploadProgress({});
+
+    let uploadedImageUrls: string[] = [];
+    if (filesToUpload.length > 0) {
+      setIsUploading(true);
+      setUploadProgress({});
+      try {
         const uploadPromises = filesToUpload.map(file => {
           const storageRef = ref(storage, `vehicles/${vehicleId}/${Date.now()}-${file.name}`);
           const uploadTask = uploadBytesResumable(storageRef, file);
@@ -214,41 +226,54 @@ export default function EditVehiclePage() {
           });
         });
         uploadedImageUrls = await Promise.all(uploadPromises);
+      } catch (error) {
+        console.error('Errore durante l\'aggiornamento delle immagini:', error);
+        toast({
+            variant: 'destructive',
+            title: 'Uh oh! Qualcosa è andato storto.',
+            description: 'Impossibile caricare le nuove immagini.',
+        });
+        setIsSubmitting(false);
+        setIsUploading(false);
+        return;
+      } finally {
         setIsUploading(false);
       }
-
-      const vehicleRef = doc(firestore, 'vehicles', vehicleId);
-      const allImageUrls = [...existingImages, ...uploadedImageUrls];
-      const slug = generateSlug({
-        ...data,
-        id: vehicleId,
-      });
-
-      await updateDocumentNonBlocking(vehicleRef, {
-        ...data,
-        immagini: allImageUrls,
-        slug,
-        potenza_kw: data.potenza_kw ? Number(data.potenza_kw) : null,
-        cilindrata: data.cilindrata ? Number(data.cilindrata) : null,
-        updatedAt: serverTimestamp(),
-      });
-
-      toast({
-        title: 'Veicolo aggiornato!',
-        description: `${data.marca} ${data.modello} è stato aggiornato.`,
-      });
-      router.push('/admin');
-    } catch (error) {
-      console.error('Errore durante l\'aggiornamento:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Uh oh! Qualcosa è andato storto.',
-        description: 'Impossibile salvare le modifiche.',
-      });
-    } finally {
-      setIsSubmitting(false);
-      setIsUploading(false);
     }
+
+    const vehicleRef = doc(firestore, 'vehicles', vehicleId);
+    const allImageUrls = [...existingImages, ...uploadedImageUrls];
+    const slug = generateSlug({
+      ...data,
+      id: vehicleId,
+    });
+
+    updateDocumentNonBlocking(vehicleRef, {
+      ...data,
+      immagini: allImageUrls,
+      slug,
+      potenza_kw: data.potenza_kw ? Number(data.potenza_kw) : null,
+      cilindrata: data.cilindrata ? Number(data.cilindrata) : null,
+      updatedAt: serverTimestamp(),
+    })
+    .then(() => {
+        toast({
+            title: 'Veicolo aggiornato!',
+            description: `${data.marca} ${data.modello} è stato aggiornato.`,
+        });
+        router.push('/admin');
+    })
+    .catch((error) => {
+        console.error('Errore durante l\'aggiornamento:', error);
+        toast({
+            variant: 'destructive',
+            title: 'Uh oh! Qualcosa è andato storto.',
+            description: 'Impossibile salvare le modifiche.',
+        });
+    })
+    .finally(() => {
+        setIsSubmitting(false);
+    });
   }
 
   if (isLoading) {
