@@ -73,7 +73,7 @@ export default function AddVehiclePage() {
   const router = useRouter();
   const firestore = useFirestore();
   const app = useFirebaseApp();
-  const storage = getStorage(app);
+  const storage = getStorage(app, 'gs://studio-3074982188-44660.firebasestorage.app');
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   

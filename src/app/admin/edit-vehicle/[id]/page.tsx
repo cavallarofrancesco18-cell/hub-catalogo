@@ -75,7 +75,7 @@ export default function EditVehiclePage() {
   const params = useParams();
   const firestore = useFirestore();
   const app = useFirebaseApp();
-  const storage = getStorage(app);
+  const storage = getStorage(app, 'gs://studio-3074982188-44660.firebasestorage.app');
   const { toast } = useToast();
   
   const [isLoading, setIsLoading] = useState(true);
@@ -730,7 +730,8 @@ export default function EditVehiclePage() {
                     <FormLabel>URL Immagini (uno per riga, per nuove immagini)</FormLabel>
                     <FormControl>
                       <Textarea
-                        placeholder="https://.../immagine1.jpg&#x000A;https://.../immagine2.png"
+                        placeholder="https://.../immagine1.jpg
+https://.../immagine2.png"
                         className="min-h-[100px]"
                         {...field}
                         value={field.value ?? ''}
