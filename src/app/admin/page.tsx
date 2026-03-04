@@ -37,7 +37,7 @@ import { getStorage, ref, deleteObject } from 'firebase/storage';
 export default function AdminPage() {
   const firestore = useFirestore();
   const app = useFirebaseApp();
-  const storage = useMemo(() => getStorage(app), [app]);
+  const storage = useMemo(() => getStorage(app, 'gs://studio-3074982188-44660.appspot.com'), [app]);
   const { toast } = useToast();
   const vehiclesRef = useMemoFirebase(() => collection(firestore, 'vehicles'), [firestore]);
   const { data: vehicles, isLoading } = useCollection<Vehicle>(vehiclesRef);

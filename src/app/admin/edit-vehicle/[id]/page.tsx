@@ -87,7 +87,7 @@ export default function EditVehiclePage() {
   const params = useParams();
   const firestore = useFirestore();
   const app = useFirebaseApp();
-  const storage = getStorage(app);
+  const storage = getStorage(app, 'gs://studio-3074982188-44660.appspot.com');
   const { toast } = useToast();
   
   const [isLoading, setIsLoading] = useState(true);
@@ -272,7 +272,7 @@ export default function EditVehiclePage() {
       setUploadProgress({});
       try {
         const uploadPromises = filesToUpload.map(({ file }) => {
-          const storageRef = ref(storage, `vehicles/${vehicleId}/${Date.now()}-${file.name}`);
+          const storageRef = ref(storage, `vehicles/${vehicleId}/${file.name}`);
           const uploadTask = uploadBytesResumable(storageRef, file);
           return new Promise<string>((resolve, reject) => {
             uploadTask.on('state_changed',
