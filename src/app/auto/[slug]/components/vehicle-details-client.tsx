@@ -8,13 +8,13 @@ import { Button } from '@/components/ui/button';
 import { Camera } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
+import { StatusBadge } from '@/components/status-badge';
 
 interface VehicleDetailsClientProps {
   vehicle: Vehicle;
 }
 
 export function VehicleDetailsClient({ vehicle }: VehicleDetailsClientProps) {
-  const isSold = vehicle.stato === 'Venduto';
   const hasImages = vehicle.immagini && vehicle.immagini.length > 0;
   const initialImage = hasImages ? getDirectImageUrl(vehicle.immagini[0]) : '';
   const [mainImage, setMainImage] = useState(initialImage);
@@ -24,12 +24,13 @@ export function VehicleDetailsClient({ vehicle }: VehicleDetailsClientProps) {
       <div className="lg:col-span-3">
         {hasImages ? (
           <>
-            <div className="aspect-[16/9] relative">
+            <div className="aspect-[16/9] relative rounded-lg overflow-hidden shadow-md">
+              <StatusBadge status={vehicle.stato} />
               <Image
                 src={mainImage}
                 alt={`Immagine di ${vehicle.marca} ${vehicle.modello}`}
                 fill
-                className="w-full h-full object-cover rounded-lg shadow-md"
+                className="w-full h-full object-cover"
                 priority
                 data-ai-hint={`${vehicle.marca} car interior exterior`}
                 key={mainImage}
@@ -74,7 +75,7 @@ export function VehicleDetailsClient({ vehicle }: VehicleDetailsClientProps) {
             <p className="text-3xl font-bold mb-4">{formatCurrency(vehicle.prezzo)}</p>
             <div className="flex-grow space-y-4">
               {vehicle.link_canva && (
-                <Button asChild className="w-full" size="lg">
+                <Button asChild className="w-full" size="lg" disabled={vehicle.stato === 'Venduto'}>
                   <Link
                     href={vehicle.link_canva}
                     target="_blank"
@@ -86,11 +87,6 @@ export function VehicleDetailsClient({ vehicle }: VehicleDetailsClientProps) {
                 </Button>
               )}
             </div>
-            {isSold && (
-              <p className="mt-6 text-center text-lg font-semibold text-destructive">
-                Questo veicolo non è più disponibile.
-              </p>
-            )}
           </div>
         </div>
       </div>

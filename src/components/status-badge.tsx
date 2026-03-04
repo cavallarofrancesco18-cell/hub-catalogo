@@ -1,5 +1,6 @@
+'use client';
+
 import type { Vehicle } from '@/lib/types';
-import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 
 interface StatusBadgeProps {
@@ -13,8 +14,17 @@ export function StatusBadge({ status, className }: StatusBadgeProps) {
   }
 
   return (
-    <Badge variant="destructive" className={cn('absolute top-3 right-3', className)}>
-      {status}
-    </Badge>
+    <div
+      className={cn(
+        'absolute inset-0 z-10 flex items-center justify-center bg-black/60',
+        className
+      )}
+    >
+      <div className="transform -rotate-12 rounded-sm border-2 border-white px-4 py-1 md:px-6 md:py-2">
+        <span className="text-xl font-bold uppercase tracking-wider text-white md:text-2xl">
+          Venduto
+        </span>
+      </div>
+    </div>
   );
 }
