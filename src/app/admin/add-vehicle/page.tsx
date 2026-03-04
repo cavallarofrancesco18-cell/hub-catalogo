@@ -579,7 +579,7 @@ export default function AddVehiclePage() {
                             multiple 
                             onChange={handleFileChange}
                             className="mt-2 h-auto p-4 border-dashed cursor-pointer"
-                            accept="image/png, image/jpeg, image/gif, image/webp"
+                            accept="image/png, image/jpeg, image/webp"
                         />
                     </FormControl>
                     {filesToUpload.length > 0 && (
