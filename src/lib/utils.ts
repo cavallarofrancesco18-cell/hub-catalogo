@@ -33,21 +33,33 @@ export function getDirectImageUrl(url: string): string {
   if (!url) return '';
   try {
     const urlObj = new URL(url);
+
+    // Handle Google Image Search URLs
     if (urlObj.hostname.includes('google.com') && urlObj.pathname.includes('/imgres')) {
       const imgUrlParam = urlObj.searchParams.get('imgurl');
       if (imgUrlParam) {
-        // Check if the extracted URL is valid itself
         try {
           new URL(imgUrlParam);
           return imgUrlParam;
         } catch (e) {
-          return url; // The extracted URL is invalid, return original
+          // The extracted URL is invalid, return original
+          return url;
         }
+      }
+    }
+
+    // Handle Google Drive sharing URLs
+    if (urlObj.hostname === 'drive.google.com' && urlObj.pathname.includes('/file/d/')) {
+      const match = urlObj.pathname.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+      if (match && match[1]) {
+        const fileId = match[1];
+        return `https://drive.google.com/uc?export=view&id=${fileId}`;
       }
     }
   } catch (e) {
     // The original URL might be invalid, return it as is
     return url;
   }
+  // Return the original URL if no transformation is applied
   return url;
 }
