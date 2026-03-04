@@ -39,10 +39,22 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { generateSlug, getDirectImageUrl } from '@/lib/utils';
-import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import Link from 'next/link';
 import { Progress } from '@/components/ui/progress';
-import { X } from 'lucide-react';
+import { X, Trash2 } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+
 
 const vehicleSchema = z.object({
   marca: z.string().min(1, 'La marca è obbligatoria.'),
@@ -80,6 +92,7 @@ export default function EditVehiclePage() {
   
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const vehicleId = params.id as string;
   
   const [existingImages, setExistingImages] = useState<string[]>([]);
@@ -188,6 +201,33 @@ export default function EditVehiclePage() {
   
   const removeExistingImage = (urlToRemove: string) => {
     setExistingImages(prev => prev.filter(url => url !== urlToRemove));
+  };
+
+  const handleDelete = () => {
+    if (!firestore || !vehicleId) return;
+
+    setIsDeleting(true);
+    const vehicleRef = doc(firestore, 'vehicles', vehicleId);
+    
+    deleteDocumentNonBlocking(vehicleRef)
+      .then(() => {
+        toast({
+          title: "Veicolo eliminato!",
+          description: `Il veicolo è stato rimosso dal catalogo.`,
+        });
+        router.push("/admin");
+      })
+      .catch((error) => {
+        console.error("Errore durante l'eliminazione:", error);
+        toast({
+          variant: "destructive",
+          title: "Uh oh! Qualcosa è andato storto.",
+          description: "Impossibile eliminare il veicolo.",
+        });
+      })
+      .finally(() => {
+          setIsDeleting(false);
+      });
   };
 
   async function onSubmit(data: VehicleFormValues) {
@@ -783,13 +823,37 @@ https://.../immagine2.png"
           </Card>
 
 
-          <div className="flex justify-end gap-4">
-             <Button variant="outline" asChild>
-                <Link href="/admin">Annulla</Link>
-            </Button>
-            <Button type="submit" disabled={isSubmitting || isLoading}>
-              {isSubmitting ? (isUploading ? 'Caricamento immagini...' : 'Salvataggio in corso...') : 'Salva Modifiche'}
-            </Button>
+          <div className="flex items-center justify-between">
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" type="button" disabled={isSubmitting || isLoading || isDeleting}>
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Elimina Veicolo
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Sei assolutamente sicuro?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Questa azione non può essere annullata. Questo eliminerà permanentemente il veicolo.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Annulla</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleDelete} disabled={isDeleting}>
+                      {isDeleting ? "Eliminazione..." : "Conferma eliminazione"}
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+            <div className="flex items-center gap-4">
+              <Button variant="outline" asChild>
+                  <Link href="/admin">Annulla</Link>
+              </Button>
+              <Button type="submit" disabled={isSubmitting || isLoading || isDeleting}>
+                {isSubmitting ? (isUploading ? 'Caricamento immagini...' : 'Salvataggio in corso...') : 'Salva Modifiche'}
+              </Button>
+            </div>
           </div>
         </form>
       </Form>
