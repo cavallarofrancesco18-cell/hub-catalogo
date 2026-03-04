@@ -32,6 +32,11 @@ export function getVehicleFromSlug(slug: string, vehicles: Vehicle[]) {
 
 export function getDirectImageUrl(url: string): string {
   if (!url) return '';
+  
+  // Prevent crashes from Firebase Console URLs. These are not direct image links.
+  if (url.includes('console.firebase.google.com')) {
+    return '';
+  }
 
   if (url.startsWith('gs://')) {
     const bucketAndPath = url.substring(5);
@@ -48,11 +53,12 @@ export function getDirectImageUrl(url: string): string {
       const imgUrlParam = urlObj.searchParams.get('imgurl');
       if (imgUrlParam) {
         try {
+          // Check if the extracted URL is valid
           new URL(imgUrlParam);
           return imgUrlParam;
         } catch (e) {
-          // The extracted URL is invalid, return original
-          return url;
+          // Extracted URL is invalid, return empty string to show placeholder
+          return '';
         }
       }
     }
@@ -65,10 +71,13 @@ export function getDirectImageUrl(url: string): string {
         return `https://drive.google.com/uc?export=view&id=${fileId}`;
       }
     }
+
   } catch (e) {
-    // The original URL might be invalid, return it as is
-    return url;
+    // The original string is not a valid URL at all. Return empty string to prevent crashes.
+    return '';
   }
-  // Return the original URL if no transformation is applied
+  
+  // Return the original URL if it's a valid URL and no transformation was applied.
+  // next/image will then handle it (and throw an error if the host is not configured, which is correct behavior).
   return url;
 }
