@@ -41,11 +41,7 @@ import { generateSlug, cn } from '@/lib/utils';
 import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import Link from 'next/link';
 import { Progress } from '@/components/ui/progress';
-import { X, Calendar as CalendarIcon } from 'lucide-react';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar } from '@/components/ui/calendar';
-import { format } from 'date-fns';
-import { it } from 'date-fns/locale';
+import { X } from 'lucide-react';
 
 const vehicleSchema = z.object({
   marca: z.string().min(1, 'La marca è obbligatoria.'),
@@ -91,7 +87,7 @@ export default function AddVehiclePage() {
       marca: '',
       modello: '',
       versione: '',
-      data_immatricolazione: new Date().toISOString(),
+      data_immatricolazione: new Date().toISOString().split('T')[0],
       chilometraggio: '',
       potenza: '',
       potenza_kw: '',
@@ -218,6 +214,7 @@ export default function AddVehiclePage() {
       prezzo: data.prezzo ? Number(data.prezzo) : null,
       potenza_kw: data.potenza_kw ? Number(data.potenza_kw) : null,
       cilindrata: data.cilindrata ? Number(data.cilindrata) : null,
+      data_immatricolazione: new Date(data.data_immatricolazione).toISOString(),
       data_inserimento: new Date().toISOString(),
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
@@ -307,39 +304,11 @@ export default function AddVehiclePage() {
                 control={form.control}
                 name="data_immatricolazione"
                 render={({ field }) => (
-                  <FormItem className="flex flex-col">
+                  <FormItem>
                     <FormLabel>Data di Immatricolazione *</FormLabel>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button
-                            variant={"outline"}
-                            className={cn(
-                              "w-full pl-3 text-left font-normal",
-                              !field.value && "text-muted-foreground"
-                            )}
-                          >
-                            {field.value ? (
-                              format(new Date(field.value), "PPP", { locale: it })
-                            ) : (
-                              <span>Scegli una data</span>
-                            )}
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={field.value ? new Date(field.value) : undefined}
-                          onSelect={(date) => field.onChange(date?.toISOString())}
-                          disabled={(date) =>
-                            date > new Date() || date < new Date("1900-01-01")
-                          }
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
+                    <FormControl>
+                      <Input type="date" {...field} />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -621,7 +590,7 @@ export default function AddVehiclePage() {
                           <p className="text-sm font-medium mb-2">Anteprima caricamento:</p>
                           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                               {filesToUpload.map(({ file, previewUrl }) => (
-                                  <div key={file.name} className="relative group aspect-w-16 aspect-h-9">
+                                  <div key={file.name} className="relative group aspect-[16/9]">
                                       <Image
                                           src={previewUrl}
                                           alt={`Anteprima di ${file.name}`}
@@ -728,5 +697,3 @@ https://.../immagine2.png"
     </div>
   );
 }
-
-    

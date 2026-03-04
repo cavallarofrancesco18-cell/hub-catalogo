@@ -42,7 +42,7 @@ import { generateSlug, getDirectImageUrl, cn } from '@/lib/utils';
 import { updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import Link from 'next/link';
 import { Progress } from '@/components/ui/progress';
-import { X, Trash2, Star, Calendar as CalendarIcon } from 'lucide-react';
+import { X, Trash2, Star } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -55,11 +55,6 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar } from '@/components/ui/calendar';
-import { format } from 'date-fns';
-import { it } from 'date-fns/locale';
-
 
 const vehicleSchema = z.object({
   marca: z.string().min(1, 'La marca è obbligatoria.'),
@@ -112,7 +107,7 @@ export default function EditVehiclePage() {
       marca: '',
       modello: '',
       versione: '',
-      data_immatricolazione: new Date().toISOString(),
+      data_immatricolazione: new Date().toISOString().split('T')[0],
       chilometraggio: '',
       potenza: '',
       potenza_kw: '',
@@ -142,6 +137,7 @@ export default function EditVehiclePage() {
 
         if (docSnap.exists()) {
           const vehicleData = docSnap.data();
+          const registrationDateISO = vehicleData.data_immatricolazione || (vehicleData.anno ? new Date(vehicleData.anno, 0, 1).toISOString() : new Date().toISOString());
           const dataForForm = {
             ...vehicleData,
             chilometraggio: vehicleData.chilometraggio ?? '',
@@ -153,7 +149,7 @@ export default function EditVehiclePage() {
             descrizione: vehicleData.descrizione ?? '',
             stato: vehicleData.stato ?? 'In vendita',
             targa: vehicleData.targa ?? '',
-            data_immatricolazione: vehicleData.data_immatricolazione || (vehicleData.anno ? new Date(vehicleData.anno, 0, 1).toISOString() : new Date().toISOString()),
+            data_immatricolazione: new Date(registrationDateISO).toISOString().split('T')[0],
             potenza_kw: vehicleData.potenza_kw ?? '',
             cilindrata: vehicleData.cilindrata ?? '',
             colore_interni: vehicleData.colore_interni ?? '',
@@ -345,6 +341,7 @@ export default function EditVehiclePage() {
         prezzo: data.prezzo ? Number(data.prezzo) : null,
         potenza_kw: data.potenza_kw ? Number(data.potenza_kw) : null,
         cilindrata: data.cilindrata ? Number(data.cilindrata) : null,
+        data_immatricolazione: new Date(data.data_immatricolazione).toISOString(),
         updatedAt: serverTimestamp(),
     };
     
@@ -442,39 +439,11 @@ export default function EditVehiclePage() {
                 control={form.control}
                 name="data_immatricolazione"
                 render={({ field }) => (
-                  <FormItem className="flex flex-col">
+                  <FormItem>
                     <FormLabel>Data di Immatricolazione *</FormLabel>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button
-                            variant={"outline"}
-                            className={cn(
-                              "w-full pl-3 text-left font-normal",
-                              !field.value && "text-muted-foreground"
-                            )}
-                          >
-                            {field.value ? (
-                              format(new Date(field.value), "PPP", { locale: it })
-                            ) : (
-                              <span>Scegli una data</span>
-                            )}
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={field.value ? new Date(field.value) : undefined}
-                          onSelect={(date) => field.onChange(date?.toISOString())}
-                          disabled={(date) =>
-                            date > new Date() || date < new Date("1900-01-01")
-                          }
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
+                    <FormControl>
+                      <Input type="date" {...field} />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
