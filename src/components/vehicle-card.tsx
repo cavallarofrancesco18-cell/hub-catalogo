@@ -1,5 +1,8 @@
+'use client';
+
 import Image from 'next/image';
 import Link from 'next/link';
+import { useState } from 'react';
 import type { Vehicle } from '@/lib/types';
 import { formatCurrency, formatNumber, generateSlug, getDirectImageUrl } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -14,7 +17,14 @@ interface VehicleCardProps {
 
 export function VehicleCard({ vehicle }: VehicleCardProps) {
   const slug = vehicle.slug || generateSlug(vehicle);
-  const imageUrl = vehicle.immagini && vehicle.immagini.length > 0 ? getDirectImageUrl(vehicle.immagini[0]) : '';
+  const initialImageUrl = vehicle.immagini && vehicle.immagini.length > 0 ? getDirectImageUrl(vehicle.immagini[0]) : '';
+
+  const [imageUrl, setImageUrl] = useState(initialImageUrl);
+  
+  // When an image fails to load, we'll fall back to a placeholder by clearing the URL.
+  const handleImageError = () => {
+    setImageUrl('');
+  };
 
   return (
     <Card className="overflow-hidden transition-all duration-300 hover:shadow-xl w-full relative">
@@ -29,6 +39,7 @@ export function VehicleCard({ vehicle }: VehicleCardProps) {
               height={400}
               className="w-full h-48 object-cover"
               data-ai-hint={`${vehicle.marca} car`}
+              onError={handleImageError}
             />
           ) : (
             <div className="w-full h-48 bg-muted flex items-center justify-center text-muted-foreground">
