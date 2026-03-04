@@ -187,7 +187,7 @@ export default function AddVehiclePage() {
 
     const vehicleCollection = collection(firestore, 'vehicles');
     const textAreaUrls = data.immagini?.split('\n').filter(url => url.trim() !== '') ?? [];
-    const allImageUrls = [...textAreaUrls, ...uploadedImageUrls];
+    const allImageUrls = [...new Set([...textAreaUrls, ...uploadedImageUrls])];
     
     const newDocRef = doc(vehicleCollection);
     
@@ -594,7 +594,7 @@ export default function AddVehiclePage() {
                                         </div>
                                         {isUploading && uploadProgress[file.name] != null && (
                                             <div className="mt-2 flex items-center gap-2">
-                                                <Progress value={uploadProgress[file.name]} />
+                                                <Progress value={uploadProgress[file.name]} className="h-1.5" />
                                                 <span className="text-xs font-mono text-muted-foreground w-10 text-right shrink-0">
                                                     {`${Math.round(uploadProgress[file.name])}%`}
                                                 </span>

@@ -248,7 +248,7 @@ export default function EditVehiclePage() {
     const vehicleRef = doc(firestore, 'vehicles', vehicleId);
     
     const textAreaUrls = data.immagini?.split('\n').filter(url => url.trim() !== '') ?? [];
-    const allImageUrls = [...existingImages, ...uploadedImageUrls, ...textAreaUrls];
+    const allImageUrls = [...new Set([...existingImages, ...uploadedImageUrls, ...textAreaUrls])];
 
     const slug = generateSlug({
       ...data,
@@ -633,8 +633,8 @@ export default function EditVehiclePage() {
                     <FormLabel>Immagini Esistenti</FormLabel>
                     {existingImages.length > 0 ? (
                         <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                            {existingImages.map((url) => (
-                                <div key={url} className="relative group aspect-w-16 aspect-h-9">
+                            {existingImages.map((url, index) => (
+                                <div key={`${url}-${index}`} className="relative group aspect-w-16 aspect-h-9">
                                     <Image
                                         src={getDirectImageUrl(url)}
                                         alt="Immagine veicolo esistente"
