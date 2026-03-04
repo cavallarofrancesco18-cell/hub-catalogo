@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, getDirectImageUrl } from '@/lib/utils';
 import { Pencil } from 'lucide-react';
 import { useFirestore, useMemoFirebase } from '@/firebase';
 
@@ -79,7 +79,7 @@ export default function AdminPage() {
                 <TableRow key={vehicle.id}>
                   <TableCell>
                     <Image
-                      src={vehicle.immagini[0] || 'https://placehold.co/80x60'}
+                      src={getDirectImageUrl(vehicle.immagini[0] || '') || 'https://placehold.co/80x60'}
                       alt={`Immagine di ${vehicle.marca} ${vehicle.modello}`}
                       width={80}
                       height={60}
