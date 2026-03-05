@@ -4,7 +4,7 @@ import { formatNumber } from '@/lib/utils';
 import { notFound, useParams } from 'next/navigation';
 import { VehicleDetailsClient } from './components/vehicle-details-client';
 import { Badge } from '@/components/ui/badge';
-import { useMemo } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import type { Vehicle } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useCollection } from '@/firebase/firestore/use-collection';
@@ -12,6 +12,8 @@ import { collection, query, where, limit } from 'firebase/firestore';
 import { useFirestore, useMemoFirebase } from '@/firebase';
 import { format } from 'date-fns';
 import { PrintableVehicleSheet } from './components/printable-vehicle-sheet';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 export default function VehiclePage() {
   const params = useParams();
@@ -28,9 +30,61 @@ export default function VehiclePage() {
   const vehicle = useMemo(() => vehicles?.[0], [vehicles]);
   const registrationDate = vehicle?.data_immatricolazione ? format(new Date(vehicle.data_immatricolazione), 'dd/MM/yyyy') : vehicle?.anno;
 
+  const printableSheetRef = useRef<HTMLDivElement>(null);
+  const [isPrinting, setIsPrinting] = useState(false);
+
+  const handleGeneratePdf = async () => {
+    if (!printableSheetRef.current || !vehicle) return;
+    
+    setIsPrinting(true);
+
+    try {
+        const canvas = await html2canvas(printableSheetRef.current, {
+            scale: 2, // Higher scale for better quality
+            useCORS: true, // Important for external images
+        });
+        
+        const imgData = canvas.toDataURL('image/png');
+        
+        // A4 dimensions in mm: 210 x 297
+        const pdf = new jsPDF({
+            orientation: 'portrait',
+            unit: 'mm',
+            format: 'a4',
+        });
+
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const pdfHeight = pdf.internal.pageSize.getHeight();
+        const canvasWidth = canvas.width;
+        const canvasHeight = canvas.height;
+        const ratio = canvasWidth / canvasHeight;
+        
+        let imgWidth = pdfWidth - 20; // with 10mm margin on each side
+        let imgHeight = imgWidth / ratio;
+        
+        // If image height is greater than pdf height after scaling, fit to height instead
+        if (imgHeight > pdfHeight - 20) {
+            imgHeight = pdfHeight - 20; // with 10mm margin
+            imgWidth = imgHeight * ratio;
+        }
+
+        // Center the image
+        const x = (pdfWidth - imgWidth) / 2;
+        const y = (pdfHeight - imgHeight) / 2;
+
+        pdf.addImage(imgData, 'PNG', x, y, imgWidth, imgHeight);
+        pdf.save(`scheda-veicolo-${vehicle.slug}.pdf`);
+
+    } catch (error) {
+        console.error("Errore durante la creazione del PDF:", error);
+    } finally {
+        setIsPrinting(false);
+    }
+  };
+
   if (loading) {
     return (
-      <div className="container mx-auto px-4 py-8 print:hidden">
+      <div className="container mx-auto px-4 py-8">
         <div className="mb-6">
           <Skeleton className="h-10 w-3/4" />
           <Skeleton className="h-6 w-1/2 mt-2" />
@@ -63,13 +117,13 @@ export default function VehiclePage() {
 
   return (
     <>
-      <div className="container mx-auto px-4 py-8 print:hidden">
+      <div className="container mx-auto px-4 py-8">
         <div className="mb-6">
           <h1 className="text-3xl md:text-4xl font-bold font-headline">{`${vehicle.marca} ${vehicle.modello}`}</h1>
           <p className="text-lg text-muted-foreground">{vehicle.versione}</p>
         </div>
 
-        <VehicleDetailsClient vehicle={vehicle} />
+        <VehicleDetailsClient vehicle={vehicle} onPrintClick={handleGeneratePdf} isPrinting={isPrinting} />
 
         <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-8">
           <div className="md:col-span-2">
@@ -143,7 +197,16 @@ export default function VehiclePage() {
           </div>
         </div>
       </div>
-      <div className="hidden print:block">
+      <div 
+        style={{
+          position: 'absolute',
+          left: '-9999px',
+          top: 0,
+          width: '800px', // A4-ish width for rendering
+          backgroundColor: 'white',
+        }}
+        ref={printableSheetRef} 
+      >
         <PrintableVehicleSheet vehicle={vehicle} />
       </div>
     </>

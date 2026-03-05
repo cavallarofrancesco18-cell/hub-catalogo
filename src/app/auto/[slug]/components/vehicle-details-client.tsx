@@ -5,7 +5,7 @@ import type { Vehicle } from '@/lib/types';
 import { formatCurrency, getDirectImageUrl } from '@/lib/utils';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
-import { Camera, Printer } from 'lucide-react';
+import { Camera, Printer, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { StatusBadge } from '@/components/status-badge';
@@ -13,9 +13,11 @@ import { ImageGallery } from '@/components/image-gallery';
 
 interface VehicleDetailsClientProps {
   vehicle: Vehicle;
+  onPrintClick: () => void;
+  isPrinting: boolean;
 }
 
-export function VehicleDetailsClient({ vehicle }: VehicleDetailsClientProps) {
+export function VehicleDetailsClient({ vehicle, onPrintClick, isPrinting }: VehicleDetailsClientProps) {
   const validImageUrls = useMemo(
     () => (vehicle.immagini || []).map(getDirectImageUrl).filter(Boolean),
     [vehicle.immagini]
@@ -121,9 +123,18 @@ export function VehicleDetailsClient({ vehicle }: VehicleDetailsClientProps) {
                     </Link>
                   </Button>
                 )}
-                 <Button onClick={() => window.print()} className="w-full" size="lg" variant="outline">
-                    <Printer className="mr-2 h-5 w-5" />
-                    Stampa Scheda
+                 <Button onClick={onPrintClick} className="w-full" size="lg" variant="outline" disabled={isPrinting}>
+                    {isPrinting ? (
+                        <>
+                            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                            Creazione PDF...
+                        </>
+                    ) : (
+                        <>
+                            <Printer className="mr-2 h-5 w-5" />
+                            Stampa Scheda
+                        </>
+                    )}
                 </Button>
               </div>
             </div>
