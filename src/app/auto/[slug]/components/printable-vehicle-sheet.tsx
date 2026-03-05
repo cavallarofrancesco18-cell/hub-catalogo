@@ -25,7 +25,7 @@ export function PrintableVehicleSheet({ vehicle }: PrintableVehicleSheetProps) {
       {/* Header */}
       <header className="flex justify-between items-center pb-4 border-b-2 border-gray-200">
         <div className="flex items-center gap-4">
-          <Image src="/logo.png" alt="Hub Catalogo Logo" width={120} height={40} className="object-contain" />
+          <h1 className="text-lg font-bold">Hub Catalogo</h1>
         </div>
         <div className="text-right text-xs">
           <p className="font-bold">Hub Catalogo</p>
