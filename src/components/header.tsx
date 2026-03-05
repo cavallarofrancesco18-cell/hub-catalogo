@@ -1,4 +1,4 @@
-import { Car, Home } from 'lucide-react';
+import { Hexagon, Home } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 
@@ -8,10 +8,10 @@ export function Header() {
       <div className="container flex h-16 items-center justify-between">
         <Link href="/auto" className="flex items-center gap-3">
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground">
-            <Car className="h-5 w-5" />
+            <Hexagon className="h-5 w-5" />
           </div>
           <span className="text-xl font-bold tracking-tight font-headline text-foreground">
-            LuxDrive Catalog
+            Hub Catalogo
           </span>
         </Link>
         <div className="flex items-center gap-2">

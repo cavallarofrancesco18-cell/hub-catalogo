@@ -9,8 +9,8 @@ import { FirebaseClientProvider } from '@/firebase';
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
 
 export const metadata: Metadata = {
-  title: 'LuxDrive Catalog',
-  description: 'Esplora la nostra collezione di auto di lusso.',
+  title: 'Hub Catalogo',
+  description: 'Esplora il nostro catalogo.',
 };
 
 export default function RootLayout({
