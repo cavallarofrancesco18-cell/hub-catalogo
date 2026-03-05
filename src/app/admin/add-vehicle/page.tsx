@@ -616,7 +616,7 @@ export default function AddVehiclePage() {
                   </div>
                   <div className="relative flex justify-center text-xs uppercase">
                     <span className="bg-card px-2 text-muted-foreground">
-                      Oppure
+                      Oppure importa da URL
                     </span>
                   </div>
                 </div>
@@ -637,7 +637,7 @@ https://.../immagine2.png"
                       />
                     </FormControl>
                      <FormDescription>
-                      Per usare immagini già caricate su Firebase Storage, apri la console di Storage, trova il file e copia il suo "URL di download".
+                      Per importare da Firebase Storage, apri ogni immagine e copia il suo "URL di download". Incolla un URL per riga. Non è possibile usare il link di una cartella.
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

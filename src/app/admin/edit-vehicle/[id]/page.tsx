@@ -799,7 +799,7 @@ export default function EditVehiclePage() {
                   </div>
                   <div className="relative flex justify-center text-xs uppercase">
                     <span className="bg-card px-2 text-muted-foreground">
-                      Oppure
+                      Oppure importa nuovi URL
                     </span>
                   </div>
                 </div>
@@ -809,7 +809,7 @@ export default function EditVehiclePage() {
                 name="immagini"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>URL Immagini (uno per riga, per nuove immagini)</FormLabel>
+                    <FormLabel>Aggiungi URL Immagini (uno per riga)</FormLabel>
                     <FormControl>
                       <Textarea
                         placeholder="https://.../immagine1.jpg
@@ -819,7 +819,7 @@ https://.../immagine2.png"
                         value={field.value ?? ''}
                       />
                     </FormControl>
-                    <FormDescription>Per usare immagini già caricate su Firebase Storage, apri la console di Storage, trova il file e copia il suo "URL di download".</FormDescription>
+                    <FormDescription>Per importare da Firebase Storage, apri ogni immagine e copia il suo "URL di download". Incolla un URL per riga. Non è possibile usare il link di una cartella.</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
