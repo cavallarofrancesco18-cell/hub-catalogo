@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import type { Vehicle } from '@/lib/types';
 import Image from 'next/image';
 import { formatCurrency, formatNumber } from '@/lib/utils';
@@ -13,6 +14,11 @@ interface PrintableVehicleSheetProps {
 export function PrintableVehicleSheet({ vehicle }: PrintableVehicleSheetProps) {
   const imageUrl = vehicle.immagini && vehicle.immagini.length > 0 ? getDirectImageUrl(vehicle.immagini[0]) : '';
   const registrationDate = vehicle.data_immatricolazione ? format(new Date(vehicle.data_immatricolazione), 'dd/MM/yyyy') : vehicle.anno;
+  const [generatedDate, setGeneratedDate] = useState('');
+
+  useEffect(() => {
+    setGeneratedDate(format(new Date(), 'dd/MM/yyyy HH:mm'));
+  }, []);
 
   return (
     <div className="bg-white text-black p-8 font-sans">
@@ -137,7 +143,9 @@ export function PrintableVehicleSheet({ vehicle }: PrintableVehicleSheetProps) {
         <p>
             I dati relativi a veicoli e documentazione possono essere soggetti a modifiche e aggiornamenti; le informazioni qui rappresentate non costituiscono impegno contrattuale.
         </p>
-        <p className="mt-2">Scheda generata il: {format(new Date(), 'dd/MM/yyyy HH:mm')}</p>
+        {generatedDate && (
+          <p className="mt-2">Scheda generata il: {generatedDate}</p>
+        )}
       </footer>
     </div>
   );
