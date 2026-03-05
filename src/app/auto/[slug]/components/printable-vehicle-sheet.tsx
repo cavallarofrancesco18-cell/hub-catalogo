@@ -13,6 +13,7 @@ interface PrintableVehicleSheetProps {
 
 export function PrintableVehicleSheet({ vehicle }: PrintableVehicleSheetProps) {
   const imageUrl = vehicle.immagini && vehicle.immagini.length > 0 ? getDirectImageUrl(vehicle.immagini[0]) : '';
+  const otherImages = (vehicle.immagini || []).slice(1).map(getDirectImageUrl).filter(Boolean);
   const registrationDate = vehicle.data_immatricolazione ? format(new Date(vehicle.data_immatricolazione), 'dd/MM/yyyy') : vehicle.anno;
   const [generatedDate, setGeneratedDate] = useState('');
 
@@ -137,6 +138,26 @@ export function PrintableVehicleSheet({ vehicle }: PrintableVehicleSheetProps) {
             </div>
         </div>
       </div>
+
+      {/* Photo Gallery */}
+      {otherImages.length > 0 && (
+        <div className="mt-8" style={{ pageBreakInside: 'avoid' }}>
+          <h3 className="text-xl font-bold border-b pb-2 mb-4">Galleria Fotografica</h3>
+          <div className="grid grid-cols-4 gap-4">
+            {otherImages.map((url, index) => (
+              <div key={`${url}-${index}`} className="overflow-hidden rounded-lg border border-gray-200">
+                <Image
+                  src={url}
+                  alt={`Anteprima galleria ${index + 2}`}
+                  width={200}
+                  height={112}
+                  className="w-full h-auto object-cover"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Footer */}
       <footer className="mt-12 text-center text-xs text-gray-500 border-t pt-4">
