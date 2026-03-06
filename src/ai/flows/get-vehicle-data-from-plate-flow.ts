@@ -34,11 +34,11 @@ const getVehicleDataFromPlatePrompt = ai.definePrompt({
     name: 'getVehicleDataFromPlatePrompt',
     input: { schema: GetVehicleDataFromPlateInputSchema },
     output: { schema: GetVehicleDataFromPlateOutputSchema },
-    prompt: `Sei un servizio di database automobilistico italiano. Data una targa, fornisci i dettagli tecnici realistici del veicolo corrispondente.
+    prompt: `Sei un esperto di veicoli e hai accesso a un vasto database di informazioni automobilistiche italiane. Il tuo compito è recuperare i dati tecnici di un veicolo basandoti esclusivamente sulla targa fornita.
 
 Targa: {{{targa}}}
 
-Se possibile, deduci l'anno di immatricolazione approssimativo dal formato della targa. Fornisci i dati nel formato JSON richiesto. Se non riesci a trovare dati esatti, genera un esempio plausibile basato su un veicolo comune in Italia per quella targa.`,
+Basandoti sulla targa, fornisci i dettagli tecnici più accurati possibili. Restituisci solo i dati che riesci a trovare con un alto grado di confidenza. Non inventare o dedurre informazioni se non sei sicuro. Se un'informazione non è disponibile, lasciala vuota.`,
 });
 
 
