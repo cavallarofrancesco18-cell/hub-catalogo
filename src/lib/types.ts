@@ -24,4 +24,6 @@ export type Vehicle = {
   link_canva?: string;
   slug: string;
   anno?: number; // For legacy data
+  createdAt?: any;
+  updatedAt?: any;
 };

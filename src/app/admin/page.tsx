@@ -4,7 +4,7 @@ import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useCollection } from '@/firebase/firestore/use-collection';
-import { collection, doc, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import type { Vehicle } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import {
@@ -37,10 +37,7 @@ import { formatCurrency, getDirectImageUrl } from '@/lib/utils';
 import { Pencil, Trash2, Loader2 } from 'lucide-react';
 import { useFirestore, useFirebaseApp, useMemoFirebase } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
-import {
-  updateDocumentNonBlocking,
-  deleteDocumentNonBlocking,
-} from '@/firebase/non-blocking-updates';
+import { deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { getStorage, ref, deleteObject } from 'firebase/storage';
 
 export default function AdminPage() {
@@ -69,7 +66,7 @@ export default function AdminPage() {
     setIsUpdatingStatus(vehicleId);
     const vehicleRef = doc(firestore, 'vehicles', vehicleId);
     try {
-      await updateDocumentNonBlocking(vehicleRef, {
+      await updateDoc(vehicleRef, {
         stato: newStatus,
         updatedAt: serverTimestamp(),
       });
