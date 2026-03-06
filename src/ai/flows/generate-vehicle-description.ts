@@ -21,7 +21,7 @@ const GenerateVehicleDescriptionInputSchema = z.object({
   potenza: z.number().describe('The horsepower (CV) of the vehicle.'),
   colore_esterno: z.string().describe('The exterior color of the vehicle.'),
   prezzo: z.number().describe('The selling price of the vehicle.'),
-  immagini: z.array(z.string()).optional().describe('An array of Data URIs for the vehicle images to be visually analyzed.'),
+  immagini: z.array(z.string().url()).optional().describe('An array of Data URIs for the vehicle images to be visually analyzed.'),
 });
 export type GenerateVehicleDescriptionInput = z.infer<typeof GenerateVehicleDescriptionInputSchema>;
 
@@ -31,6 +31,37 @@ const GenerateVehicleDescriptionOutputSchema = z
 export type GenerateVehicleDescriptionOutput = z.infer<typeof GenerateVehicleDescriptionOutputSchema>;
 
 
+const prompt = ai.definePrompt({
+    name: 'generateVehicleDescriptionPrompt',
+    input: { schema: GenerateVehicleDescriptionInputSchema },
+    output: { format: 'text' },
+    prompt: `Sei un esperto di marketing per una concessionaria di auto di lusso e moderne.
+
+Genera una descrizione commerciale accattivante e persuasiva per il seguente veicolo, analizzando sia i dati tecnici che le immagini fornite per evidenziare i punti di forza, le caratteristiche uniche e l'estetica che attireranno un acquirente sofisticato. Concentrati sull'esperienza di guida, sul design, sugli optional visibili e sul valore del veicolo.
+
+Non includere il prezzo finale nella descrizione, ma enfatizza il valore e la qualità.
+
+Informazioni sul veicolo:
+Marca: {{{marca}}}
+Modello: {{{modello}}}
+Versione: {{{versione}}}
+Anno: {{{anno}}}
+Chilometraggio: {{{chilometraggio}}} km
+Carburante: {{{carburante}}}
+Cambio: {{{cambio}}}
+Potenza: {{{potenza}}} CV
+Colore Esterno: {{{colore_esterno}}}
+
+{{#if immagini}}
+Analizza anche queste immagini caricate per dettagli aggiuntivi su design, interni e condizioni:
+{{#each immagini}}
+{{media url=this}}
+{{/each}}
+{{/if}}
+`,
+});
+
+
 const generateVehicleDescriptionFlow = ai.defineFlow(
   {
     name: 'generateVehicleDescriptionFlow',
@@ -38,39 +69,7 @@ const generateVehicleDescriptionFlow = ai.defineFlow(
     outputSchema: GenerateVehicleDescriptionOutputSchema,
   },
   async (input) => {
-    
-    const textPrompt = `Sei un esperto di marketing per una concessionaria di auto di lusso e moderne.
-
-Genera una descrizione commerciale accattivante e persuasiva per il seguente veicolo, analizzando sia i dati tecnici che le immagini fornite per evidenziare i punti di forza, le caratteristiche uniche e l'estetica che attireranno un acquirente sofisticato. Concentrati sull'esperienza di guida, sul design, sugli optional visibili e sul valore del veicolo.
-
-Non includere il prezzo finale nella descrizione, ma enfatizza il valore e la qualità.
-
-Informazioni sul veicolo:
-Marca: ${input.marca}
-Modello: ${input.modello}
-Versione: ${input.versione}
-Anno: ${input.anno}
-Chilometraggio: ${input.chilometraggio} km
-Carburante: ${input.carburante}
-Cambio: ${input.cambio}
-Potenza: ${input.potenza} CV
-Colore Esterno: ${input.colore_esterno}
-
-${(input.immagini && input.immagini.length > 0) ? `\nAnalizza anche queste immagini caricate per dettagli aggiuntivi su design, interni e condizioni:\n` : ''}
-`;
-
-    const promptParts: (string | { media: { url: string } })[] = [textPrompt];
-
-    if (input.immagini) {
-        for (const dataUri of input.immagini) {
-            promptParts.push({ media: { url: dataUri } });
-        }
-    }
-
-    const { text } = await ai.generate({
-        prompt: promptParts,
-    });
-
+    const { text } = await prompt(input);
     return text;
   }
 );
