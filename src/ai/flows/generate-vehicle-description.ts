@@ -74,7 +74,7 @@ const generateVehicleDescriptionFlow = ai.defineFlow(
       return text;
     } catch (e: any) {
         console.error(`Error in generateVehicleDescriptionFlow: ${e.message}`);
-        throw new Error(e.message || 'Failed to generate description due to a server error.');
+        throw e;
     }
   }
 );

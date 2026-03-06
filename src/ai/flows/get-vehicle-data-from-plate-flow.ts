@@ -54,7 +54,7 @@ const getVehicleDataFromPlateFlow = ai.defineFlow(
       return output!;
     } catch (e: any) {
         console.error(`Error in getVehicleDataFromPlateFlow: ${e.message}`);
-        throw new Error(e.message || 'Failed to get vehicle data due to a server error.');
+        throw e;
     }
   }
 );
