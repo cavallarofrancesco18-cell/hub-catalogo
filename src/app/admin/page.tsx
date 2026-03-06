@@ -25,20 +25,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { formatCurrency, getDirectImageUrl } from '@/lib/utils';
+import { formatCurrency, getDirectImageUrl, cn } from '@/lib/utils';
 import { Pencil, Trash2, Loader2 } from 'lucide-react';
 import { useFirestore, useFirebaseApp, useMemoFirebase } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { getStorage, ref, deleteObject } from 'firebase/storage';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 
 export default function AdminPage() {
   const firestore = useFirestore();
@@ -170,7 +165,10 @@ export default function AdminPage() {
                       <Skeleton className="h-4 w-20" />
                     </TableCell>
                     <TableCell>
-                      <Skeleton className="h-6 w-24 rounded-full" />
+                      <div className="flex items-center gap-2">
+                        <Skeleton className="h-6 w-11 rounded-full" />
+                        <Skeleton className="h-4 w-20" />
+                      </div>
                     </TableCell>
                     <TableCell className="text-right">
                       <Skeleton className="h-8 w-8 rounded-md" />
@@ -220,52 +218,34 @@ export default function AdminPage() {
                     </TableCell>
                     <TableCell>{formatCurrency(vehicle.prezzo)}</TableCell>
                     <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            className="p-0 h-auto disabled:opacity-100"
-                            disabled={isUpdatingStatus === vehicle.id}
-                          >
-                            <Badge
-                              variant={
-                                vehicle.stato === 'Venduto'
-                                  ? 'destructive'
-                                  : 'secondary'
-                              }
-                              className="cursor-pointer"
-                            >
-                              {isUpdatingStatus === vehicle.id && (
-                                <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                              )}
-                              {vehicle.stato}
-                            </Badge>
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={() =>
-                              handleStatusChange(vehicle.id, 'In vendita')
-                            }
-                            disabled={
-                              vehicle.stato === 'In vendita' ||
-                              !!isUpdatingStatus
-                            }
-                          >
-                            In vendita
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() =>
-                              handleStatusChange(vehicle.id, 'Venduto')
-                            }
-                            disabled={
-                              vehicle.stato === 'Venduto' || !!isUpdatingStatus
-                            }
-                          >
-                            Venduto
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      <div className="flex items-center gap-2">
+                        {isUpdatingStatus === vehicle.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Switch
+                            id={`status-switch-${vehicle.id}`}
+                            checked={vehicle.stato === 'Venduto'}
+                            onCheckedChange={checked => {
+                              handleStatusChange(
+                                vehicle.id,
+                                checked ? 'Venduto' : 'In vendita'
+                              );
+                            }}
+                            aria-label="Cambia stato veicolo"
+                          />
+                        )}
+                        <Label
+                          htmlFor={`status-switch-${vehicle.id}`}
+                          className={cn(
+                            'cursor-pointer',
+                            vehicle.stato === 'Venduto'
+                              ? 'text-destructive'
+                              : 'text-muted-foreground'
+                          )}
+                        >
+                          {vehicle.stato}
+                        </Label>
+                      </div>
                     </TableCell>
                     <TableCell className="text-right">
                       <Button asChild variant="ghost" size="icon">
