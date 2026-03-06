@@ -193,7 +193,7 @@ export default function AddVehiclePage() {
         await form.trigger(); // Trigger validation to ensure data is available
         const data = form.getValues();
 
-        const requiredFields: (keyof VehicleFormValues)[] = ['marca', 'modello', 'versione', 'data_immatricolazione', 'chilometraggio', 'carburante', 'cambio', 'potenza', 'colore_esterno', 'prezzo'];
+        const requiredFields: (keyof VehicleFormValues)[] = ['marca', 'modello', 'versione', 'data_immatricolazione', 'chilometraggio', 'carburante', 'cambio', 'potenza', 'colore_esterno'];
         
         const missingFields = requiredFields.filter(field => !data[field]);
 
@@ -203,17 +203,21 @@ export default function AddVehiclePage() {
                 title: 'Dati mancanti',
                 description: `Per generare la descrizione, compila almeno i campi principali e tecnici. Campi mancanti: ${missingFields.join(', ')}.`,
             });
+            setIsGeneratingDescription(false);
             return;
         }
 
         const imageDataUris = await Promise.all(filesToUpload.map(f => fileToDataUri(f.file)));
+        const textAreaUrls = data.immagini?.split('\n').filter(url => url.trim() !== '') ?? [];
+        const allImageSources = [...new Set([...textAreaUrls, ...imageDataUris])];
 
-        if (imageDataUris.length === 0) {
+        if (allImageSources.length === 0) {
              toast({
                 variant: 'destructive',
                 title: 'Nessuna immagine',
-                description: `Per una descrizione migliore, carica almeno un'immagine dal tuo dispositivo.`,
+                description: `Per una descrizione migliore, carica o inserisci l'URL di almeno un'immagine.`,
             });
+            setIsGeneratingDescription(false);
             return;
         }
 
@@ -227,8 +231,8 @@ export default function AddVehiclePage() {
             cambio: data.cambio!,
             potenza: Number(data.potenza),
             colore_esterno: data.colore_esterno!,
-            prezzo: Number(data.prezzo),
-            immagini: imageDataUris,
+            prezzo: data.prezzo ? Number(data.prezzo) : undefined,
+            immagini: allImageSources,
         };
 
         const description = await generateVehicleDescription(aiInput);
@@ -698,7 +702,7 @@ export default function AddVehiclePage() {
                       />
                     </FormControl>
                     <FormDescription>
-                       L'AI può generare una descrizione basata sui dati inseriti e sulle immagini caricate dal tuo dispositivo.
+                       L'AI può generare una descrizione basata sui dati inseriti e sulle immagini caricate.
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

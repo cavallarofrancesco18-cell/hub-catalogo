@@ -20,8 +20,8 @@ const GenerateVehicleDescriptionInputSchema = z.object({
   cambio: z.string().describe('The transmission type of the vehicle (e.g., Manuale, Automatico).'),
   potenza: z.number().describe('The horsepower (CV) of the vehicle.'),
   colore_esterno: z.string().describe('The exterior color of the vehicle.'),
-  prezzo: z.number().describe('The selling price of the vehicle.'),
-  immagini: z.array(z.string().url()).optional().describe('An array of Data URIs for the vehicle images to be visually analyzed.'),
+  prezzo: z.number().optional().describe('The selling price of the vehicle.'),
+  immagini: z.array(z.string().url()).optional().describe('An array of image URLs or Data URIs for the vehicle images to be visually analyzed.'),
 });
 export type GenerateVehicleDescriptionInput = z.infer<typeof GenerateVehicleDescriptionInputSchema>;
 
