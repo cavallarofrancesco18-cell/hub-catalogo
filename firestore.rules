@@ -2,16 +2,18 @@
  * LuxDrive Catalog - Firestore Security Rules
  *
  * Core Philosophy:
- * This ruleset implements a simple authentication-based access control model. The primary goal is to provide a public, read-only vehicle catalog while limiting all write operations (creating, updating, or deleting vehicles) to any authenticated user. The login page acts as the primary gate for administrative access.
+ * This ruleset implements a role-based access control model. The primary goal is to provide a public, read-only vehicle catalog, while granting different levels of write permissions to 'Admins' and 'Sellers'.
  *
  * Data Structure:
- * The data is organized into one primary collection:
- * 1. /vehicles/{vehicleId}: A public collection containing all vehicle data.
+ * - /vehicles/{vehicleId}: Public collection of all vehicle data.
+ * - /roles_admin/{userId}: A list of admin UIDs. Document existence grants admin role.
+ * - /roles_seller/{userId}: A list of seller UIDs. Document existence grants seller role.
  *
  * Key Security Decisions:
- * - Public Vehicle Catalog: The `/vehicles` collection is publicly readable (`allow read: if true;`) to allow any user, authenticated or not, to browse the catalog. This is safe as vehicle documents contain no private user information.
- * - Authenticated-Only Writes: All write operations on the `/vehicles` collection are gated by an `isAdmin()` check. For simplicity, any user who is signed in is considered an admin.
- * - No Data Shape Validation: In accordance with the prototyping philosophy, these rules focus exclusively on authorization. The shape, types, or presence of fields within a 'Vehicle' document are not validated, allowing for rapid iteration on the data model.
+ * - Public Vehicle Catalog: The `/vehicles` collection is publicly readable (`allow read: if true;`).
+ * - Admin Full Control: Admins have full create, update, and delete permissions on vehicles.
+ * - Seller Limited Writes: Sellers can read all vehicle data but can only update the 'prezzo' and 'descrizione' fields. They cannot create or delete vehicles.
+ * - Role-Based Access Control (RBAC): User roles are determined by checking for a document in the corresponding role collection (e.g., `/roles_admin/{request.auth.uid}`).
  */
 rules_version = '2';
 service cloud.firestore {
@@ -27,37 +29,60 @@ service cloud.firestore {
     }
     
     /**
-     * Checks if the user is an administrator.
-     * For this application, any signed-in user is considered an admin.
+     * Checks if the user is an administrator by checking for their UID in the 'roles_admin' collection.
      */
     function isAdmin() {
-      return isSignedIn();
+      return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+    }
+
+    /**
+     * Checks if the user is a seller by checking for their UID in the 'roles_seller' collection.
+     */
+    function isSeller() {
+      return exists(/databases/$(database)/documents/roles_seller/$(request.auth.uid));
     }
 
     /**
      * @description
      *   Rules for the primary collection of vehicle listings.
-     *   Allows public read access for all users to view the catalog.
-     *   Restricts all write operations (create, update, delete) to authenticated users.
+     *   - Public read access for all.
+     *   - Full write access for Admins.
+     *   - Limited update access for Sellers (only price and description).
      * @path
      *   /vehicles/{vehicleId}
      */
     match /vehicles/{vehicleId} {
       allow get: if true;
       allow list: if true;
+
       allow create: if isAdmin();
-      allow update: if isAdmin() && resource != null;
       allow delete: if isAdmin() && resource != null;
+      
+      // Admins can update anything.
+      // Sellers can only update 'prezzo', 'descrizione', and 'updatedAt'.
+      allow update: if isAdmin() && resource != null || 
+                    (isSeller() && resource != null && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['prezzo', 'descrizione', 'updatedAt']));
     }
 
     /**
      * @description
-     *   This collection is not actively used in the simplified security model
-     *   but is locked down to prevent any client-side access.
+     *   Admin roles collection. Locked down for client access.
+     *   Managed by a trusted server process or via the Firebase Console.
      * @path
      *   /roles_admin/{userId}
      */
     match /roles_admin/{userId} {
+      allow read, write: if false;
+    }
+
+    /**
+     * @description
+     *   Seller roles collection. Locked down for client access.
+     *   Managed by a trusted server process or via the Firebase Console.
+     * @path
+     *   /roles_seller/{userId}
+     */
+    match /roles_seller/{userId} {
       allow read, write: if false;
     }
   }

@@ -120,6 +120,32 @@
         "createdAt",
         "updatedAt"
       ]
+    },
+    "AdminRole": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "AdminRole",
+      "type": "object",
+      "description": "Represents an admin role. The existence of a document for a user in the roles_admin collection grants them full administrative privileges.",
+      "properties": {
+        "assignedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp indicating when the admin role was assigned."
+        }
+      }
+    },
+    "SellerRole": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "SellerRole",
+      "type": "object",
+      "description": "Represents a seller role. The existence of a document for a user in the roles_seller collection grants them seller privileges.",
+      "properties": {
+        "assignedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp indicating when the seller role was assigned."
+        }
+      }
     }
   },
   "auth": {
@@ -158,6 +184,22 @@
             {
               "name": "userId",
               "description": "The unique identifier of the user who is assigned the administrative role."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/roles_seller/{userId}",
+        "definition": {
+          "entityName": "SellerRole",
+          "schema": {
+            "$ref": "#/backend/entities/SellerRole"
+          },
+          "description": "Collection for seller roles. The existence of a document grants seller privileges: read all vehicle data, and update specific fields (price, description).",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user who is assigned the seller role."
             }
           ]
         }

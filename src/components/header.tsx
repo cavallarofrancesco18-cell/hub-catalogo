@@ -31,6 +31,11 @@ export function Header() {
               Home
             </Link>
           </Button>
+          <Button asChild variant="secondary">
+            <Link href="/seller">
+              Area Venditore
+            </Link>
+          </Button>
           <Button asChild>
             <Link href="/admin">
               Admin
