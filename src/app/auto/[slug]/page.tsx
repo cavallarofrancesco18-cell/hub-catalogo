@@ -14,6 +14,16 @@ import { format } from 'date-fns';
 import { PrintableVehicleSheet } from './components/printable-vehicle-sheet';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogClose,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Loader2 } from 'lucide-react';
 
 export default function VehiclePage() {
   const params = useParams();
@@ -32,6 +42,7 @@ export default function VehiclePage() {
 
   const printableSheetRef = useRef<HTMLDivElement>(null);
   const [isPrinting, setIsPrinting] = useState(false);
+  const [isPreviewing, setIsPreviewing] = useState(false);
 
   const handleGeneratePdf = async () => {
     if (!printableSheetRef.current || !vehicle) return;
@@ -90,6 +101,19 @@ export default function VehiclePage() {
     }
   };
 
+  const showPreview = () => {
+    setIsPreviewing(true);
+  };
+
+  const hidePreview = () => {
+    setIsPreviewing(false);
+  };
+
+  const handleConfirmPrint = async () => {
+    await handleGeneratePdf();
+    hidePreview();
+  };
+
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -131,7 +155,11 @@ export default function VehiclePage() {
           <p className="text-lg text-muted-foreground">{vehicle.versione}</p>
         </div>
 
-        <VehicleDetailsClient vehicle={vehicle} onPrintClick={handleGeneratePdf} isPrinting={isPrinting} />
+        <VehicleDetailsClient
+          vehicle={vehicle}
+          onPrintClick={showPreview}
+          disabled={isPreviewing}
+        />
 
         <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-8">
           <div className="md:col-span-2">
@@ -205,18 +233,38 @@ export default function VehiclePage() {
           </div>
         </div>
       </div>
-      <div 
-        style={{
-          position: 'absolute',
-          left: '-9999px',
-          top: 0,
-          width: '800px', // A4-ish width for rendering
-          backgroundColor: 'white',
-        }}
-        ref={printableSheetRef} 
-      >
-        <PrintableVehicleSheet vehicle={vehicle} />
-      </div>
+      <Dialog open={isPreviewing} onOpenChange={setIsPreviewing}>
+        <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Anteprima di Stampa</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-auto bg-gray-300 p-8">
+            <div
+              ref={printableSheetRef}
+              className="w-[800px] mx-auto my-8 shadow-2xl"
+            >
+              <PrintableVehicleSheet vehicle={vehicle} />
+            </div>
+          </div>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline" disabled={isPrinting}>
+                Annulla
+              </Button>
+            </DialogClose>
+            <Button onClick={handleConfirmPrint} disabled={isPrinting}>
+              {isPrinting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Generazione PDF...
+                </>
+              ) : (
+                'Conferma e Stampa'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
