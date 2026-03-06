@@ -29,24 +29,17 @@ const GetVehicleDataFromPlateOutputSchema = z.object({
 });
 export type GetVehicleDataFromPlateOutput = z.infer<typeof GetVehicleDataFromPlateOutputSchema>;
 
-// This is a mock function as we can't access real-time external APIs.
-// In a real application, this would call a service that provides vehicle data from a license plate.
-async function fetchMockVehicleData(targa: string): Promise<GetVehicleDataFromPlateOutput> {
-    console.log(`Fetching mock data for plate: ${targa}`);
-    // Return some realistic mock data.
-    return {
-        marca: 'Audi',
-        modello: 'A3',
-        versione: 'Sportback 35 TFSI S tronic',
-        data_immatricolazione: '2021-05-15',
-        carburante: 'Benzina',
-        cambio: 'Automatico',
-        potenza: 150,
-        potenza_kw: 110,
-        cilindrata: 1498,
-        classe_emissioni: 'Euro 6d',
-    };
-}
+
+const getVehicleDataFromPlatePrompt = ai.definePrompt({
+    name: 'getVehicleDataFromPlatePrompt',
+    input: { schema: GetVehicleDataFromPlateInputSchema },
+    output: { schema: GetVehicleDataFromPlateOutputSchema },
+    prompt: `Sei un servizio di database automobilistico italiano. Data una targa, fornisci i dettagli tecnici realistici del veicolo corrispondente.
+
+Targa: {{{targa}}}
+
+Se possibile, deduci l'anno di immatricolazione approssimativo dal formato della targa. Fornisci i dati nel formato JSON richiesto. Se non riesci a trovare dati esatti, genera un esempio plausibile basato su un veicolo comune in Italia per quella targa.`,
+});
 
 
 const getVehicleDataFromPlateFlow = ai.defineFlow(
@@ -55,10 +48,9 @@ const getVehicleDataFromPlateFlow = ai.defineFlow(
     inputSchema: GetVehicleDataFromPlateInputSchema,
     outputSchema: GetVehicleDataFromPlateOutputSchema,
   },
-  async ({ targa }) => {
-    // In a real scenario, you would call an external API here.
-    // We are using a mock function for demonstration.
-    return await fetchMockVehicleData(targa);
+  async (input) => {
+    const { output } = await getVehicleDataFromPlatePrompt(input);
+    return output!;
   }
 );
 
