@@ -29,6 +29,7 @@ import { Textarea } from '@/components/ui/textarea';
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -55,9 +56,10 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
 const vehicleSchema = z.object({
-  prezzo: z.coerce.number().optional().or(z.literal('')),
   descrizione: z.string().optional(),
+  stato: z.enum(['In vendita', 'Venduto']).optional(),
   // Read-only fields
+  prezzo: z.coerce.number().optional().or(z.literal('')),
   marca: z.string(),
   modello: z.string(),
   versione: z.string(),
@@ -67,7 +69,6 @@ const vehicleSchema = z.object({
   cambio: z.any(),
   potenza: z.any(),
   colore_esterno: z.string().optional(),
-  stato: z.string().optional(),
 });
 
 
@@ -190,7 +191,7 @@ export default function SellerEditVehiclePage() {
     const currentFormData = form.getValues();
     const previewData: Vehicle = {
       ...vehicle,
-      prezzo: Number(currentFormData.prezzo) || vehicle.prezzo,
+      stato: currentFormData.stato || vehicle.stato,
       descrizione: currentFormData.descrizione || vehicle.descrizione,
     };
     setVehicleForPreview(previewData);
@@ -215,8 +216,8 @@ export default function SellerEditVehiclePage() {
     const vehicleRef = doc(firestore, 'vehicles', vehicleId);
     
     const dataToSave = {
-        prezzo: data.prezzo ? Number(data.prezzo) : null,
         descrizione: data.descrizione,
+        stato: data.stato,
         updatedAt: serverTimestamp(),
     };
     
@@ -268,7 +269,7 @@ export default function SellerEditVehiclePage() {
             <CardHeader>
               <CardTitle>Informazioni Veicolo</CardTitle>
               <CardDescription>
-                Puoi modificare solo il prezzo e la descrizione. Le altre informazioni sono in sola lettura.
+                Puoi modificare solo lo stato e la descrizione. Le altre informazioni sono in sola lettura.
               </CardDescription>
             </CardHeader>
             <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -378,13 +379,14 @@ export default function SellerEditVehiclePage() {
               />
               <FormField
                 control={form.control}
-                name="stato"
+                name="prezzo"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Stato Annuncio</FormLabel>
+                    <FormLabel>Prezzo</FormLabel>
                     <FormControl>
-                      <Input {...field} value={field.value ?? ''} readOnly disabled />
+                      <Input type="number" placeholder="Es. 32000" {...field} value={field.value ?? ''} readOnly disabled />
                     </FormControl>
+                    <FormDescription>Il prezzo può essere modificato solo da un amministratore.</FormDescription>
                   </FormItem>
                 )}
               />
@@ -398,13 +400,21 @@ export default function SellerEditVehiclePage() {
             <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <FormField
                     control={form.control}
-                    name="prezzo"
+                    name="stato"
                     render={({ field }) => (
                     <FormItem>
-                        <FormLabel>Prezzo</FormLabel>
+                        <FormLabel>Stato Annuncio</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
-                        <Input type="number" placeholder="Es. 32000" {...field} value={field.value ?? ''} />
+                            <SelectTrigger>
+                            <SelectValue placeholder="Seleziona stato" />
+                            </SelectTrigger>
                         </FormControl>
+                        <SelectContent>
+                            <SelectItem value="In vendita">In vendita</SelectItem>
+                            <SelectItem value="Venduto">Venduto</SelectItem>
+                        </SelectContent>
+                        </Select>
                         <FormMessage />
                     </FormItem>
                     )}

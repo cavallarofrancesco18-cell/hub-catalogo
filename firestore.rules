@@ -12,7 +12,7 @@
  * Key Security Decisions:
  * - Public Vehicle Catalog: The `/vehicles` collection is publicly readable (`allow read: if true;`).
  * - Admin Full Control: Admins have full create, update, and delete permissions on vehicles.
- * - Seller Limited Writes: Sellers can read all vehicle data but can only update the 'prezzo' and 'descrizione' fields. They cannot create or delete vehicles.
+ * - Seller Limited Writes: Sellers can read all vehicle data but can only update the 'stato' and 'descrizione' fields. They cannot create or delete vehicles.
  * - Role-Based Access Control (RBAC): User roles are determined by checking for a document in the corresponding role collection (e.g., `/roles_admin/{request.auth.uid}`).
  */
 rules_version = '2';
@@ -47,7 +47,7 @@ service cloud.firestore {
      *   Rules for the primary collection of vehicle listings.
      *   - Public read access for all.
      *   - Full write access for Admins.
-     *   - Limited update access for Sellers (only price and description).
+     *   - Limited update access for Sellers (only status and description).
      * @path
      *   /vehicles/{vehicleId}
      */
@@ -59,9 +59,9 @@ service cloud.firestore {
       allow delete: if isAdmin() && resource != null;
       
       // Admins can update anything.
-      // Sellers can only update 'prezzo', 'descrizione', and 'updatedAt'.
+      // Sellers can only update 'stato', 'descrizione', and 'updatedAt'.
       allow update: if isAdmin() && resource != null || 
-                    (isSeller() && resource != null && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['prezzo', 'descrizione', 'updatedAt']));
+                    (isSeller() && resource != null && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stato', 'descrizione', 'updatedAt']));
     }
 
     /**

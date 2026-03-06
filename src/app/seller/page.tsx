@@ -1,10 +1,10 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useCollection } from '@/firebase/firestore/use-collection';
-import { collection } from 'firebase/firestore';
+import { collection, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import type { Vehicle } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import {
@@ -16,18 +16,50 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
-import { formatCurrency, getDirectImageUrl } from '@/lib/utils';
-import { Pencil } from 'lucide-react';
+import { formatCurrency, getDirectImageUrl, cn } from '@/lib/utils';
+import { Pencil, Loader2 } from 'lucide-react';
 import { useFirestore, useMemoFirebase } from '@/firebase';
-import { Badge } from '@/components/ui/badge';
+import { useToast } from '@/hooks/use-toast';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 
 export default function SellerPage() {
   const firestore = useFirestore();
+  const { toast } = useToast();
   const vehiclesRef = useMemoFirebase(
     () => collection(firestore, 'vehicles'),
     [firestore]
   );
   const { data: vehicles, isLoading } = useCollection<Vehicle>(vehiclesRef);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState<string | null>(null);
+
+  const handleStatusChange = async (
+    vehicleId: string,
+    newStatus: 'In vendita' | 'Venduto'
+  ) => {
+    if (!firestore) return;
+    setIsUpdatingStatus(vehicleId);
+    const vehicleRef = doc(firestore, 'vehicles', vehicleId);
+    try {
+      await updateDoc(vehicleRef, {
+        stato: newStatus,
+        updatedAt: serverTimestamp(),
+      });
+      toast({
+        title: 'Stato aggiornato!',
+        description: `Lo stato del veicolo è ora "${newStatus}".`,
+      });
+    } catch (error) {
+      console.error("Errore durante l'aggiornamento dello stato:", error);
+      toast({
+        variant: 'destructive',
+        title: 'Uh oh! Qualcosa è andato storto.',
+        description: 'Impossibile aggiornare lo stato. Verifica i tuoi permessi.',
+      });
+    } finally {
+      setIsUpdatingStatus(null);
+    }
+  };
 
   return (
     <>
@@ -118,15 +150,40 @@ export default function SellerPage() {
                     </TableCell>
                     <TableCell>{formatCurrency(vehicle.prezzo)}</TableCell>
                     <TableCell>
-                       <Badge variant={vehicle.stato === 'Venduto' ? 'destructive' : 'secondary'}>
+                      <div className="flex items-center gap-2">
+                        {isUpdatingStatus === vehicle.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Switch
+                            id={`status-switch-${vehicle.id}`}
+                            checked={vehicle.stato === 'Venduto'}
+                            onCheckedChange={checked => {
+                              handleStatusChange(
+                                vehicle.id,
+                                checked ? 'Venduto' : 'In vendita'
+                              );
+                            }}
+                            aria-label="Cambia stato veicolo"
+                          />
+                        )}
+                        <Label
+                          htmlFor={`status-switch-${vehicle.id}`}
+                          className={cn(
+                            'cursor-pointer',
+                            vehicle.stato === 'Venduto'
+                              ? 'text-destructive'
+                              : 'text-muted-foreground'
+                          )}
+                        >
                           {vehicle.stato}
-                        </Badge>
+                        </Label>
+                      </div>
                     </TableCell>
                     <TableCell className="text-right">
                       <Button asChild variant="ghost" size="icon">
                         <Link href={`/seller/edit-vehicle/${vehicle.id}`}>
                           <Pencil className="h-4 w-4" />
-                          <span className="sr-only">Modifica Prezzo/Desc.</span>
+                          <span className="sr-only">Modifica Stato/Desc.</span>
                         </Link>
                       </Button>
                     </TableCell>

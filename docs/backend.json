@@ -195,7 +195,7 @@
           "schema": {
             "$ref": "#/backend/entities/SellerRole"
           },
-          "description": "Collection for seller roles. The existence of a document grants seller privileges: read all vehicle data, and update specific fields (price, description).",
+          "description": "Collection for seller roles. The existence of a document grants seller privileges: read all vehicle data, and update specific fields (status, description).",
           "params": [
             {
               "name": "userId",
