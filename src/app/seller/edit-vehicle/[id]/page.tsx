@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useRouter, useParams } from 'next/navigation';
-import { doc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import Image from 'next/image';
 
 import { useFirestore } from '@/firebase';
@@ -38,7 +38,6 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getDirectImageUrl } from '@/lib/utils';
-import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import Link from 'next/link';
 import { Printer, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -221,25 +220,23 @@ export default function SellerEditVehiclePage() {
         updatedAt: serverTimestamp(),
     };
     
-    updateDocumentNonBlocking(vehicleRef, dataToSave)
-    .then(() => {
+    try {
+        await updateDoc(vehicleRef, dataToSave);
         toast({
             title: 'Veicolo aggiornato!',
             description: `Le modifiche sono state salvate.`,
         });
         router.push('/seller');
-    })
-    .catch((error) => {
+    } catch (error) {
         console.error('Errore durante l\'aggiornamento:', error);
         toast({
             variant: 'destructive',
             title: 'Uh oh! Qualcosa è andato storto.',
             description: 'Impossibile salvare le modifiche. Verifica i tuoi permessi.',
         });
-    })
-    .finally(() => {
+    } finally {
         setIsSubmitting(false);
-    });
+    }
   }
 
   if (isLoading) {
