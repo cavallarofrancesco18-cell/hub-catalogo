@@ -69,8 +69,13 @@ const generateVehicleDescriptionFlow = ai.defineFlow(
     outputSchema: GenerateVehicleDescriptionOutputSchema,
   },
   async (input) => {
-    const { text } = await prompt(input);
-    return text;
+    try {
+      const { text } = await prompt(input);
+      return text;
+    } catch (e: any) {
+        console.error(`Error in generateVehicleDescriptionFlow: ${e.message}`);
+        throw new Error(e.message || 'Failed to generate description due to a server error.');
+    }
   }
 );
 

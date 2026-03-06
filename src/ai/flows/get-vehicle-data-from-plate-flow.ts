@@ -49,8 +49,13 @@ const getVehicleDataFromPlateFlow = ai.defineFlow(
     outputSchema: GetVehicleDataFromPlateOutputSchema,
   },
   async (input) => {
-    const { output } = await getVehicleDataFromPlatePrompt(input);
-    return output!;
+    try {
+      const { output } = await getVehicleDataFromPlatePrompt(input);
+      return output!;
+    } catch (e: any) {
+        console.error(`Error in getVehicleDataFromPlateFlow: ${e.message}`);
+        throw new Error(e.message || 'Failed to get vehicle data due to a server error.');
+    }
   }
 );
 
