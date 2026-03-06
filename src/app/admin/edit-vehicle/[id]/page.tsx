@@ -42,7 +42,7 @@ import { generateSlug, getDirectImageUrl, cn } from '@/lib/utils';
 import { updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import Link from 'next/link';
 import { Progress } from '@/components/ui/progress';
-import { X, Trash2, Star } from 'lucide-react';
+import { Loader2, Search, X, Trash2, Star } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -55,6 +55,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
+import { getVehicleDataFromPlate } from '@/ai/flows/get-vehicle-data-from-plate-flow';
 
 const vehicleSchema = z.object({
   marca: z.string().min(1, 'La marca è obbligatoria.'),
@@ -94,6 +95,7 @@ export default function EditVehiclePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isFetchingPlateData, setIsFetchingPlateData] = useState(false);
   const vehicleId = params.id as string;
   
   const [existingImages, setExistingImages] = useState<string[]>([]);
@@ -254,6 +256,49 @@ export default function EditVehiclePage() {
       });
     } finally {
         setIsDeleting(false);
+    }
+  };
+
+  const handleFetchFromPlate = async () => {
+    const targa = form.getValues('targa');
+    if (!targa || targa.trim() === '') {
+        toast({
+            variant: 'destructive',
+            title: 'Targa mancante',
+            description: 'Inserisci un numero di targa per avviare la ricerca.',
+        });
+        return;
+    }
+
+    setIsFetchingPlateData(true);
+    try {
+        const vehicleData = await getVehicleDataFromPlate({ targa });
+
+        if (vehicleData.marca) form.setValue('marca', vehicleData.marca, { shouldValidate: true });
+        if (vehicleData.modello) form.setValue('modello', vehicleData.modello, { shouldValidate: true });
+        if (vehicleData.versione) form.setValue('versione', vehicleData.versione, { shouldValidate: true });
+        if (vehicleData.data_immatricolazione) form.setValue('data_immatricolazione', vehicleData.data_immatricolazione, { shouldValidate: true });
+        if (vehicleData.carburante) form.setValue('carburante', vehicleData.carburante, { shouldValidate: true });
+        if (vehicleData.cambio) form.setValue('cambio', vehicleData.cambio, { shouldValidate: true });
+        if (vehicleData.potenza) form.setValue('potenza', vehicleData.potenza, { shouldValidate: true });
+        if (vehicleData.potenza_kw) form.setValue('potenza_kw', vehicleData.potenza_kw, { shouldValidate: true });
+        if (vehicleData.cilindrata) form.setValue('cilindrata', vehicleData.cilindrata, { shouldValidate: true });
+        if (vehicleData.classe_emissioni) form.setValue('classe_emissioni', vehicleData.classe_emissioni, { shouldValidate: true });
+
+        toast({
+            title: 'Dati recuperati!',
+            description: 'I campi del modulo sono stati aggiornati.',
+        });
+
+    } catch (error) {
+        console.error('Errore during il recupero dei dati dalla targa:', error);
+        toast({
+            variant: 'destructive',
+            title: 'Ricerca fallita',
+            description: 'Non è stato possibile trovare i dati per questa targa.',
+        });
+    } finally {
+        setIsFetchingPlateData(false);
     }
   };
 
@@ -440,9 +485,24 @@ export default function EditVehiclePage() {
                 render={({ field }) => (
                 <FormItem>
                     <FormLabel>Targa *</FormLabel>
-                    <FormControl>
-                    <Input placeholder="Es. AB123CD" {...field} value={field.value ?? ''} />
-                    </FormControl>
+                     <div className="flex items-center gap-2">
+                        <FormControl>
+                          <Input placeholder="Es. AB123CD" {...field} value={field.value ?? ''} />
+                        </FormControl>
+                        <Button 
+                            type="button" 
+                            variant="outline" 
+                            size="icon" 
+                            onClick={handleFetchFromPlate}
+                            disabled={isFetchingPlateData || isSubmitting || isLoading}
+                            aria-label="Cerca dati da targa"
+                        >
+                            {isFetchingPlateData ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                        </Button>
+                      </div>
+                      <FormDescription>
+                          Inserisci la targa per aggiornare i dati tecnici.
+                      </FormDescription>
                     <FormMessage />
                 </FormItem>
                 )}
