@@ -51,24 +51,35 @@ export default function VehiclePage() {
         format: 'a4',
       });
 
+      const margin = 15; // Set a 15mm margin
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
 
+      // Calculate the width available for content
+      const contentWidth = pdfWidth - margin * 2;
+      
+      // Get image properties from the canvas data
       const imgProps = pdf.getImageProperties(imgData);
-      const imgWidth = pdfWidth;
-      const imgHeight = (imgProps.height * imgWidth) / imgProps.width;
+      
+      // Calculate the total height of the image when scaled to the content width
+      const totalImgHeightInPdf = (imgProps.height * contentWidth) / imgProps.width;
 
-      let heightLeft = imgHeight;
-      let position = 0;
+      let heightLeft = totalImgHeightInPdf;
+      let position = 0; // This will be the vertical offset for rendering the image
 
-      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-      heightLeft -= pdfHeight;
+      // Add the first page
+      // The image is placed at (margin, margin). 'position' is 0 for the first page render inside the canvas.
+      pdf.addImage(imgData, 'PNG', margin, margin, contentWidth, totalImgHeightInPdf);
+      heightLeft -= (pdfHeight - margin * 2);
 
+      // Add more pages if content overflows
       while (heightLeft > 0) {
-        position = -heightLeft;
+        position -= (pdfHeight - margin * 2); // Decrement position by one page content height
         pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-        heightLeft -= pdfHeight;
+        // For the new page, we place the image again, but with a negative vertical offset
+        // to show the next part of the content.
+        pdf.addImage(imgData, 'PNG', margin, position + margin, contentWidth, totalImgHeightInPdf);
+        heightLeft -= (pdfHeight - margin * 2);
       }
       
       pdf.save(`scheda-veicolo-${vehicle.slug}.pdf`);
