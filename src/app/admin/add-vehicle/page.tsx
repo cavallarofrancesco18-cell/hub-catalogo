@@ -140,7 +140,7 @@ export default function AddVehiclePage() {
         toast({
             variant: 'destructive',
             title: 'Targa mancante',
-            description: 'Inserisci un numero di targa per avviare la ricerca.',
+            description: 'Inserisci un numero di targa per generare i dati di esempio.',
         });
         return;
     }
@@ -162,19 +162,19 @@ export default function AddVehiclePage() {
         if (vehicleData.classe_emissioni) form.setValue('classe_emissioni', vehicleData.classe_emissioni, { shouldValidate: true });
 
         toast({
-            title: 'Dati recuperati!',
-            description: 'I campi del modulo sono stati pre-compilati.',
+            title: 'Dati di esempio generati!',
+            description: 'I campi del modulo sono stati compilati con dati fittizi.',
         });
 
     } catch (error) {
-        console.error('Errore durante il recupero dei dati dalla targa:', error);
-        let description = 'Non è stato possibile trovare i dati per questa targa.';
+        console.error('Errore durante la generazione dei dati dalla targa:', error);
+        let description = 'Non è stato possibile generare i dati per questa targa.';
         if (error instanceof Error && (error.message.includes('503') || error.message.toLowerCase().includes('high demand'))) {
-            description = 'Il servizio di ricerca è momentaneamente non disponibile. Riprova tra qualche istante.';
+            description = 'Il servizio di generazione è momentaneamente non disponibile. Riprova tra qualche istante.';
         }
         toast({
             variant: 'destructive',
-            title: 'Ricerca fallita',
+            title: 'Generazione fallita',
             description,
         });
     } finally {
@@ -449,13 +449,13 @@ export default function AddVehiclePage() {
                               size="icon" 
                               onClick={handleFetchFromPlate}
                               disabled={isFetchingPlateData || isSubmitting}
-                              aria-label="Cerca dati da targa"
+                              aria-label="Genera dati da targa"
                           >
                               {isFetchingPlateData ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
                           </Button>
                         </div>
                         <FormDescription>
-                          Inserisci la targa per compilare automaticamente i dati tecnici.
+                          Inserisci la targa per generare dati tecnici di esempio.
                         </FormDescription>
                         <FormMessage />
                     </FormItem>
