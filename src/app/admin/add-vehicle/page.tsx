@@ -41,8 +41,7 @@ import { generateSlug, cn } from '@/lib/utils';
 import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import Link from 'next/link';
 import { Progress } from '@/components/ui/progress';
-import { Loader2, Search, X, Sparkles } from 'lucide-react';
-import { getVehicleDataFromPlate } from '@/ai/flows/get-vehicle-data-from-plate-flow';
+import { Loader2, X, Sparkles } from 'lucide-react';
 import { generateVehicleDescription } from '@/ai/flows/generate-vehicle-description';
 
 const vehicleSchema = z.object({
@@ -78,7 +77,6 @@ export default function AddVehiclePage() {
   const storage = getStorage(app, 'gs://studio-3074982188-44660.appspot.com');
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isFetchingPlateData, setIsFetchingPlateData] = useState(false);
   const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
   
   const [filesToUpload, setFilesToUpload] = useState<{ file: File; previewUrl: string }[]>([]);
@@ -132,86 +130,6 @@ export default function AddVehiclePage() {
         }
         return prevFiles.filter(f => f.file.name !== fileName);
     });
-  };
-
-  const handleFetchFromPlate = async () => {
-    const targa = form.getValues('targa');
-    if (!targa || targa.trim() === '') {
-      toast({
-        variant: 'destructive',
-        title: 'Targa mancante',
-        description:
-          'Inserisci un numero di targa per generare i dati di esempio.',
-      });
-      return;
-    }
-
-    setIsFetchingPlateData(true);
-    try {
-      const vehicleData = await getVehicleDataFromPlate({ targa });
-
-      if (Object.keys(vehicleData).length === 0) {
-        toast({
-          variant: 'destructive',
-          title: 'Generazione fallita',
-          description:
-            'Il servizio AI è momentaneamente non disponibile o non ha trovato dati. Riprova tra qualche istante.',
-        });
-        return;
-      }
-
-      // Use form.setValue to update the form fields
-      if (vehicleData.marca)
-        form.setValue('marca', vehicleData.marca, { shouldValidate: true });
-      if (vehicleData.modello)
-        form.setValue('modello', vehicleData.modello, { shouldValidate: true });
-      if (vehicleData.versione)
-        form.setValue('versione', vehicleData.versione, {
-          shouldValidate: true,
-        });
-      if (vehicleData.data_immatricolazione)
-        form.setValue('data_immatricolazione', vehicleData.data_immatricolazione, {
-          shouldValidate: true,
-        });
-      if (vehicleData.carburante)
-        form.setValue('carburante', vehicleData.carburante, {
-          shouldValidate: true,
-        });
-      if (vehicleData.cambio)
-        form.setValue('cambio', vehicleData.cambio, { shouldValidate: true });
-      if (vehicleData.potenza)
-        form.setValue('potenza', vehicleData.potenza, { shouldValidate: true });
-      if (vehicleData.potenza_kw)
-        form.setValue('potenza_kw', vehicleData.potenza_kw, {
-          shouldValidate: true,
-        });
-      if (vehicleData.cilindrata)
-        form.setValue('cilindrata', vehicleData.cilindrata, {
-          shouldValidate: true,
-        });
-      if (vehicleData.classe_emissioni)
-        form.setValue('classe_emissioni', vehicleData.classe_emissioni, {
-          shouldValidate: true,
-        });
-
-      toast({
-        title: 'Dati di esempio generati!',
-        description: 'I campi del modulo sono stati compilati con dati fittizi.',
-      });
-    } catch (error) {
-      console.error(
-        'Errore durante la generazione dei dati dalla targa:',
-        error
-      );
-      toast({
-        variant: 'destructive',
-        title: 'Generazione fallita',
-        description:
-          'Si è verificato un errore imprevisto durante la generazione dei dati.',
-      });
-    } finally {
-      setIsFetchingPlateData(false);
-    }
   };
 
   const fileToDataUri = (file: File): Promise<string> => {
@@ -493,24 +411,9 @@ export default function AddVehiclePage() {
                     render={({ field }) => (
                     <FormItem>
                         <FormLabel>Targa *</FormLabel>
-                        <div className="flex items-center gap-2">
-                          <FormControl>
+                        <FormControl>
                             <Input placeholder="Es. AB123CD" {...field} value={field.value ?? ''} />
-                          </FormControl>
-                          <Button 
-                              type="button" 
-                              variant="outline" 
-                              size="icon" 
-                              onClick={handleFetchFromPlate}
-                              disabled={isFetchingPlateData || isSubmitting}
-                              aria-label="Genera dati da targa"
-                          >
-                              {isFetchingPlateData ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-                          </Button>
-                        </div>
-                        <FormDescription>
-                          Inserisci la targa per generare dati tecnici di esempio.
-                        </FormDescription>
+                        </FormControl>
                         <FormMessage />
                     </FormItem>
                     )}
@@ -905,5 +808,3 @@ https://.../immagine2.png"
     </div>
   );
 }
-
-    
