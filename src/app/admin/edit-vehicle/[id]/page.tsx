@@ -293,11 +293,15 @@ export default function EditVehiclePage() {
         });
 
     } catch (error) {
-        console.error('Errore during il recupero dei dati dalla targa:', error);
+        console.error('Errore durante il recupero dei dati dalla targa:', error);
+        let description = 'Non è stato possibile trovare i dati per questa targa.';
+        if (error instanceof Error && (error.message.includes('503') || error.message.toLowerCase().includes('high demand'))) {
+            description = 'Il servizio di ricerca è momentaneamente non disponibile. Riprova tra qualche istante.';
+        }
         toast({
             variant: 'destructive',
             title: 'Ricerca fallita',
-            description: 'Non è stato possibile trovare i dati per questa targa.',
+            description,
         });
     } finally {
         setIsFetchingPlateData(false);
@@ -371,10 +375,14 @@ export default function EditVehiclePage() {
 
     } catch (error) {
         console.error("Errore durante la generazione della descrizione:", error);
+        let description = "Impossibile generare la descrizione in questo momento.";
+        if (error instanceof Error && (error.message.includes('503') || error.message.toLowerCase().includes('high demand'))) {
+            description = 'Il servizio AI è momentaneamente occupato. Riprova tra qualche istante.';
+        }
         toast({
             variant: "destructive",
             title: "Uh oh! Qualcosa è andato storto.",
-            description: "Impossibile generare la descrizione in questo momento.",
+            description,
         });
     } finally {
         setIsGeneratingDescription(false);
