@@ -57,18 +57,22 @@ export default function VehiclePage() {
         const pdfHeight = pdf.internal.pageSize.getHeight();
         const canvasWidth = canvas.width;
         const canvasHeight = canvas.height;
-        const ratio = canvasWidth / canvasHeight;
+        const pageRatio = pdfWidth / pdfHeight;
+        const canvasRatio = canvasWidth / canvasHeight;
+
+        let imgWidth = pdfWidth;
+        let imgHeight = pdfHeight;
         
-        let imgWidth = pdfWidth - 20; // with 10mm margin on each side
-        let imgHeight = imgWidth / ratio;
-        
-        // If image height is greater than pdf height after scaling, fit to height instead
-        if (imgHeight > pdfHeight - 20) {
-            imgHeight = pdfHeight - 20; // with 10mm margin
-            imgWidth = imgHeight * ratio;
+        // To preserve aspect ratio and fit the content, we compare ratios
+        if (canvasRatio > pageRatio) {
+          // Canvas is wider than page, so fit to width
+          imgHeight = pdfWidth / canvasRatio;
+        } else {
+          // Canvas is taller than page, so fit to height
+          imgWidth = pdfHeight * canvasRatio;
         }
 
-        // Center the image
+        // Center the content on the page
         const x = (pdfWidth - imgWidth) / 2;
         const y = (pdfHeight - imgHeight) / 2;
 
