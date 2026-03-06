@@ -35,54 +35,47 @@ export default function VehiclePage() {
 
   const handleGeneratePdf = async () => {
     if (!printableSheetRef.current || !vehicle) return;
-    
+
     setIsPrinting(true);
 
     try {
-        const canvas = await html2canvas(printableSheetRef.current, {
-            scale: 2, // Higher scale for better quality
-            useCORS: true, // Important for external images
-        });
-        
-        const imgData = canvas.toDataURL('image/png');
-        
-        // A4 dimensions in mm: 210 x 297
-        const pdf = new jsPDF({
-            orientation: 'portrait',
-            unit: 'mm',
-            format: 'a4',
-        });
+      const canvas = await html2canvas(printableSheetRef.current, {
+        scale: 2, // Higher scale for better quality
+        useCORS: true,
+      });
 
-        const pdfWidth = pdf.internal.pageSize.getWidth();
-        const pdfHeight = pdf.internal.pageSize.getHeight();
-        const canvasWidth = canvas.width;
-        const canvasHeight = canvas.height;
-        const pageRatio = pdfWidth / pdfHeight;
-        const canvasRatio = canvasWidth / canvasHeight;
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4',
+      });
 
-        let imgWidth = pdfWidth;
-        let imgHeight = pdfHeight;
-        
-        // To preserve aspect ratio and fit the content, we compare ratios
-        if (canvasRatio > pageRatio) {
-          // Canvas is wider than page, so fit to width
-          imgHeight = pdfWidth / canvasRatio;
-        } else {
-          // Canvas is taller than page, so fit to height
-          imgWidth = pdfHeight * canvasRatio;
-        }
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
 
-        // Center the content on the page
-        const x = (pdfWidth - imgWidth) / 2;
-        const y = (pdfHeight - imgHeight) / 2;
+      const imgProps = pdf.getImageProperties(imgData);
+      const imgWidth = pdfWidth;
+      const imgHeight = (imgProps.height * imgWidth) / imgProps.width;
 
-        pdf.addImage(imgData, 'PNG', x, y, imgWidth, imgHeight);
-        pdf.save(`scheda-veicolo-${vehicle.slug}.pdf`);
+      let heightLeft = imgHeight;
+      let position = 0;
 
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pdfHeight;
+
+      while (heightLeft > 0) {
+        position = -heightLeft;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pdfHeight;
+      }
+      
+      pdf.save(`scheda-veicolo-${vehicle.slug}.pdf`);
     } catch (error) {
-        console.error("Errore durante la creazione del PDF:", error);
+      console.error('Errore durante la creazione del PDF:', error);
     } finally {
-        setIsPrinting(false);
+      setIsPrinting(false);
     }
   };
 
