@@ -54,7 +54,9 @@ const getVehicleDataFromPlateFlow = ai.defineFlow(
       return output!;
     } catch (e: any) {
         console.error(`Error in getVehicleDataFromPlateFlow: ${e.message}`);
-        throw e;
+        // Return an empty object on error to prevent crashing the server action.
+        // All fields in the output schema are optional.
+        return {};
     }
   }
 );

@@ -264,47 +264,79 @@ export default function EditVehiclePage() {
   const handleFetchFromPlate = async () => {
     const targa = form.getValues('targa');
     if (!targa || targa.trim() === '') {
-        toast({
-            variant: 'destructive',
-            title: 'Targa mancante',
-            description: 'Inserisci un numero di targa per generare i dati di esempio.',
-        });
-        return;
+      toast({
+        variant: 'destructive',
+        title: 'Targa mancante',
+        description:
+          'Inserisci un numero di targa per generare i dati di esempio.',
+      });
+      return;
     }
 
     setIsFetchingPlateData(true);
     try {
-        const vehicleData = await getVehicleDataFromPlate({ targa });
+      const vehicleData = await getVehicleDataFromPlate({ targa });
 
-        if (vehicleData.marca) form.setValue('marca', vehicleData.marca, { shouldValidate: true });
-        if (vehicleData.modello) form.setValue('modello', vehicleData.modello, { shouldValidate: true });
-        if (vehicleData.versione) form.setValue('versione', vehicleData.versione, { shouldValidate: true });
-        if (vehicleData.data_immatricolazione) form.setValue('data_immatricolazione', vehicleData.data_immatricolazione, { shouldValidate: true });
-        if (vehicleData.carburante) form.setValue('carburante', vehicleData.carburante, { shouldValidate: true });
-        if (vehicleData.cambio) form.setValue('cambio', vehicleData.cambio, { shouldValidate: true });
-        if (vehicleData.potenza) form.setValue('potenza', vehicleData.potenza, { shouldValidate: true });
-        if (vehicleData.potenza_kw) form.setValue('potenza_kw', vehicleData.potenza_kw, { shouldValidate: true });
-        if (vehicleData.cilindrata) form.setValue('cilindrata', vehicleData.cilindrata, { shouldValidate: true });
-        if (vehicleData.classe_emissioni) form.setValue('classe_emissioni', vehicleData.classe_emissioni, { shouldValidate: true });
-
+      if (Object.keys(vehicleData).length === 0) {
         toast({
-            title: 'Dati di esempio generati!',
-            description: 'I campi del modulo sono stati aggiornati con dati fittizi.',
+          variant: 'destructive',
+          title: 'Generazione fallita',
+          description:
+            'Il servizio AI è momentaneamente non disponibile o non ha trovato dati. Riprova tra qualche istante.',
+        });
+        return;
+      }
+
+      if (vehicleData.marca)
+        form.setValue('marca', vehicleData.marca, { shouldValidate: true });
+      if (vehicleData.modello)
+        form.setValue('modello', vehicleData.modello, { shouldValidate: true });
+      if (vehicleData.versione)
+        form.setValue('versione', vehicleData.versione, {
+          shouldValidate: true,
+        });
+      if (vehicleData.data_immatricolazione)
+        form.setValue('data_immatricolazione', vehicleData.data_immatricolazione, {
+          shouldValidate: true,
+        });
+      if (vehicleData.carburante)
+        form.setValue('carburante', vehicleData.carburante, {
+          shouldValidate: true,
+        });
+      if (vehicleData.cambio)
+        form.setValue('cambio', vehicleData.cambio, { shouldValidate: true });
+      if (vehicleData.potenza)
+        form.setValue('potenza', vehicleData.potenza, { shouldValidate: true });
+      if (vehicleData.potenza_kw)
+        form.setValue('potenza_kw', vehicleData.potenza_kw, {
+          shouldValidate: true,
+        });
+      if (vehicleData.cilindrata)
+        form.setValue('cilindrata', vehicleData.cilindrata, {
+          shouldValidate: true,
+        });
+      if (vehicleData.classe_emissioni)
+        form.setValue('classe_emissioni', vehicleData.classe_emissioni, {
+          shouldValidate: true,
         });
 
+      toast({
+        title: 'Dati di esempio generati!',
+        description:
+          'I campi del modulo sono stati aggiornati con dati fittizi.',
+      });
     } catch (error) {
-        console.error('Errore durante la generazione dei dati dalla targa:', error);
-        let description = 'Non è stato possibile generare i dati per questa targa.';
-        if (error instanceof Error && (error.message.includes('503') || error.message.toLowerCase().includes('high demand'))) {
-            description = 'Il servizio di generazione è momentaneamente non disponibile. Riprova tra qualche istante.';
-        }
-        toast({
-            variant: 'destructive',
-            title: 'Generazione fallita',
-            description,
-        });
+      console.error(
+        'Errore durante la generazione dei dati dalla targa:',
+        error
+      );
+      toast({
+        variant: 'destructive',
+        title: 'Generazione fallita',
+        description: 'Si è verificato un errore imprevisto.',
+      });
     } finally {
-        setIsFetchingPlateData(false);
+      setIsFetchingPlateData(false);
     }
   };
 
@@ -320,72 +352,96 @@ export default function EditVehiclePage() {
   const handleGenerateDescription = async () => {
     setIsGeneratingDescription(true);
     try {
-        await form.trigger(); // Trigger validation to ensure data is available
-        const data = form.getValues();
+      await form.trigger(); // Trigger validation to ensure data is available
+      const data = form.getValues();
 
-        const requiredFields: (keyof VehicleFormValues)[] = ['marca', 'modello', 'versione', 'data_immatricolazione', 'chilometraggio', 'carburante', 'cambio', 'potenza', 'colore_esterno'];
-        
-        const missingFields = requiredFields.filter(field => !data[field]);
+      const requiredFields: (keyof VehicleFormValues)[] = [
+        'marca',
+        'modello',
+        'versione',
+        'data_immatricolazione',
+        'chilometraggio',
+        'carburante',
+        'cambio',
+        'potenza',
+        'colore_esterno',
+      ];
 
-        if (missingFields.length > 0) {
-            toast({
-                variant: 'destructive',
-                title: 'Dati mancanti',
-                description: `Per generare la descrizione, compila almeno i campi principali e tecnici. Campi mancanti: ${missingFields.join(', ')}.`,
-            });
-            setIsGeneratingDescription(false);
-            return;
-        }
+      const missingFields = requiredFields.filter(field => !data[field]);
 
-        const imageDataUris = await Promise.all(filesToUpload.map(f => fileToDataUri(f.file)));
-        const textAreaUrls = data.immagini?.split('\n').filter(url => url.trim() !== '') ?? [];
-        const allImageSources = [...new Set([...existingImages, ...textAreaUrls, ...imageDataUris])];
-
-        if (allImageSources.length === 0) {
-             toast({
-                variant: 'destructive',
-                title: 'Nessuna immagine',
-                description: `Per una descrizione migliore, assicurati che ci siano immagini esistenti, caricate o inserite tramite URL.`,
-            });
-            setIsGeneratingDescription(false);
-            return;
-        }
-
-        const aiInput = {
-            marca: data.marca!,
-            modello: data.modello!,
-            versione: data.versione!,
-            anno: new Date(data.data_immatricolazione!).getFullYear(),
-            chilometraggio: Number(data.chilometraggio),
-            carburante: data.carburante!,
-            cambio: data.cambio!,
-            potenza: Number(data.potenza),
-            colore_esterno: data.colore_esterno!,
-            prezzo: data.prezzo ? Number(data.prezzo) : undefined,
-            immagini: allImageSources,
-        };
-
-        const description = await generateVehicleDescription(aiInput);
-        form.setValue('descrizione', description, { shouldValidate: true });
-
+      if (missingFields.length > 0) {
         toast({
-            title: 'Descrizione generata!',
-            description: 'La descrizione è stata inserita nel campo apposito.',
+          variant: 'destructive',
+          title: 'Dati mancanti',
+          description: `Per generare la descrizione, compila almeno i campi principali e tecnici. Campi mancanti: ${missingFields.join(
+            ', '
+          )}.`,
         });
-
-    } catch (error) {
-        console.error("Errore durante la generazione della descrizione:", error);
-        let description = "Impossibile generare la descrizione in questo momento.";
-        if (error instanceof Error && (error.message.includes('503') || error.message.toLowerCase().includes('high demand'))) {
-            description = 'Il servizio AI è momentaneamente occupato. Riprova tra qualche istante.';
-        }
-        toast({
-            variant: "destructive",
-            title: "Uh oh! Qualcosa è andato storto.",
-            description,
-        });
-    } finally {
         setIsGeneratingDescription(false);
+        return;
+      }
+
+      const imageDataUris = await Promise.all(
+        filesToUpload.map(f => fileToDataUri(f.file))
+      );
+      const textAreaUrls =
+        data.immagini?.split('\n').filter(url => url.trim() !== '') ?? [];
+      const allImageSources = [
+        ...new Set([...existingImages, ...textAreaUrls, ...imageDataUris]),
+      ];
+
+      if (allImageSources.length === 0) {
+        toast({
+          variant: 'destructive',
+          title: 'Nessuna immagine',
+          description: `Per una descrizione migliore, assicurati che ci siano immagini esistenti, caricate o inserite tramite URL.`,
+        });
+        setIsGeneratingDescription(false);
+        return;
+      }
+
+      const aiInput = {
+        marca: data.marca!,
+        modello: data.modello!,
+        versione: data.versione!,
+        anno: new Date(data.data_immatricolazione!).getFullYear(),
+        chilometraggio: Number(data.chilometraggio),
+        carburante: data.carburante!,
+        cambio: data.cambio!,
+        potenza: Number(data.potenza),
+        colore_esterno: data.colore_esterno!,
+        prezzo: data.prezzo ? Number(data.prezzo) : undefined,
+        immagini: allImageSources,
+      };
+
+      const description = await generateVehicleDescription(aiInput);
+
+      if (!description) {
+        toast({
+          variant: 'destructive',
+          title: 'Uh oh! Qualcosa è andato storto.',
+          description:
+            'Il servizio AI è momentaneamente occupato o non è riuscito a generare una descrizione. Riprova tra qualche istante.',
+        });
+        return;
+      }
+
+      form.setValue('descrizione', description, { shouldValidate: true });
+
+      toast({
+        title: 'Descrizione generata!',
+        description: 'La descrizione è stata inserita nel campo apposito.',
+      });
+    } catch (error) {
+      console.error('Errore durante la generazione della descrizione:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Uh oh! Qualcosa è andato storto.',
+        description:
+          'Impossibile generare la descrizione in questo momento a causa di un errore imprevisto.',
+      });
+    } finally {
+      setIsGeneratingDescription(false);
     }
   };
 
