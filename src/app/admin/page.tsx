@@ -4,7 +4,7 @@ import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useCollection } from '@/firebase/firestore/use-collection';
-import { collection, doc } from 'firebase/firestore';
+import { collection, doc, serverTimestamp } from 'firebase/firestore';
 import type { Vehicle } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import {
@@ -25,25 +25,69 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatCurrency, getDirectImageUrl } from '@/lib/utils';
-import { Pencil, Trash2 } from 'lucide-react';
+import { Pencil, Trash2, Loader2 } from 'lucide-react';
 import { useFirestore, useFirebaseApp, useMemoFirebase } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
-import { deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import {
+  updateDocumentNonBlocking,
+  deleteDocumentNonBlocking,
+} from '@/firebase/non-blocking-updates';
 import { getStorage, ref, deleteObject } from 'firebase/storage';
 
 export default function AdminPage() {
   const firestore = useFirestore();
   const app = useFirebaseApp();
-  const storage = useMemo(() => getStorage(app, 'gs://studio-3074982188-44660.appspot.com'), [app]);
+  const storage = useMemo(
+    () => getStorage(app, 'gs://studio-3074982188-44660.appspot.com'),
+    [app]
+  );
   const { toast } = useToast();
-  const vehiclesRef = useMemoFirebase(() => collection(firestore, 'vehicles'), [firestore]);
+  const vehiclesRef = useMemoFirebase(
+    () => collection(firestore, 'vehicles'),
+    [firestore]
+  );
   const { data: vehicles, isLoading } = useCollection<Vehicle>(vehiclesRef);
 
   const [isDeleting, setIsDeleting] = useState(false);
   const [vehicleToDelete, setVehicleToDelete] = useState<Vehicle | null>(null);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState<string | null>(null);
+
+  const handleStatusChange = async (
+    vehicleId: string,
+    newStatus: 'In vendita' | 'Venduto'
+  ) => {
+    if (!firestore) return;
+    setIsUpdatingStatus(vehicleId);
+    const vehicleRef = doc(firestore, 'vehicles', vehicleId);
+    try {
+      await updateDocumentNonBlocking(vehicleRef, {
+        stato: newStatus,
+        updatedAt: serverTimestamp(),
+      });
+      toast({
+        title: 'Stato aggiornato!',
+        description: `Lo stato del veicolo è ora "${newStatus}".`,
+      });
+    } catch (error) {
+      console.error("Errore durante l'aggiornamento dello stato:", error);
+      toast({
+        variant: 'destructive',
+        title: 'Uh oh! Qualcosa è andato storto.',
+        description: 'Impossibile aggiornare lo stato del veicolo.',
+      });
+    } finally {
+      setIsUpdatingStatus(null);
+    }
+  };
 
   const handleDeleteClick = (vehicle: Vehicle) => {
     setVehicleToDelete(vehicle);
@@ -141,36 +185,90 @@ export default function AdminPage() {
                   <TableRow key={vehicle.id}>
                     <TableCell>
                       {(() => {
-                        const imageUrl = vehicle.immagini && vehicle.immagini.length > 0 ? getDirectImageUrl(vehicle.immagini[0]) : null;
+                        const imageUrl =
+                          vehicle.immagini && vehicle.immagini.length > 0
+                            ? getDirectImageUrl(vehicle.immagini[0])
+                            : null;
                         if (imageUrl) {
-                            return (
-                                <Image
-                                    src={imageUrl}
-                                    alt={`Immagine di ${vehicle.marca} ${vehicle.modello}`}
-                                    width={80}
-                                    height={60}
-                                    className="rounded-md object-cover"
-                                    data-ai-hint={`${vehicle.marca} car`}
-                                />
-                            );
+                          return (
+                            <Image
+                              src={imageUrl}
+                              alt={`Immagine di ${vehicle.marca} ${vehicle.modello}`}
+                              width={80}
+                              height={60}
+                              className="rounded-md object-cover"
+                              data-ai-hint={`${vehicle.marca} car`}
+                            />
+                          );
                         }
                         return (
-                            <div className="flex h-[60px] w-[80px] items-center justify-center rounded-md bg-muted text-center text-xs text-muted-foreground">
-                                Foto non disponibile
-                            </div>
+                          <div className="flex h-[60px] w-[80px] items-center justify-center rounded-md bg-muted text-center text-xs text-muted-foreground">
+                            Foto non disponibile
+                          </div>
                         );
                       })()}
                     </TableCell>
                     <TableCell>
                       <div className="font-medium">{`${vehicle.marca} ${vehicle.modello}`}</div>
-                      <div className="text-sm text-muted-foreground">{vehicle.versione}</div>
+                      <div className="text-sm text-muted-foreground">
+                        {vehicle.versione}
+                      </div>
                     </TableCell>
-                    <TableCell>{vehicle.data_immatricolazione ? new Date(vehicle.data_immatricolazione).getFullYear() : vehicle.anno}</TableCell>
+                    <TableCell>
+                      {vehicle.data_immatricolazione
+                        ? new Date(
+                            vehicle.data_immatricolazione
+                          ).getFullYear()
+                        : vehicle.anno}
+                    </TableCell>
                     <TableCell>{formatCurrency(vehicle.prezzo)}</TableCell>
                     <TableCell>
-                      <Badge variant={vehicle.stato === 'Venduto' ? 'destructive' : 'secondary'}>
-                        {vehicle.stato}
-                      </Badge>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            className="p-0 h-auto disabled:opacity-100"
+                            disabled={isUpdatingStatus === vehicle.id}
+                          >
+                            <Badge
+                              variant={
+                                vehicle.stato === 'Venduto'
+                                  ? 'destructive'
+                                  : 'secondary'
+                              }
+                              className="cursor-pointer"
+                            >
+                              {isUpdatingStatus === vehicle.id && (
+                                <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                              )}
+                              {vehicle.stato}
+                            </Badge>
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() =>
+                              handleStatusChange(vehicle.id, 'In vendita')
+                            }
+                            disabled={
+                              vehicle.stato === 'In vendita' ||
+                              !!isUpdatingStatus
+                            }
+                          >
+                            In vendita
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() =>
+                              handleStatusChange(vehicle.id, 'Venduto')
+                            }
+                            disabled={
+                              vehicle.stato === 'Venduto' || !!isUpdatingStatus
+                            }
+                          >
+                            Venduto
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </TableCell>
                     <TableCell className="text-right">
                       <Button asChild variant="ghost" size="icon">
@@ -179,7 +277,11 @@ export default function AdminPage() {
                           <span className="sr-only">Modifica</span>
                         </Link>
                       </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleDeleteClick(vehicle)}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDeleteClick(vehicle)}
+                      >
                         <Trash2 className="h-4 w-4 text-destructive" />
                         <span className="sr-only">Cancella</span>
                       </Button>
@@ -199,17 +301,25 @@ export default function AdminPage() {
           </Table>
         </div>
       </div>
-      <AlertDialog open={!!vehicleToDelete} onOpenChange={open => !open && setVehicleToDelete(null)}>
+      <AlertDialog
+        open={!!vehicleToDelete}
+        onOpenChange={open => !open && setVehicleToDelete(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Sei assolutamente sicuro?</AlertDialogTitle>
             <AlertDialogDescription>
-              Questa azione non può essere annullata. Questo eliminerà permanentemente il veicolo dal catalogo e rimuoverà i suoi dati dai nostri server.
+              Questa azione non può essere annullata. Questo eliminerà
+              permanentemente il veicolo dal catalogo e rimuoverà i suoi dati
+              dai nostri server.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isDeleting}>Annulla</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteConfirm} disabled={isDeleting}>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              disabled={isDeleting}
+            >
               {isDeleting ? 'Eliminazione...' : 'Conferma'}
             </AlertDialogAction>
           </AlertDialogFooter>
