@@ -42,7 +42,7 @@ import { generateSlug, getDirectImageUrl, cn } from '@/lib/utils';
 import { updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import Link from 'next/link';
 import { Progress } from '@/components/ui/progress';
-import { Loader2, Search, X, Trash2, Star } from 'lucide-react';
+import { Loader2, Search, X, Trash2, Star, Sparkles } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -56,6 +56,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { getVehicleDataFromPlate } from '@/ai/flows/get-vehicle-data-from-plate-flow';
+import { generateVehicleDescription } from '@/ai/flows/generate-vehicle-description';
 
 const vehicleSchema = z.object({
   marca: z.string().min(1, 'La marca è obbligatoria.'),
@@ -96,6 +97,7 @@ export default function EditVehiclePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isFetchingPlateData, setIsFetchingPlateData] = useState(false);
+  const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
   const vehicleId = params.id as string;
   
   const [existingImages, setExistingImages] = useState<string[]>([]);
@@ -299,6 +301,79 @@ export default function EditVehiclePage() {
         });
     } finally {
         setIsFetchingPlateData(false);
+    }
+  };
+
+  const fileToDataUri = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+  };
+
+  const handleGenerateDescription = async () => {
+    setIsGeneratingDescription(true);
+    try {
+        await form.trigger(); // Trigger validation to ensure data is available
+        const data = form.getValues();
+
+        const requiredFields: (keyof VehicleFormValues)[] = ['marca', 'modello', 'versione', 'data_immatricolazione', 'chilometraggio', 'carburante', 'cambio', 'potenza', 'colore_esterno', 'prezzo'];
+        
+        const missingFields = requiredFields.filter(field => !data[field]);
+
+        if (missingFields.length > 0) {
+            toast({
+                variant: 'destructive',
+                title: 'Dati mancanti',
+                description: `Per generare la descrizione, compila almeno i campi principali e tecnici. Campi mancanti: ${missingFields.join(', ')}.`,
+            });
+            return;
+        }
+
+        const imageDataUris = await Promise.all(filesToUpload.map(f => fileToDataUri(f.file)));
+
+        if (imageDataUris.length === 0) {
+             toast({
+                variant: 'destructive',
+                title: 'Nessuna immagine nuova',
+                description: `Per usare l'AI, carica almeno una nuova immagine dal tuo dispositivo. Le immagini esistenti non vengono ri-analizzate.`,
+            });
+            return;
+        }
+
+        const aiInput = {
+            marca: data.marca!,
+            modello: data.modello!,
+            versione: data.versione!,
+            anno: new Date(data.data_immatricolazione!).getFullYear(),
+            chilometraggio: Number(data.chilometraggio),
+            carburante: data.carburante!,
+            cambio: data.cambio!,
+            potenza: Number(data.potenza),
+            colore_esterno: data.colore_esterno!,
+            prezzo: Number(data.prezzo),
+            immagini: imageDataUris,
+        };
+
+        const description = await generateVehicleDescription(aiInput);
+        form.setValue('descrizione', description, { shouldValidate: true });
+
+        toast({
+            title: 'Descrizione generata!',
+            description: 'La descrizione è stata inserita nel campo apposito.',
+        });
+
+    } catch (error) {
+        console.error("Errore durante la generazione della descrizione:", error);
+        toast({
+            variant: "destructive",
+            title: "Uh oh! Qualcosa è andato storto.",
+            description: "Impossibile generare la descrizione in questo momento.",
+        });
+    } finally {
+        setIsGeneratingDescription(false);
     }
   };
 
@@ -731,7 +806,23 @@ export default function EditVehiclePage() {
                 name="descrizione"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Descrizione Commerciale</FormLabel>
+                     <div className="flex justify-between items-center mb-2">
+                        <FormLabel>Descrizione Commerciale</FormLabel>
+                         <Button 
+                            type="button" 
+                            variant="outline" 
+                            size="sm"
+                            onClick={handleGenerateDescription}
+                            disabled={isGeneratingDescription || isSubmitting}
+                        >
+                            {isGeneratingDescription ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                                <Sparkles className="h-4 w-4" />
+                            )}
+                            Genera con AI
+                        </Button>
+                      </div>
                     <FormControl>
                       <Textarea
                         placeholder="Descrivi il veicolo in modo accattivante..."
@@ -739,6 +830,9 @@ export default function EditVehiclePage() {
                         {...field}
                       />
                     </FormControl>
+                     <FormDescription>
+                       L'AI può generare una descrizione basata sui dati inseriti e sulle immagini caricate dal tuo dispositivo.
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
