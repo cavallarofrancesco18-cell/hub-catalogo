@@ -6,6 +6,12 @@ import Image from 'next/image';
 import { formatCurrency, formatNumber } from '@/lib/utils';
 import { getDirectImageUrl } from '@/lib/utils';
 import { format } from 'date-fns';
+import {
+  LOGO_URL,
+  COMPANY_NAME,
+  COMPANY_ADDRESS,
+  COMPANY_CONTACT,
+} from '@/lib/branding';
 
 interface PrintableVehicleSheetProps {
   vehicle: Vehicle;
@@ -26,12 +32,22 @@ export function PrintableVehicleSheet({ vehicle }: PrintableVehicleSheetProps) {
       {/* Header */}
       <header className="flex justify-between items-center pb-4 border-b-2 border-gray-200">
         <div className="flex items-center gap-4">
-          <h1 className="text-lg font-bold">Hub Catalogo</h1>
+          {LOGO_URL ? (
+             <Image
+              src={LOGO_URL}
+              alt={`${COMPANY_NAME} Logo`}
+              width={150}
+              height={40}
+              className="h-8 w-auto"
+            />
+          ) : (
+            <h1 className="text-lg font-bold">{COMPANY_NAME}</h1>
+          )}
         </div>
         <div className="text-right text-xs">
-          <p className="font-bold">Hub Catalogo</p>
-          <p>Via Esempio 123, 10100 Torino (TO)</p>
-          <p>info@hubcatalogo.it - 011 1234567</p>
+          <p className="font-bold">{COMPANY_NAME}</p>
+          <p>{COMPANY_ADDRESS}</p>
+          <p>{COMPANY_CONTACT}</p>
         </div>
       </header>
 
