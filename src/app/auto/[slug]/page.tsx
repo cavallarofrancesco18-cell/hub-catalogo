@@ -165,7 +165,7 @@ export default function VehiclePage() {
   
   const showPriceSheetEditor = () => {
     if (vehicle) {
-        priceSheetForm.reset({ price: vehicle.prezzo });
+        priceSheetForm.reset({ price: vehicle.prezzo ?? 0 });
         setIsPriceSheetEditorOpen(true);
     }
   };
@@ -209,7 +209,7 @@ export default function VehiclePage() {
         insurance: 'L\'acquirente si impegna a stipulare una polizza assicurativa RC auto prima del ritiro del veicolo.',
         wearAndTear: 'L\'acquirente dichiara di aver preso visione dello stato d\'uso del veicolo e di accettarlo nelle condizioni in cui si trova, tenuto conto della normale usura pregressa in base all\'anno di immatricolazione e al chilometraggio.',
         withdrawal: 'Per i contratti conclusi a distanza, l\'acquirente consumatore ha diritto di recedere dal contratto, senza alcuna penalità e senza specificarne il motivo, entro il termine di 14 giorni dalla presa in consegna del veicolo.',
-        price: vehicle.prezzo,
+        price: vehicle.prezzo ?? 0,
       });
     }
     setIsProformaFormOpen(true);
@@ -364,7 +364,7 @@ export default function VehiclePage() {
                     render={({ field }) => (
                         <FormItem>
                         <FormLabel>Prezzo Finale (€)</FormLabel>
-                        <FormControl><Input type="number" {...field} /></FormControl>
+                        <FormControl><Input type="number" {...field} value={field.value ?? ''} /></FormControl>
                         <FormMessage />
                         </FormItem>
                     )}
@@ -465,7 +465,7 @@ export default function VehiclePage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Nome e Cognome / Ragione Sociale *</FormLabel>
-                      <FormControl><Input placeholder="Es. Mario Rossi" {...field} /></FormControl>
+                      <FormControl><Input placeholder="Es. Mario Rossi" {...field} value={field.value ?? ''} /></FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -476,7 +476,7 @@ export default function VehiclePage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Prezzo di Vendita (€) *</FormLabel>
-                      <FormControl><Input type="number" {...field} disabled={role !== 'admin'} /></FormControl>
+                      <FormControl><Input type="number" {...field} value={field.value ?? ''} disabled={role !== 'admin'} /></FormControl>
                       {role !== 'admin' && <FormDescription>Solo gli amministratori possono modificare il prezzo.</FormDescription>}
                       <FormMessage />
                     </FormItem>
@@ -490,7 +490,7 @@ export default function VehiclePage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Indirizzo Completo di Residenza/Sede *</FormLabel>
-                    <FormControl><Input placeholder="Es. Via Roma 1, 10121 Torino (TO)" {...field} /></FormControl>
+                    <FormControl><Input placeholder="Es. Via Roma 1, 10121 Torino (TO)" {...field} value={field.value ?? ''} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -503,7 +503,7 @@ export default function VehiclePage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Data di Nascita *</FormLabel>
-                      <FormControl><Input type="date" {...field} /></FormControl>
+                      <FormControl><Input type="date" {...field} value={field.value ?? ''} /></FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -514,7 +514,7 @@ export default function VehiclePage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Luogo di Nascita *</FormLabel>
-                      <FormControl><Input placeholder="Es. Torino" {...field} /></FormControl>
+                      <FormControl><Input placeholder="Es. Torino" {...field} value={field.value ?? ''} /></FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -528,7 +528,7 @@ export default function VehiclePage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Codice Fiscale / P.IVA *</FormLabel>
-                      <FormControl><Input {...field} /></FormControl>
+                      <FormControl><Input {...field} value={field.value ?? ''} /></FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -539,7 +539,7 @@ export default function VehiclePage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Numero Documento (C.I.) *</FormLabel>
-                      <FormControl><Input {...field} /></FormControl>
+                      <FormControl><Input {...field} value={field.value ?? ''} /></FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -553,7 +553,7 @@ export default function VehiclePage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Cellulare *</FormLabel>
-                      <FormControl><Input type="tel" {...field} /></FormControl>
+                      <FormControl><Input type="tel" {...field} value={field.value ?? ''} /></FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -564,7 +564,7 @@ export default function VehiclePage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Email *</FormLabel>
-                      <FormControl><Input type="email" {...field} /></FormControl>
+                      <FormControl><Input type="email" {...field} value={field.value ?? ''} /></FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -578,7 +578,7 @@ export default function VehiclePage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Dettagli Garanzia</FormLabel>
-                      <FormControl><Textarea className="min-h-[100px]" {...field} /></FormControl>
+                      <FormControl><Textarea className="min-h-[100px]" {...field} value={field.value ?? ''} /></FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -591,7 +591,7 @@ export default function VehiclePage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Stato di Usura del Mezzo</FormLabel>
-                    <FormControl><Textarea className="min-h-[100px]" {...field} /></FormControl>
+                    <FormControl><Textarea className="min-h-[100px]" {...field} value={field.value ?? ''} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -603,7 +603,7 @@ export default function VehiclePage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Assicurazione</FormLabel>
-                    <FormControl><Textarea className="min-h-[80px]" {...field} /></FormControl>
+                    <FormControl><Textarea className="min-h-[80px]" {...field} value={field.value ?? ''} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -616,7 +616,7 @@ export default function VehiclePage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Diritto di Recesso</FormLabel>
-                      <FormControl><Textarea className="min-h-[100px]" {...field} /></FormControl>
+                      <FormControl><Textarea className="min-h-[100px]" {...field} value={field.value ?? ''} /></FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
