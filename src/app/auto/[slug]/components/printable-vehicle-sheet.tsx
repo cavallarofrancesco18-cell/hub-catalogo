@@ -6,18 +6,16 @@ import Image from 'next/image';
 import { formatCurrency, formatNumber } from '@/lib/utils';
 import { getDirectImageUrl } from '@/lib/utils';
 import { format } from 'date-fns';
-import {
-  LOGO_URL,
-  COMPANY_NAME,
-  COMPANY_ADDRESS,
-  COMPANY_CONTACT,
-} from '@/lib/branding';
+import type { BrandingProfile } from '@/lib/branding';
 
 interface PrintableVehicleSheetProps {
   vehicle: Vehicle;
+  price: number;
+  branding: BrandingProfile;
 }
 
-export function PrintableVehicleSheet({ vehicle }: PrintableVehicleSheetProps) {
+export function PrintableVehicleSheet({ vehicle, price, branding }: PrintableVehicleSheetProps) {
+  const { logoUrl, companyName, companyAddress, companyContact } = branding;
   const imageUrl = vehicle.immagini && vehicle.immagini.length > 0 ? getDirectImageUrl(vehicle.immagini[0]) : '';
   const otherImages = (vehicle.immagini || []).slice(1, 5).map(getDirectImageUrl).filter(Boolean);
   const registrationDate = vehicle.data_immatricolazione ? format(new Date(vehicle.data_immatricolazione), 'dd/MM/yyyy') : vehicle.anno;
@@ -32,22 +30,22 @@ export function PrintableVehicleSheet({ vehicle }: PrintableVehicleSheetProps) {
       {/* Header */}
       <header className="flex justify-between items-center pb-4 border-b-2 border-gray-200">
         <div className="flex items-center gap-4">
-          {LOGO_URL ? (
+          {logoUrl ? (
              <Image
-              src={LOGO_URL}
-              alt={`${COMPANY_NAME} Logo`}
+              src={logoUrl}
+              alt={`${companyName} Logo`}
               width={200}
               height={50}
               className="h-10 w-auto"
             />
           ) : (
-            <h1 className="text-xl font-bold">{COMPANY_NAME}</h1>
+            <h1 className="text-xl font-bold">{companyName}</h1>
           )}
         </div>
         <div className="text-right text-sm">
-          <p className="font-bold">{COMPANY_NAME}</p>
-          <p>{COMPANY_ADDRESS}</p>
-          <p>{COMPANY_CONTACT}</p>
+          <p className="font-bold">{companyName}</p>
+          <p>{companyAddress}</p>
+          <p>{companyContact}</p>
         </div>
       </header>
 
@@ -79,7 +77,7 @@ export function PrintableVehicleSheet({ vehicle }: PrintableVehicleSheetProps) {
         {/* Price and Key Specs */}
         <div className="col-span-5">
           <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
-            <p className="text-5xl font-bold text-gray-800 mb-6">{formatCurrency(vehicle.prezzo)}</p>
+            <p className="text-5xl font-bold text-gray-800 mb-6">{formatCurrency(price)}</p>
             <div className="space-y-3 text-base">
                 <div className="flex justify-between">
                     <span className="font-medium text-gray-500">Immatricolazione</span>

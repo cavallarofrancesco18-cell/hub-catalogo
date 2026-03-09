@@ -5,17 +5,30 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { signOut } from 'firebase/auth';
+import { useMemo } from 'react';
 
 import { Button } from '@/components/ui/button';
-import { LOGO_URL, COMPANY_NAME } from '@/lib/branding';
-import { useUser, useAuth } from '@/firebase';
+import { getBranding } from '@/lib/branding';
+import { useUser, useAuth, useUserRole } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
+import type { SellerRole as SellerRoleData } from '@/lib/types';
+import { Skeleton } from './ui/skeleton';
 
 export function Header() {
   const { user, isUserLoading } = useUser();
+  const { role, roleData, isLoading: isRoleLoading } = useUserRole();
   const auth = useAuth();
   const router = useRouter();
   const { toast } = useToast();
+
+  const branding = useMemo(() => {
+    if (!user) {
+        return getBranding(); // Default branding for logged-out users
+    }
+    return getBranding(role === 'admin' ? 'admin' : (roleData as SellerRoleData)?.sellerType);
+  }, [user, role, roleData]);
+
+  const { logoUrl, companyName } = branding;
 
   const handleLogout = async () => {
     if (!auth) return;
@@ -36,14 +49,18 @@ export function Header() {
     }
   };
 
+  const isLoading = isUserLoading || isRoleLoading;
+
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 print:hidden">
       <div className="container flex h-16 items-center justify-between">
         <Link href="/auto" className="flex items-center gap-3">
-          {LOGO_URL ? (
+          {isLoading ? (
+            <Skeleton className="h-8 w-36" />
+          ) : logoUrl ? (
             <Image
-              src={LOGO_URL}
-              alt={`${COMPANY_NAME} Logo`}
+              src={logoUrl}
+              alt={`${companyName} Logo`}
               width={150}
               height={40}
               className="h-8 w-auto"
@@ -51,7 +68,7 @@ export function Header() {
             />
           ) : (
             <span className="text-xl font-bold tracking-tight font-headline text-foreground">
-              {COMPANY_NAME}
+              {companyName}
             </span>
           )}
         </Link>
@@ -86,5 +103,3 @@ export function Header() {
     </header>
   );
 }
-
-    

@@ -138,14 +138,26 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "SellerRole",
       "type": "object",
-      "description": "Represents a seller role. The existence of a document for a user in the roles_seller collection grants them seller privileges.",
+      "description": "Represents a seller role. The existence of a document for a user in the roles_seller collection grants them seller privileges. Contains the seller's specific branding type.",
       "properties": {
         "assignedAt": {
           "type": "string",
           "format": "date-time",
           "description": "Timestamp indicating when the seller role was assigned."
+        },
+        "sellerType": {
+          "type": "string",
+          "description": "The branding profile type for this seller.",
+          "enum": [
+            "TIPO_A",
+            "TIPO_B",
+            "TIPO_C"
+          ]
         }
-      }
+      },
+      "required": [
+        "sellerType"
+      ]
     },
     "Form": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -231,7 +243,7 @@
           "schema": {
             "$ref": "#/backend/entities/SellerRole"
           },
-          "description": "Collection for seller roles. The existence of a document grants seller privileges: read all vehicle data, and update specific fields (status, description).",
+          "description": "Collection for seller roles. The existence of a document grants seller privileges: read all vehicle data, and update specific fields (status, description). Each document should contain a 'sellerType' to determine branding.",
           "params": [
             {
               "name": "userId",
@@ -260,5 +272,3 @@
     "reasoning": "The Firestore structure for LuxDrive Catalog prioritizes secure, scalable, and debuggable authorization by adhering to the core design principles. It leverages **Structural Segregation** and **DBAC (Database-Backed Access Control)** to clearly separate public data from administrative functions.\n\n**Authorization Independence (CRITICAL):**\nVehicle documents are stored in the top-level `/vehicles/{vehicleId}` collection. Their authorization is self-contained: they are publicly readable, and write operations (create, update, delete) are restricted to administrators. There are no subcollections whose access depends on parent document attributes, thus eliminating the need for `get()` calls in security rules for hierarchical authorization. Admin roles are managed in a separate, independent collection (`/roles_admin/{userId}`), ensuring that checking for administrative privileges is a single, atomic lookup and does not create hierarchical authorization dependencies within the vehicle data itself. This allows for atomic operations (transactions/batches) on vehicle documents without breaking security rule evaluations.\n\n**QAPs (Rules are not Filters):**\nFor the `/vehicles/{vehicleId}` collection, the `read` permission is `allow read: if true;`. This means that `list` queries on the `/vehicles` collection will return all documents that match the query filters (e.g., `where('brand', '==', 'BMW')`) without needing any additional filtering logic in the security rules. This design enables efficient client-side filtering and sorting as described in the requirements, fully supporting the Query-as-Permission principle. Security rules serve solely as authorization gates, not data filters, which is crucial for scalable performance and security.\n\n**Structure Breakdown:**\n1.  **`/vehicles/{vehicleId}`:** This primary collection stores all `Vehicle` entities, including all technical specifications, marketing details, and sales status information. Each document in this collection represents a single car available for sale.\n    *   **Security Posture:** Publicly readable (all authenticated and unauthenticated users can view) for the 'Auto in Vendita' catalog. Write access (create, update, delete) is restricted to authenticated users who possess an administrative role.\n    *   **Fields:** Contains all fields from the `Vehicle` schema, including `id`, `brand`, `model`, `year`, `mileage`, `fuelType`, `transmissionType`, `horsepower`, `exteriorColor`, `price`, `description`, `coverImageUrl`, `imageUrls`, `canvaLink`, `status`, `consultantName`, `consultantPhoneNumber`, `slug`, `createdAt`, and `updatedAt`.\n    *   **Denormalization:** The `slug` field is denormalized within each `Vehicle` document to facilitate SEO-friendly dynamic routing without requiring additional lookups. The `status` field explicitly models the vehicle's sales state, which influences UI behavior (e.g., disabling the contact button).\n\n2.  **`/roles_admin/{userId}`:** This collection is dedicated to managing administrative roles within the system. While not explicitly provided in the initial `backend.entities`, an `AdminRole` entity is conceptually introduced here to fulfill the DBAC mandate and enable secure administrative actions.\n    *   **Security Posture:** Read/write access is highly restricted, typically to a super-admin or internal processes. The mere existence of a document at `/roles_admin/{request.auth.uid}` grants administrative privileges for managing vehicles.\n    *   **Fields:** Documents in this collection can be empty or contain minimal metadata, as their existence itself signifies the role. For the purpose of this design, it maps to a conceptual `AdminRole` entity whose presence grants privileges."
   }
 }
-
-    

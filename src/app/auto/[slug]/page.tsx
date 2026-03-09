@@ -5,11 +5,11 @@ import { notFound, useParams } from 'next/navigation';
 import { VehicleDetailsClient } from './components/vehicle-details-client';
 import { Badge } from '@/components/ui/badge';
 import { useMemo, useRef, useState, useEffect } from 'react';
-import type { Vehicle } from '@/lib/types';
+import type { Vehicle, SellerRole as SellerRoleData } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useCollection } from '@/firebase/firestore/use-collection';
-import { collection, query, where, limit, doc, getDoc } from 'firebase/firestore';
-import { useFirestore, useMemoFirebase, useUser } from '@/firebase';
+import { collection, query, where, limit } from 'firebase/firestore';
+import { useFirestore, useMemoFirebase, useUserRole } from '@/firebase';
 import { format } from 'date-fns';
 import { PrintableVehicleSheet } from './components/printable-vehicle-sheet';
 import jsPDF from 'jspdf';
@@ -33,6 +33,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { PrintableProforma } from './components/printable-proforma';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { getBranding } from '@/lib/branding';
 
 const proformaSchema = z.object({
   name: z.string().min(1, 'Nome e cognome sono obbligatori.'),
@@ -53,17 +54,23 @@ const proformaSchema = z.object({
   withdrawal: z.string().optional(),
 });
 
+const priceSheetSchema = z.object({
+  price: z.coerce.number().positive('Il prezzo deve essere un numero positivo.'),
+});
 
 type ProformaFormValues = z.infer<typeof proformaSchema>;
+type PriceSheetFormValues = z.infer<typeof priceSheetSchema>;
 
 export default function VehiclePage() {
   const params = useParams();
   const slug = params.slug as string;
 
   const firestore = useFirestore();
-  const { user } = useUser();
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [isLoadingRole, setIsLoadingRole] = useState(true);
+  const { role, roleData, isLoading: isLoadingRole } = useUserRole();
+
+  const branding = useMemo(() => {
+    return getBranding(role === 'admin' ? 'admin' : (roleData as SellerRoleData)?.sellerType);
+  }, [role, roleData]);
 
   const vehicleQuery = useMemoFirebase(() => {
     if (!slug || !firestore) return null;
@@ -79,6 +86,8 @@ export default function VehiclePage() {
   const printableSheetRef = useRef<HTMLDivElement>(null);
   const [isPrinting, setIsPrinting] = useState(false);
   const [isPreviewing, setIsPreviewing] = useState(false);
+  const [isPriceSheetEditorOpen, setIsPriceSheetEditorOpen] = useState(false);
+  const [finalSheetPrice, setFinalSheetPrice] = useState<number | null>(null);
 
   // State for proforma contract
   const proformaSheetRef = useRef<HTMLDivElement>(null);
@@ -102,31 +111,19 @@ export default function VehiclePage() {
     },
   });
 
-  useEffect(() => {
-    if (user && firestore) {
-      setIsLoadingRole(true);
-      const checkAdmin = async () => {
-        const adminRef = doc(firestore, 'roles_admin', user.uid);
-        const adminDoc = await getDoc(adminRef);
-        setIsAdmin(adminDoc.exists());
-        setIsLoadingRole(false);
-      };
-      checkAdmin();
-    } else {
-      setIsAdmin(false);
-      setIsLoadingRole(false);
-    }
-  }, [user, firestore]);
+  const priceSheetForm = useForm<PriceSheetFormValues>({
+    resolver: zodResolver(priceSheetSchema),
+  });
 
   const customerType = proformaForm.watch('customerType');
 
-  const handleGeneratePdf = async () => {
-    if (!printableSheetRef.current || !vehicle) return;
+  const handleGeneratePdf = async (ref: React.RefObject<HTMLDivElement>, fileName: string) => {
+    if (!ref.current) return;
 
     setIsPrinting(true);
 
     try {
-      const canvas = await html2canvas(printableSheetRef.current, {
+      const canvas = await html2canvas(ref.current, {
         scale: 2,
         useCORS: true,
       });
@@ -148,28 +145,46 @@ export default function VehiclePage() {
       let heightLeft = totalImgHeightInPdf;
       let position = 0;
 
-      pdf.addImage(imgData, 'PNG', margin, margin, contentWidth, totalImgHeightInPdf);
+      pdf.addImage(imgData, 'PNG', margin, position, contentWidth, totalImgHeightInPdf);
       heightLeft -= (pdfHeight - margin * 2);
 
       while (heightLeft > 0) {
-        position -= (pdfHeight - margin * 2);
+        position -= pdfHeight;
         pdf.addPage();
         pdf.addImage(imgData, 'PNG', margin, position + margin, contentWidth, totalImgHeightInPdf);
-        heightLeft -= (pdfHeight - margin * 2);
+        heightLeft -= pdfHeight;
       }
       
-      pdf.save(`scheda-veicolo-${vehicle.slug}.pdf`);
+      pdf.save(fileName);
     } catch (error) {
       console.error('Errore durante la creazione del PDF:', error);
     } finally {
       setIsPrinting(false);
     }
   };
+  
+  const showPriceSheetEditor = () => {
+    if (vehicle) {
+        priceSheetForm.reset({ price: vehicle.prezzo });
+        setIsPriceSheetEditorOpen(true);
+    }
+  };
 
-  const showPreview = () => setIsPreviewing(true);
-  const hidePreview = () => setIsPreviewing(false);
+  function onPriceSheetSubmit(values: PriceSheetFormValues) {
+    setFinalSheetPrice(values.price);
+    setIsPriceSheetEditorOpen(false);
+    setIsPreviewing(true);
+  }
+
+  const hidePreview = () => {
+    setIsPreviewing(false);
+    setFinalSheetPrice(null);
+  };
+  
   const handleConfirmPrint = async () => {
-    await handleGeneratePdf();
+    if (vehicle) {
+        await handleGeneratePdf(printableSheetRef, `scheda-veicolo-${vehicle.slug}.pdf`);
+    }
     hidePreview();
   };
 
@@ -177,41 +192,6 @@ export default function VehiclePage() {
     setProformaCustomerData(values);
     setIsProformaFormOpen(false);
   }
-
-  const handleGenerateProformaPdf = async () => {
-    if (!proformaSheetRef.current || !vehicle) return;
-
-    setIsGeneratingProforma(true);
-    try {
-      const canvas = await html2canvas(proformaSheetRef.current, { scale: 2, useCORS: true });
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      const margin = 15;
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
-      const contentWidth = pdfWidth - margin * 2;
-      const imgProps = pdf.getImageProperties(imgData);
-      const totalImgHeightInPdf = (imgProps.height * contentWidth) / imgProps.width;
-      let heightLeft = totalImgHeightInPdf;
-      let position = 0;
-
-      pdf.addImage(imgData, 'PNG', margin, margin, contentWidth, totalImgHeightInPdf);
-      heightLeft -= (pdfHeight - margin * 2);
-
-      while (heightLeft > 0) {
-        position -= (pdfHeight - margin * 2);
-        pdf.addPage();
-        pdf.addImage(imgData, 'PNG', margin, position + margin, contentWidth, totalImgHeightInPdf);
-        heightLeft -= (pdfHeight - margin * 2);
-      }
-      
-      pdf.save(`contratto-vendita-${vehicle.slug}.pdf`);
-    } catch (error) {
-      console.error('Errore durante la creazione del PDF del contratto:', error);
-    } finally {
-      setIsGeneratingProforma(false);
-    }
-  };
 
   const showProformaForm = () => {
     if (vehicle) {
@@ -234,13 +214,19 @@ export default function VehiclePage() {
     }
     setIsProformaFormOpen(true);
   };
+  
   const hideProformaPreview = () => setProformaCustomerData(null);
+  
   const handleConfirmProformaPrint = async () => {
-    await handleGenerateProformaPdf();
+    if(vehicle) {
+        setIsGeneratingProforma(true);
+        await handleGeneratePdf(proformaSheetRef, `contratto-vendita-${vehicle.slug}.pdf`);
+        setIsGeneratingProforma(false);
+    }
     hideProformaPreview();
   };
 
-  if (loading) {
+  if (loading || isLoadingRole) {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="mb-6">
@@ -283,9 +269,9 @@ export default function VehiclePage() {
 
         <VehicleDetailsClient
           vehicle={vehicle}
-          onPrintClick={showPreview}
+          onPrintClick={showPriceSheetEditor}
           onProformaClick={showProformaForm}
-          disabled={isPreviewing || isProformaFormOpen || !!proformaCustomerData || isLoadingRole}
+          disabled={isLoadingRole || role === null}
         />
 
         <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -361,8 +347,41 @@ export default function VehiclePage() {
         </div>
       </div>
 
+       {/* Price Sheet Editor Dialog */}
+      <Dialog open={isPriceSheetEditorOpen} onOpenChange={setIsPriceSheetEditorOpen}>
+        <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Modifica Prezzo per la Stampa</DialogTitle>
+              <DialogDescription>
+                Inserisci il prezzo finale da mostrare sulla scheda del veicolo.
+              </DialogDescription>
+            </DialogHeader>
+            <Form {...priceSheetForm}>
+                <form onSubmit={priceSheetForm.handleSubmit(onPriceSheetSubmit)} className="space-y-4">
+                    <FormField
+                    control={priceSheetForm.control}
+                    name="price"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Prezzo Finale (€)</FormLabel>
+                        <FormControl><Input type="number" {...field} /></FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                    <DialogFooter>
+                        <DialogClose asChild>
+                            <Button type="button" variant="outline">Annulla</Button>
+                        </DialogClose>
+                        <Button type="submit">Genera Anteprima</Button>
+                    </DialogFooter>
+                </form>
+            </Form>
+        </DialogContent>
+      </Dialog>
+
       {/* Vehicle Sheet Preview Dialog */}
-      <Dialog open={isPreviewing} onOpenChange={setIsPreviewing}>
+      <Dialog open={isPreviewing} onOpenChange={hidePreview}>
         <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Anteprima Scheda Veicolo</DialogTitle>
@@ -372,7 +391,9 @@ export default function VehiclePage() {
               ref={printableSheetRef}
               className="w-[800px] mx-auto my-8 shadow-2xl"
             >
-              <PrintableVehicleSheet vehicle={vehicle} />
+              {finalSheetPrice !== null && (
+                <PrintableVehicleSheet vehicle={vehicle} price={finalSheetPrice} branding={branding} />
+              )}
             </div>
           </div>
           <DialogFooter>
@@ -455,8 +476,8 @@ export default function VehiclePage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Prezzo di Vendita (€) *</FormLabel>
-                      <FormControl><Input type="number" {...field} disabled={!isAdmin} /></FormControl>
-                      {!isAdmin && <FormDescription>Solo gli amministratori possono modificare il prezzo.</FormDescription>}
+                      <FormControl><Input type="number" {...field} disabled={role !== 'admin'} /></FormControl>
+                      {role !== 'admin' && <FormDescription>Solo gli amministratori possono modificare il prezzo.</FormDescription>}
                       <FormMessage />
                     </FormItem>
                   )}
@@ -632,6 +653,7 @@ export default function VehiclePage() {
                   wearAndTear={proformaCustomerData.wearAndTear || ''}
                   withdrawal={proformaCustomerData.withdrawal || ''}
                   date={format(new Date(), 'dd/MM/yyyy')}
+                  branding={branding}
                 />
               )}
             </div>

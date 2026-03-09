@@ -2,13 +2,8 @@
 
 import type { Vehicle } from '@/lib/types';
 import { formatCurrency, formatNumber } from '@/lib/utils';
-import {
-  LOGO_URL,
-  COMPANY_NAME,
-  COMPANY_ADDRESS,
-  COMPANY_CONTACT,
-} from '@/lib/branding';
 import Image from 'next/image';
+import type { BrandingProfile } from '@/lib/branding';
 
 interface CustomerData {
   name: string;
@@ -31,9 +26,12 @@ interface PrintableProformaProps {
   wearAndTear: string;
   withdrawal: string;
   date: string;
+  branding: BrandingProfile;
 }
 
-export function PrintableProforma({ vehicle, customer, price, customerType, warranty, insurance, wearAndTear, withdrawal, date }: PrintableProformaProps) {
+export function PrintableProforma({ vehicle, customer, price, customerType, warranty, insurance, wearAndTear, withdrawal, date, branding }: PrintableProformaProps) {
+  
+  const { logoUrl, companyName, companyAddress, companyContact } = branding;
 
   const DetailRow = ({ label, value }: { label: string, value: React.ReactNode }) => (
     <tr className="border-b border-gray-200">
@@ -46,22 +44,22 @@ export function PrintableProforma({ vehicle, customer, price, customerType, warr
     <div className="bg-white text-black p-8 font-sans text-sm">
       <header className="flex justify-between items-start pb-4 mb-8 border-b-2 border-gray-300">
         <div className="flex items-center gap-4">
-          {LOGO_URL ? (
+          {logoUrl ? (
              <Image
-              src={LOGO_URL}
-              alt={`${COMPANY_NAME} Logo`}
+              src={logoUrl}
+              alt={`${companyName} Logo`}
               width={180}
               height={45}
               className="h-10 w-auto"
             />
           ) : (
-            <h1 className="text-xl font-bold">{COMPANY_NAME}</h1>
+            <h1 className="text-xl font-bold">{companyName}</h1>
           )}
         </div>
         <div className="text-right text-xs">
-          <p className="font-bold">{COMPANY_NAME}</p>
-          <p>{COMPANY_ADDRESS}</p>
-          <p>{COMPANY_CONTACT}</p>
+          <p className="font-bold">{companyName}</p>
+          <p>{companyAddress}</p>
+          <p>{companyContact}</p>
         </div>
       </header>
 
@@ -72,7 +70,7 @@ export function PrintableProforma({ vehicle, customer, price, customerType, warr
 
       <section className="mb-6">
         <h2 className="font-bold text-base mb-2 pb-1 border-b">TRA</h2>
-        <p><span className="font-semibold">{COMPANY_NAME}</span>, con sede in {COMPANY_ADDRESS}, in qualità di VENDITORE</p>
+        <p><span className="font-semibold">{companyName}</span>, con sede in {companyAddress}, in qualità di VENDITORE</p>
         <h2 className="font-bold text-base mt-4 mb-2 pb-1 border-b">E</h2>
         <p>
           <span className="font-semibold">{customer.name}</span>
