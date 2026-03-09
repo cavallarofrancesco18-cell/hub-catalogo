@@ -39,12 +39,20 @@ const proformaSchema = z.object({
   address: z.string().min(1, 'Indirizzo obbligatorio.'),
   cf: z.string().min(1, 'Codice Fiscale o P.IVA sono obbligatori.'),
   docNumber: z.string().min(1, 'Numero documento obbligatorio.'),
+  birthDate: z.string().min(1, 'Data di nascita obbligatoria.'),
+  birthPlace: z.string().min(1, 'Luogo di nascita obbligatorio.'),
+  phone: z.string().min(1, 'Numero di cellulare obbligatorio.'),
+  email: z.string().email('Email non valida.'),
   price: z.coerce.number().positive('Il prezzo deve essere un numero positivo.'),
   customerType: z.enum(['privato', 'commerciante'], {
     required_error: 'Selezionare il tipo di cliente.',
   }),
   warranty: z.string().optional(),
+  insurance: z.string().optional(),
+  wearAndTear: z.string().optional(),
+  withdrawal: z.string().optional(),
 });
+
 
 type ProformaFormValues = z.infer<typeof proformaSchema>;
 
@@ -85,9 +93,12 @@ export default function VehiclePage() {
       address: '',
       cf: '',
       docNumber: '',
+      price: 0,
       customerType: 'privato',
       warranty: 'Il veicolo viene venduto con garanzia legale di conformità per 12 mesi come da D.Lgs. 206/2005 (Codice del Consumo).',
-      price: 0,
+      insurance: 'L\'acquirente si impegna a stipulare una polizza assicurativa RC auto prima del ritiro del veicolo.',
+      wearAndTear: 'L\'acquirente dichiara di aver preso visione dello stato d\'uso del veicolo e di accettarlo nelle condizioni in cui si trova, tenuto conto della normale usura pregressa in base all\'anno di immatricolazione e al chilometraggio.',
+      withdrawal: 'Per i contratti conclusi a distanza, l\'acquirente consumatore ha diritto di recedere dal contratto, senza alcuna penalità e senza specificarne il motivo, entro il termine di 14 giorni dalla presa in consegna del veicolo.',
     },
   });
 
@@ -209,8 +220,15 @@ export default function VehiclePage() {
         address: '',
         cf: '',
         docNumber: '',
+        birthDate: '',
+        birthPlace: '',
+        phone: '',
+        email: '',
         customerType: 'privato',
         warranty: 'Il veicolo viene venduto con garanzia legale di conformità per 12 mesi come da D.Lgs. 206/2005 (Codice del Consumo).',
+        insurance: 'L\'acquirente si impegna a stipulare una polizza assicurativa RC auto prima del ritiro del veicolo.',
+        wearAndTear: 'L\'acquirente dichiara di aver preso visione dello stato d\'uso del veicolo e di accettarlo nelle condizioni in cui si trova, tenuto conto della normale usura pregressa in base all\'anno di immatricolazione e al chilometraggio.',
+        withdrawal: 'Per i contratti conclusi a distanza, l\'acquirente consumatore ha diritto di recedere dal contratto, senza alcuna penalità e senza specificarne il motivo, entro il termine di 14 giorni dalla presa in consegna del veicolo.',
         price: vehicle.prezzo,
       });
     }
@@ -379,11 +397,11 @@ export default function VehiclePage() {
 
       {/* Proforma Customer Data Form Dialog */}
       <Dialog open={isProformaFormOpen} onOpenChange={setIsProformaFormOpen}>
-        <DialogContent className="sm:max-w-[600px]">
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Crea Contratto di Vendita</DialogTitle>
             <DialogDescription>
-              Inserisci i dati dell'acquirente per generare il contratto.
+              Inserisci i dati dell'acquirente e le clausole per generare il contratto.
             </DialogDescription>
           </DialogHeader>
           <Form {...proformaForm}>
@@ -426,18 +444,18 @@ export default function VehiclePage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Nome e Cognome / Ragione Sociale *</FormLabel>
-                      <FormControl><Input placeholder="Es. Mario Rossi" {...field} value={field.value ?? ''} /></FormControl>
+                      <FormControl><Input placeholder="Es. Mario Rossi" {...field} /></FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-                <FormField
+                 <FormField
                   control={proformaForm.control}
                   name="price"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Prezzo di Vendita (€) *</FormLabel>
-                      <FormControl><Input type="number" {...field} value={field.value ?? ''} disabled={!isAdmin} /></FormControl>
+                      <FormControl><Input type="number" {...field} disabled={!isAdmin} /></FormControl>
                       {!isAdmin && <FormDescription>Solo gli amministratori possono modificare il prezzo.</FormDescription>}
                       <FormMessage />
                     </FormItem>
@@ -445,17 +463,43 @@ export default function VehiclePage() {
                 />
               </div>
 
-              <FormField
+               <FormField
                 control={proformaForm.control}
                 name="address"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Indirizzo Completo *</FormLabel>
-                    <FormControl><Input placeholder="Es. Via Roma 1, 10121 Torino (TO)" {...field} value={field.value ?? ''} /></FormControl>
+                    <FormLabel>Indirizzo Completo di Residenza/Sede *</FormLabel>
+                    <FormControl><Input placeholder="Es. Via Roma 1, 10121 Torino (TO)" {...field} /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                 <FormField
+                  control={proformaForm.control}
+                  name="birthDate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Data di Nascita *</FormLabel>
+                      <FormControl><Input type="date" {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                 <FormField
+                  control={proformaForm.control}
+                  name="birthPlace"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Luogo di Nascita *</FormLabel>
+                      <FormControl><Input placeholder="Es. Torino" {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <FormField
                   control={proformaForm.control}
@@ -463,7 +507,7 @@ export default function VehiclePage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Codice Fiscale / P.IVA *</FormLabel>
-                      <FormControl><Input {...field} value={field.value ?? ''} /></FormControl>
+                      <FormControl><Input {...field} /></FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -474,7 +518,32 @@ export default function VehiclePage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Numero Documento (C.I.) *</FormLabel>
-                      <FormControl><Input {...field} value={field.value ?? ''} /></FormControl>
+                      <FormControl><Input {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField
+                  control={proformaForm.control}
+                  name="phone"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Cellulare *</FormLabel>
+                      <FormControl><Input type="tel" {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={proformaForm.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email *</FormLabel>
+                      <FormControl><Input type="email" {...field} /></FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -488,7 +557,45 @@ export default function VehiclePage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Dettagli Garanzia</FormLabel>
-                      <FormControl><Textarea className="min-h-[100px]" {...field} value={field.value ?? ''} /></FormControl>
+                      <FormControl><Textarea className="min-h-[100px]" {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              <FormField
+                control={proformaForm.control}
+                name="wearAndTear"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Stato di Usura del Mezzo</FormLabel>
+                    <FormControl><Textarea className="min-h-[100px]" {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={proformaForm.control}
+                name="insurance"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Assicurazione</FormLabel>
+                    <FormControl><Textarea className="min-h-[80px]" {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {customerType === 'privato' && (
+                <FormField
+                  control={proformaForm.control}
+                  name="withdrawal"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Diritto di Recesso</FormLabel>
+                      <FormControl><Textarea className="min-h-[100px]" {...field} /></FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -521,6 +628,9 @@ export default function VehiclePage() {
                   price={proformaCustomerData.price}
                   customerType={proformaCustomerData.customerType}
                   warranty={proformaCustomerData.warranty || ''}
+                  insurance={proformaCustomerData.insurance || ''}
+                  wearAndTear={proformaCustomerData.wearAndTear || ''}
+                  withdrawal={proformaCustomerData.withdrawal || ''}
                   date={format(new Date(), 'dd/MM/yyyy')}
                 />
               )}

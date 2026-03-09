@@ -15,6 +15,10 @@ interface CustomerData {
   address: string;
   cf: string;
   docNumber: string;
+  birthDate: string;
+  birthPlace: string;
+  phone: string;
+  email: string;
 }
 
 interface PrintableProformaProps {
@@ -23,10 +27,13 @@ interface PrintableProformaProps {
   price: number;
   customerType: 'privato' | 'commerciante';
   warranty: string;
+  insurance: string;
+  wearAndTear: string;
+  withdrawal: string;
   date: string;
 }
 
-export function PrintableProforma({ vehicle, customer, price, customerType, warranty, date }: PrintableProformaProps) {
+export function PrintableProforma({ vehicle, customer, price, customerType, warranty, insurance, wearAndTear, withdrawal, date }: PrintableProformaProps) {
 
   const DetailRow = ({ label, value }: { label: string, value: React.ReactNode }) => (
     <tr className="border-b border-gray-200">
@@ -67,7 +74,16 @@ export function PrintableProforma({ vehicle, customer, price, customerType, warr
         <h2 className="font-bold text-base mb-2 pb-1 border-b">TRA</h2>
         <p><span className="font-semibold">{COMPANY_NAME}</span>, con sede in {COMPANY_ADDRESS}, in qualità di VENDITORE</p>
         <h2 className="font-bold text-base mt-4 mb-2 pb-1 border-b">E</h2>
-        <p><span className="font-semibold">{customer.name}</span>, residente in {customer.address}, C.F. {customer.cf}, documento n. {customer.docNumber}, in qualità di ACQUIRENTE</p>
+        <p>
+          <span className="font-semibold">{customer.name}</span>
+          , nato/a a <span className="font-semibold">{customer.birthPlace}</span> il <span className="font-semibold">{new Date(customer.birthDate).toLocaleDateString('it-IT')}</span>,
+          residente in <span className="font-semibold">{customer.address}</span>,
+          C.F. <span className="font-semibold">{customer.cf}</span>,
+          documento n. <span className="font-semibold">{customer.docNumber}</span>,
+          tel. <span className="font-semibold">{customer.phone}</span>,
+          email <span className="font-semibold">{customer.email}</span>,
+          in qualità di ACQUIRENTE
+        </p>
       </section>
 
       <section className="mb-6">
@@ -102,9 +118,26 @@ export function PrintableProforma({ vehicle, customer, price, customerType, warr
           <p>La vettura viene acquistata vista e piaciuta.</p>
         )}
       </section>
+
+      <section className="mb-6">
+        <h2 className="font-bold text-base mb-2 pb-1 border-b">Art. 4 - Stato d'Uso del Mezzo</h2>
+        <p className="whitespace-pre-wrap">{wearAndTear || 'Nessuna dichiarazione sullo stato d\'uso.'}</p>
+      </section>
+
+      <section className="mb-6">
+        <h2 className="font-bold text-base mb-2 pb-1 border-b">Art. 5 - Assicurazione</h2>
+        <p className="whitespace-pre-wrap">{insurance || 'Nessuna indicazione sull\'assicurazione.'}</p>
+      </section>
+      
+      {customerType === 'privato' && (
+        <section className="mb-6">
+          <h2 className="font-bold text-base mb-2 pb-1 border-b">Art. 6 - Diritto di Recesso</h2>
+          <p className="whitespace-pre-wrap">{withdrawal || 'Nessuna indicazione sul diritto di recesso.'}</p>
+        </section>
+      )}
       
       <section className="mb-6">
-        <h2 className="font-bold text-base mb-2 pb-1 border-b">Art. 4 - Dichiarazioni</h2>
+        <h2 className="font-bold text-base mb-2 pb-1 border-b">Art. 7 - Dichiarazioni Finali</h2>
         <p>L'ACQUIRENTE dichiara di aver ispezionato il veicolo e di averlo trovato in buono stato d'uso, idoneo all'uso cui è destinato e di proprio gradimento. Il passaggio di proprietà avverrà contestualmente al saldo del prezzo.</p>
       </section>
 
