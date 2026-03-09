@@ -15,7 +15,7 @@ export default function SellerLayout({
 
   useEffect(() => {
     if (!isUserLoading && !user) {
-      router.replace('/login-seller');
+      router.replace('/login');
     }
   }, [user, isUserLoading, router]);
 

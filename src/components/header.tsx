@@ -28,17 +28,12 @@ export function Header() {
           <Button asChild variant="outline">
             <Link href="/auto">
               <Home className="mr-2 h-4 w-4" />
-              Home
-            </Link>
-          </Button>
-          <Button asChild variant="secondary">
-            <Link href="/seller">
-              Area Venditore
+              Catalogo
             </Link>
           </Button>
           <Button asChild>
-            <Link href="/admin">
-              Admin
+            <Link href="/login">
+              Accesso Area Riservata
             </Link>
           </Button>
         </div>

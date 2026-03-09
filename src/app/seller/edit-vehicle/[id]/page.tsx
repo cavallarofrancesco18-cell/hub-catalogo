@@ -8,7 +8,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { doc, getDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import Image from 'next/image';
 
-import { useFirestore, errorEmitter, FirestorePermissionError } from '@/firebase';
+import { useFirestore } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -18,13 +18,6 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Form,
@@ -56,7 +49,6 @@ import html2canvas from 'html2canvas';
 
 const vehicleSchema = z.object({
   descrizione: z.string().optional(),
-  stato: z.enum(['In vendita', 'Venduto']).optional(),
   // Read-only fields
   prezzo: z.coerce.number().optional().or(z.literal('')),
   marca: z.string(),
@@ -190,7 +182,8 @@ export default function SellerEditVehiclePage() {
     const currentFormData = form.getValues();
     const previewData: Vehicle = {
       ...vehicle,
-      stato: currentFormData.stato || vehicle.stato,
+      // The status for preview is taken directly from the source vehicle data
+      stato: vehicle.stato, 
       descrizione: currentFormData.descrizione || vehicle.descrizione,
     };
     setVehicleForPreview(previewData);
@@ -208,42 +201,37 @@ export default function SellerEditVehiclePage() {
   };
 
 
-  function onSubmit(data: VehicleFormValues) {
+  async function onSubmit(data: VehicleFormValues) {
     if (!firestore) return;
     
     setIsSubmitting(true);
     const vehicleRef = doc(firestore, 'vehicles', vehicleId);
     
-    const dataToSave: {descrizione?: string; stato?: 'In vendita' | 'Venduto', updatedAt: any} = {
+    const dataToSave: {descrizione?: string; updatedAt: any} = {
         updatedAt: serverTimestamp(),
     };
 
     if (data.descrizione) {
         dataToSave.descrizione = data.descrizione;
     }
-    if (data.stato) {
-        dataToSave.stato = data.stato;
-    }
     
-    updateDoc(vehicleRef, dataToSave)
-        .then(() => {
-            toast({
-                title: 'Veicolo aggiornato!',
-                description: `Le modifiche sono state salvate.`,
-            });
-            router.push('/seller');
-        })
-        .catch((error) => {
-            const contextualError = new FirestorePermissionError({
-                path: vehicleRef.path,
-                operation: 'update',
-                requestResourceData: dataToSave,
-            });
-            errorEmitter.emit('permission-error', contextualError);
-        })
-        .finally(() => {
-            setIsSubmitting(false);
+    try {
+        await updateDoc(vehicleRef, dataToSave);
+        toast({
+            title: 'Veicolo aggiornato!',
+            description: `Le modifiche sono state salvate.`,
         });
+        router.push('/seller');
+    } catch (error) {
+        console.error("Errore durante l'aggiornamento:", error);
+        toast({
+            variant: "destructive",
+            title: "Uh oh! Qualcosa è andato storto.",
+            description: "Impossibile salvare le modifiche. Verifica i tuoi permessi.",
+        });
+    } finally {
+        setIsSubmitting(false);
+    }
   }
 
   if (isLoading) {
@@ -273,7 +261,7 @@ export default function SellerEditVehiclePage() {
             <CardHeader>
               <CardTitle>Informazioni Veicolo</CardTitle>
               <CardDescription>
-                Puoi modificare solo lo stato e la descrizione. Le altre informazioni sono in sola lettura.
+                Puoi modificare solo la descrizione. Le altre informazioni sono in sola lettura.
               </CardDescription>
             </CardHeader>
             <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -313,74 +301,12 @@ export default function SellerEditVehiclePage() {
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="data_immatricolazione"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Data di Immatricolazione</FormLabel>
-                    <FormControl>
-                      <Input type="date" {...field} readOnly disabled />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="chilometraggio"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Chilometraggio</FormLabel>
-                    <FormControl>
-                      <Input type="number" {...field} value={field.value ?? ''} readOnly disabled />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-               <FormField
-                control={form.control}
-                name="carburante"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Carburante</FormLabel>
-                    <Input value={field.value} readOnly disabled />
-                  </FormItem>
-                )}
-              />
-               <FormField
-                control={form.control}
-                name="cambio"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Cambio</FormLabel>
-                    <Input value={field.value} readOnly disabled />
-                  </FormItem>
-                )}
-              />
-               <FormField
-                control={form.control}
-                name="potenza"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Potenza (CV)</FormLabel>
-                    <FormControl>
-                      <Input type="number" {...field} value={field.value ?? ''} readOnly disabled />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-               <FormField
-                control={form.control}
-                name="colore_esterno"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Colore Esterno</FormLabel>
-                    <FormControl>
-                      <Input {...field} value={field.value ?? ''} readOnly disabled />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
+              <FormItem>
+                <FormLabel>Stato</FormLabel>
+                <Badge variant={vehicle.stato === 'Venduto' ? 'destructive' : 'secondary'} className="block w-fit text-base py-1 px-3">
+                  {vehicle.stato}
+                </Badge>
+              </FormItem>
               <FormField
                 control={form.control}
                 name="prezzo"
@@ -401,33 +327,12 @@ export default function SellerEditVehiclePage() {
             <CardHeader>
                 <CardTitle>Campi Modificabili</CardTitle>
             </CardHeader>
-            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <FormField
-                    control={form.control}
-                    name="stato"
-                    render={({ field }) => (
-                    <FormItem>
-                        <FormLabel>Stato Annuncio</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                            <SelectTrigger>
-                            <SelectValue placeholder="Seleziona stato" />
-                            </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                            <SelectItem value="In vendita">In vendita</SelectItem>
-                            <SelectItem value="Venduto">Venduto</SelectItem>
-                        </SelectContent>
-                        </Select>
-                        <FormMessage />
-                    </FormItem>
-                    )}
-                />
+            <CardContent>
                 <FormField
                     control={form.control}
                     name="descrizione"
                     render={({ field }) => (
-                    <FormItem className="md:col-span-2">
+                    <FormItem>
                         <FormLabel>Descrizione Commerciale</FormLabel>
                         <FormControl>
                         <Textarea

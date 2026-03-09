@@ -1,0 +1,94 @@
+/**
+ * LuxDrive Catalog - Firestore Security Rules
+ *
+ * Core Philosophy:
+ * This ruleset implements a role-based access control model. The primary goal is to provide a public, read-only vehicle catalog, while granting different levels of write permissions to 'Admins' and 'Sellers'.
+ *
+ * Data Structure:
+ * - /vehicles/{vehicleId}: Public collection of all vehicle data.
+ * - /roles_admin/{userId}: A list of admin UIDs. Document existence grants admin role.
+ * - /roles_seller/{userId}: A list of seller UIDs. Document existence grants seller role.
+ *
+ * Key Security Decisions:
+ * - Public Vehicle Catalog: The `/vehicles` collection is publicly readable (`allow read: if true;`).
+ * - Admin Full Control: Admins have full create, update, and delete permissions on vehicles.
+ * - Seller Limited Writes: Sellers can read all vehicle data but can only update the 'descrizione' field. They cannot create or delete vehicles or change the status.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper Functions
+    
+    /**
+     * Checks if the user is authenticated.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    /**
+     * Checks if the user is an administrator by checking for their UID in the 'roles_admin' collection.
+     */
+    function isAdmin() {
+      return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+    }
+
+    /**
+     * Checks if the user is a seller by checking for their UID in the 'roles_seller' collection.
+     */
+    function isSeller() {
+      return exists(/databases/$(database)/documents/roles_seller/$(request.auth.uid));
+    }
+
+    /**
+     * @description
+     *   Rules for the primary collection of vehicle listings.
+     *   - Public read access for all.
+     *   - Full write access for Admins.
+     *   - Limited update access for Sellers (only description).
+     * @path
+     *   /vehicles/{vehicleId}
+     */
+    match /vehicles/{vehicleId} {
+      allow get: if true;
+      allow list: if true;
+
+      allow create: if isAdmin();
+      allow delete: if isAdmin() && resource != null;
+      
+      // Admins can update any field.
+      allow update: if isAdmin() && resource != null;
+      
+      // Sellers can only update 'descrizione'.
+      // We also ensure that 'updatedAt' is being set to the server time.
+      allow update: if isSeller() && resource != null
+                    // The only fields that can be changed are 'descrizione' and 'updatedAt'
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['descrizione', 'updatedAt'])
+                    // The 'updatedAt' field must be set to the server timestamp
+                    && request.resource.data.updatedAt == request.time;
+    }
+
+    /**
+     * @description
+     *   Admin roles collection. Locked down for client access.
+     *   Managed by a trusted server process or via the Firebase Console.
+     * @path
+     *   /roles_admin/{userId}
+     */
+    match /roles_admin/{userId} {
+      allow read, write: if false;
+    }
+
+    /**
+     * @description
+     *   Seller roles collection. Locked down for client access.
+     *   Managed by a trusted server process or via the Firebase Console.
+     * @path
+     *   /roles_seller/{userId}
+     */
+    match /roles_seller/{userId} {
+      allow read, write: if false;
+    }
+  }
+}

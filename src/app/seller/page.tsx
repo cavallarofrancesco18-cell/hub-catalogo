@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useCollection } from '@/firebase/firestore/use-collection';
-import { collection, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { collection } from 'firebase/firestore';
 import type { Vehicle } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import {
@@ -16,55 +16,18 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
-import { formatCurrency, getDirectImageUrl, cn } from '@/lib/utils';
-import { Pencil, Loader2 } from 'lucide-react';
-import { useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
-import { useToast } from '@/hooks/use-toast';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
+import { formatCurrency, getDirectImageUrl } from '@/lib/utils';
+import { Pencil } from 'lucide-react';
+import { useFirestore, useMemoFirebase } from '@/firebase';
+import { Badge } from '@/components/ui/badge';
 
 export default function SellerPage() {
   const firestore = useFirestore();
-  const { toast } = useToast();
   const vehiclesRef = useMemoFirebase(
     () => collection(firestore, 'vehicles'),
     [firestore]
   );
   const { data: vehicles, isLoading } = useCollection<Vehicle>(vehiclesRef);
-  const [isUpdatingStatus, setIsUpdatingStatus] = useState<string | null>(null);
-
-  const handleStatusChange = (
-    vehicleId: string,
-    newStatus: 'In vendita' | 'Venduto'
-  ) => {
-    if (!firestore) return;
-    setIsUpdatingStatus(vehicleId);
-    const vehicleRef = doc(firestore, 'vehicles', vehicleId);
-    
-    const dataToUpdate = {
-        stato: newStatus,
-        updatedAt: serverTimestamp(),
-    };
-
-    updateDoc(vehicleRef, dataToUpdate)
-      .then(() => {
-        toast({
-          title: 'Stato aggiornato!',
-          description: `Lo stato del veicolo è ora "${newStatus}".`,
-        });
-      })
-      .catch((error) => {
-        const contextualError = new FirestorePermissionError({
-          path: vehicleRef.path,
-          operation: 'update',
-          requestResourceData: dataToUpdate,
-        });
-        errorEmitter.emit('permission-error', contextualError);
-      })
-      .finally(() => {
-        setIsUpdatingStatus(null);
-      });
-  };
 
   return (
     <>
@@ -155,40 +118,15 @@ export default function SellerPage() {
                     </TableCell>
                     <TableCell>{formatCurrency(vehicle.prezzo)}</TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        {isUpdatingStatus === vehicle.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Switch
-                            id={`status-switch-${vehicle.id}`}
-                            checked={vehicle.stato === 'Venduto'}
-                            onCheckedChange={checked => {
-                              handleStatusChange(
-                                vehicle.id,
-                                checked ? 'Venduto' : 'In vendita'
-                              );
-                            }}
-                            aria-label="Cambia stato veicolo"
-                          />
-                        )}
-                        <Label
-                          htmlFor={`status-switch-${vehicle.id}`}
-                          className={cn(
-                            'cursor-pointer',
-                            vehicle.stato === 'Venduto'
-                              ? 'text-destructive'
-                              : 'text-muted-foreground'
-                          )}
-                        >
-                          {vehicle.stato}
-                        </Label>
-                      </div>
+                       <Badge variant={vehicle.stato === 'Venduto' ? 'destructive' : 'secondary'}>
+                        {vehicle.stato}
+                      </Badge>
                     </TableCell>
                     <TableCell className="text-right">
                       <Button asChild variant="ghost" size="icon">
                         <Link href={`/seller/edit-vehicle/${vehicle.id}`}>
                           <Pencil className="h-4 w-4" />
-                          <span className="sr-only">Modifica Stato/Desc.</span>
+                          <span className="sr-only">Modifica Desc.</span>
                         </Link>
                       </Button>
                     </TableCell>
