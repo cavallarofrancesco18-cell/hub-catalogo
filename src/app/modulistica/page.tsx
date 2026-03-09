@@ -55,6 +55,7 @@ import type { Form as FormType } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { UploadCloud, FileText, Trash2, Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import { deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 
 const formSchema = z.object({
   title: z.string().min(3, 'Il titolo è obbligatorio e deve avere almeno 3 caratteri.'),
@@ -125,6 +126,11 @@ export default function ModulisticaPage() {
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
+    defaultValues: {
+        title: '',
+        category: undefined,
+        file: undefined
+    }
   });
 
   useEffect(() => {
@@ -269,7 +275,7 @@ export default function ModulisticaPage() {
                         <FormItem>
                         <FormLabel>Titolo Modulo *</FormLabel>
                         <FormControl>
-                            <Input placeholder="Es. Contratto di vendita" {...field} />
+                            <Input placeholder="Es. Contratto di vendita" {...field} value={field.value ?? ''} />
                         </FormControl>
                         <FormMessage />
                         </FormItem>
@@ -349,5 +355,3 @@ export default function ModulisticaPage() {
     </div>
   );
 }
-
-    
