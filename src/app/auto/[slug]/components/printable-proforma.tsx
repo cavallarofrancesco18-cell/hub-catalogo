@@ -20,11 +20,13 @@ interface CustomerData {
 interface PrintableProformaProps {
   vehicle: Vehicle;
   customer: CustomerData;
+  price: number;
+  customerType: 'privato' | 'commerciante';
   warranty: string;
   date: string;
 }
 
-export function PrintableProforma({ vehicle, customer, warranty, date }: PrintableProformaProps) {
+export function PrintableProforma({ vehicle, customer, price, customerType, warranty, date }: PrintableProformaProps) {
 
   const DetailRow = ({ label, value }: { label: string, value: React.ReactNode }) => (
     <tr className="border-b border-gray-200">
@@ -89,12 +91,16 @@ export function PrintableProforma({ vehicle, customer, warranty, date }: Printab
 
       <section className="mb-6">
         <h2 className="font-bold text-base mb-2 pb-1 border-b">Art. 2 - Prezzo e Pagamento</h2>
-        <p>Il prezzo di vendita è convenuto in <span className="font-bold">{formatCurrency(vehicle.prezzo)}</span> (IVA inclusa), che l'ACQUIRENTE si impegna a versare secondo le modalità concordate.</p>
+        <p>Il prezzo di vendita è convenuto in <span className="font-bold">{formatCurrency(price)}</span> (IVA inclusa), che l'ACQUIRENTE si impegna a versare secondo le modalità concordate.</p>
       </section>
 
       <section className="mb-6">
         <h2 className="font-bold text-base mb-2 pb-1 border-b">Art. 3 - Garanzia</h2>
-        <p className="whitespace-pre-wrap">{warranty || 'Nessuna garanzia specificata.'}</p>
+        {customerType === 'privato' ? (
+          <p className="whitespace-pre-wrap">{warranty || 'Nessuna garanzia specificata.'}</p>
+        ) : (
+          <p>La vettura viene acquistata vista e piaciuta.</p>
+        )}
       </section>
       
       <section className="mb-6">
