@@ -24,15 +24,15 @@ export const brandingProfiles: Record<SellerType | 'default', BrandingProfile> =
   },
   TIPO_B: {
     logoUrl: '',
-    companyName: 'BALDINAUTOMOTIVE',
-    companyAddress: 'Indirizzo BALDINAUTOMOTIVE',
-    companyContact: 'Contatti BALDINAUTOMOTIVE',
-  },
-  TIPO_C: {
-    logoUrl: '',
     companyName: 'RESTART',
     companyAddress: 'Indirizzo RESTART',
     companyContact: 'Contatti RESTART',
+  },
+  TIPO_C: {
+    logoUrl: '',
+    companyName: 'BALDINAUTOMOTIVE',
+    companyAddress: 'Indirizzo BALDINAUTOMOTIVE',
+    companyContact: 'Contatti BALDINAUTOMOTIVE',
   },
 };
 
