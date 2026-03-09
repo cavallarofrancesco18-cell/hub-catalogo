@@ -20,25 +20,25 @@ export const brandingProfiles: Record<SellerType | 'default', BrandingProfile> =
     logoUrl: HUB_LOGO_URL,
     companyName: 'Hub Mobility',
     companyAddress: 'Via Pietro Ferrero 1/bis (TO)',
-    companyContact: 'mail:___________ cell:___________',
+    companyContact: 'mail: amministrazione@hubmobility.it tel: 0110252664',
   },
   TIPO_B: {
     logoUrl: 'https://firebasestorage.googleapis.com/v0/b/studio-3074982188-44660.firebasestorage.app/o/logo-restart-mobility-white-300x154.png?alt=media&token=11fec594-dc64-4905-ac4c-fd09504683a7',
     companyName: 'RESTART',
-    companyAddress: 'Indirizzo RESTART',
-    companyContact: 'Contatti RESTART',
+    companyAddress: 'Corso Francia, 4 10098 - Rivoli (TO)',
+    companyContact: 'info@restartmobility.com',
   },
   TIPO_C: {
     logoUrl: 'https://firebasestorage.googleapis.com/v0/b/studio-3074982188-44660.firebasestorage.app/o/WhatsApp%20Image%202026-03-09%20at%2016.41.30.jpeg?alt=media&token=8c9cc631-8c37-4c08-b420-fca6e14d568b',
-    companyName: 'BALDINAUTOMOTIVE',
-    companyAddress: 'Indirizzo BALDINAUTOMOTIVE',
-    companyContact: 'Contatti BALDINAUTOMOTIVE',
+    companyName: 'Express 2',
+    companyAddress: 'Via Lido Malone 15 - Brandizzo (TO)',
+    companyContact: '011 19879071',
   },
   TIPO_D: {
     logoUrl: 'https://firebasestorage.googleapis.com/v0/b/studio-3074982188-44660.firebasestorage.app/o/Logo-1%20trasparente.png?alt=media&token=a28e26de-7700-4b5e-a0d0-8c230d838c77',
     companyName: 'AutoMGV',
-    companyAddress: 'Indirizzo AutoMGV',
-    companyContact: 'Contatti AutoMGV',
+    companyAddress: 'Via F. Baracca 1, La Loggia (To)',
+    companyContact: '011.2644517',
   },
 };
 

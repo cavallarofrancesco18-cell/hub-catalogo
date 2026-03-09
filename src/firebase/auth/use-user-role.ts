@@ -36,10 +36,8 @@ export function useUserRole(): UserRoleState {
     }
 
     const checkRoles = async () => {
-      // We have a user, so start checking their role.
-      // Set to a neutral loading state to avoid showing stale roles.
-      setRoleState({ role: null, roleData: null, isLoading: true });
-
+      // We have a user, so we will check their role. isLoading remains true
+      // from the initial state until we determine the role.
       try {
         // Check for admin role first.
         const adminRef = doc(firestore, 'roles_admin', user.uid);
