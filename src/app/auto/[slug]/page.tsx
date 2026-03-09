@@ -179,6 +179,7 @@ export default function VehiclePage() {
   const hidePreview = () => {
     setIsPreviewing(false);
     setFinalSheetPrice(null);
+    priceSheetForm.reset();
   };
   
   const handleConfirmPrint = async () => {
