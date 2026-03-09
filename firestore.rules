@@ -58,10 +58,16 @@ service cloud.firestore {
       allow create: if isAdmin();
       allow delete: if isAdmin() && resource != null;
       
-      // Admins can update anything.
-      // Sellers can only update 'stato', 'descrizione', and 'updatedAt'.
-      allow update: if isAdmin() && resource != null || 
-                    (isSeller() && resource != null && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stato', 'descrizione', 'updatedAt']));
+      // Admins can update any field.
+      allow update: if isAdmin() && resource != null;
+      
+      // Sellers can only update 'stato' and 'descrizione'.
+      // We also ensure that 'updatedAt' is being set to the server time.
+      allow update: if isSeller() && resource != null
+                    // The only fields that can be changed are 'stato', 'descrizione', and 'updatedAt'
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stato', 'descrizione', 'updatedAt'])
+                    // The 'updatedAt' field must be set to the server timestamp
+                    && request.resource.data.updatedAt == request.time;
     }
 
     /**

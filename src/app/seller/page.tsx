@@ -57,7 +57,7 @@ export default function SellerPage() {
         const contextualError = new FirestorePermissionError({
           path: vehicleRef.path,
           operation: 'update',
-          requestResourceData: { stato: newStatus },
+          requestResourceData: dataToUpdate,
         });
         errorEmitter.emit('permission-error', contextualError);
       })
