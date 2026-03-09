@@ -11,6 +11,7 @@
  *
  * Key Security Decisions:
  * - Public Vehicle Catalog: The `/vehicles` collection is publicly readable (`allow read: if true;`).
+ * - Role Verification: Users can read their own role document to verify permissions on the client.
  * - Admin Full Control: Admins have full create, update, and delete permissions on vehicles.
  * - Seller Limited Writes: Sellers can read all vehicle data but can only update the 'descrizione' field. They cannot create or delete vehicles or change the status.
  */
@@ -29,16 +30,18 @@ service cloud.firestore {
     
     /**
      * Checks if the user is an administrator by checking for their UID in the 'roles_admin' collection.
+     * This requires the client to be authenticated.
      */
     function isAdmin() {
-      return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+      return isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
     }
 
     /**
      * Checks if the user is a seller by checking for their UID in the 'roles_seller' collection.
+     * This requires the client to be authenticated.
      */
     function isSeller() {
-      return exists(/databases/$(database)/documents/roles_seller/$(request.auth.uid));
+      return isSignedIn() && exists(/databases/$(database)/documents/roles_seller/$(request.auth.uid));
     }
 
     /**
@@ -55,14 +58,14 @@ service cloud.firestore {
       allow list: if true;
 
       allow create: if isAdmin();
-      allow delete: if isAdmin() && resource != null;
+      allow delete: if isAdmin();
       
       // Admins can update any field.
-      allow update: if isAdmin() && resource != null;
+      allow update: if isAdmin();
       
       // Sellers can only update 'descrizione'.
       // We also ensure that 'updatedAt' is being set to the server time.
-      allow update: if isSeller() && resource != null
+      allow update: if isSeller()
                     // The only fields that can be changed are 'descrizione' and 'updatedAt'
                     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['descrizione', 'updatedAt'])
                     // The 'updatedAt' field must be set to the server timestamp
@@ -71,24 +74,26 @@ service cloud.firestore {
 
     /**
      * @description
-     *   Admin roles collection. Locked down for client access.
-     *   Managed by a trusted server process or via the Firebase Console.
+     *   Admin roles collection. Users can read their own role document.
+     *   Writes are disallowed from the client.
      * @path
      *   /roles_admin/{userId}
      */
     match /roles_admin/{userId} {
-      allow read, write: if false;
+      allow get: if isSignedIn() && request.auth.uid == userId;
+      allow list, write: if false;
     }
 
     /**
      * @description
-     *   Seller roles collection. Locked down for client access.
-     *   Managed by a trusted server process or via the Firebase Console.
+     *   Seller roles collection. Users can read their own role document.
+     *   Writes are disallowed from the client.
      * @path
      *   /roles_seller/{userId}
      */
     match /roles_seller/{userId} {
-      allow read, write: if false;
+      allow get: if isSignedIn() && request.auth.uid == userId;
+      allow list, write: if false;
     }
   }
 }
