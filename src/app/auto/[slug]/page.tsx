@@ -21,9 +21,27 @@ import {
   DialogTitle,
   DialogFooter,
   DialogClose,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { PrintableProforma } from './components/printable-proforma';
+
+const proformaSchema = z.object({
+  name: z.string().min(1, 'Nome e cognome sono obbligatori.'),
+  address: z.string().min(1, 'Indirizzo obbligatorio.'),
+  cf: z.string().min(1, 'Codice Fiscale o P.IVA sono obbligatori.'),
+  docNumber: z.string().min(1, 'Numero documento obbligatorio.'),
+  warranty: z.string().optional(),
+});
+
+type ProformaFormValues = z.infer<typeof proformaSchema>;
 
 export default function VehiclePage() {
   const params = useParams();
@@ -40,9 +58,27 @@ export default function VehiclePage() {
   const vehicle = useMemo(() => vehicles?.[0], [vehicles]);
   const registrationDate = vehicle?.data_immatricolazione ? format(new Date(vehicle.data_immatricolazione), 'dd/MM/yyyy') : vehicle?.anno;
 
+  // State for vehicle sheet printing
   const printableSheetRef = useRef<HTMLDivElement>(null);
   const [isPrinting, setIsPrinting] = useState(false);
   const [isPreviewing, setIsPreviewing] = useState(false);
+
+  // State for proforma contract
+  const proformaSheetRef = useRef<HTMLDivElement>(null);
+  const [isProformaFormOpen, setIsProformaFormOpen] = useState(false);
+  const [proformaCustomerData, setProformaCustomerData] = useState<ProformaFormValues | null>(null);
+  const [isGeneratingProforma, setIsGeneratingProforma] = useState(false);
+
+  const proformaForm = useForm<ProformaFormValues>({
+    resolver: zodResolver(proformaSchema),
+    defaultValues: {
+      name: '',
+      address: '',
+      cf: '',
+      docNumber: '',
+      warranty: 'Il veicolo viene venduto con garanzia legale di conformità per 12 mesi come da D.Lgs. 206/2005 (Codice del Consumo).',
+    },
+  });
 
   const handleGeneratePdf = async () => {
     if (!printableSheetRef.current || !vehicle) return;
@@ -51,7 +87,7 @@ export default function VehiclePage() {
 
     try {
       const canvas = await html2canvas(printableSheetRef.current, {
-        scale: 2, // Higher scale for better quality
+        scale: 2,
         useCORS: true,
       });
 
@@ -62,33 +98,22 @@ export default function VehiclePage() {
         format: 'a4',
       });
 
-      const margin = 15; // Set a 15mm margin
+      const margin = 15;
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
-
-      // Calculate the width available for content
       const contentWidth = pdfWidth - margin * 2;
-      
-      // Get image properties from the canvas data
       const imgProps = pdf.getImageProperties(imgData);
-      
-      // Calculate the total height of the image when scaled to the content width
       const totalImgHeightInPdf = (imgProps.height * contentWidth) / imgProps.width;
 
       let heightLeft = totalImgHeightInPdf;
-      let position = 0; // This will be the vertical offset for rendering the image
+      let position = 0;
 
-      // Add the first page
-      // The image is placed at (margin, margin). 'position' is 0 for the first page render inside the canvas.
       pdf.addImage(imgData, 'PNG', margin, margin, contentWidth, totalImgHeightInPdf);
       heightLeft -= (pdfHeight - margin * 2);
 
-      // Add more pages if content overflows
       while (heightLeft > 0) {
-        position -= (pdfHeight - margin * 2); // Decrement position by one page content height
+        position -= (pdfHeight - margin * 2);
         pdf.addPage();
-        // For the new page, we place the image again, but with a negative vertical offset
-        // to show the next part of the content.
         pdf.addImage(imgData, 'PNG', margin, position + margin, contentWidth, totalImgHeightInPdf);
         heightLeft -= (pdfHeight - margin * 2);
       }
@@ -101,17 +126,58 @@ export default function VehiclePage() {
     }
   };
 
-  const showPreview = () => {
-    setIsPreviewing(true);
-  };
-
-  const hidePreview = () => {
-    setIsPreviewing(false);
-  };
-
+  const showPreview = () => setIsPreviewing(true);
+  const hidePreview = () => setIsPreviewing(false);
   const handleConfirmPrint = async () => {
     await handleGeneratePdf();
     hidePreview();
+  };
+
+  function onProformaSubmit(values: ProformaFormValues) {
+    setProformaCustomerData(values);
+    setIsProformaFormOpen(false);
+  }
+
+  const handleGenerateProformaPdf = async () => {
+    if (!proformaSheetRef.current || !vehicle) return;
+
+    setIsGeneratingProforma(true);
+    try {
+      const canvas = await html2canvas(proformaSheetRef.current, { scale: 2, useCORS: true });
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const margin = 15;
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      const contentWidth = pdfWidth - margin * 2;
+      const imgProps = pdf.getImageProperties(imgData);
+      const totalImgHeightInPdf = (imgProps.height * contentWidth) / imgProps.width;
+      let heightLeft = totalImgHeightInPdf;
+      let position = 0;
+
+      pdf.addImage(imgData, 'PNG', margin, margin, contentWidth, totalImgHeightInPdf);
+      heightLeft -= (pdfHeight - margin * 2);
+
+      while (heightLeft > 0) {
+        position -= (pdfHeight - margin * 2);
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', margin, position + margin, contentWidth, totalImgHeightInPdf);
+        heightLeft -= (pdfHeight - margin * 2);
+      }
+      
+      pdf.save(`contratto-vendita-${vehicle.slug}.pdf`);
+    } catch (error) {
+      console.error('Errore durante la creazione del PDF del contratto:', error);
+    } finally {
+      setIsGeneratingProforma(false);
+    }
+  };
+
+  const showProformaForm = () => setIsProformaFormOpen(true);
+  const hideProformaPreview = () => setProformaCustomerData(null);
+  const handleConfirmProformaPrint = async () => {
+    await handleGenerateProformaPdf();
+    hideProformaPreview();
   };
 
   if (loading) {
@@ -158,7 +224,8 @@ export default function VehiclePage() {
         <VehicleDetailsClient
           vehicle={vehicle}
           onPrintClick={showPreview}
-          disabled={isPreviewing}
+          onProformaClick={showProformaForm}
+          disabled={isPreviewing || isProformaFormOpen || !!proformaCustomerData}
         />
 
         <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -233,10 +300,12 @@ export default function VehiclePage() {
           </div>
         </div>
       </div>
+
+      {/* Vehicle Sheet Preview Dialog */}
       <Dialog open={isPreviewing} onOpenChange={setIsPreviewing}>
         <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
           <DialogHeader>
-            <DialogTitle>Anteprima di Stampa</DialogTitle>
+            <DialogTitle>Anteprima Scheda Veicolo</DialogTitle>
           </DialogHeader>
           <div className="flex-1 overflow-auto bg-gray-300 p-8">
             <div
@@ -259,7 +328,122 @@ export default function VehiclePage() {
                   Generazione PDF...
                 </>
               ) : (
-                'Conferma e Stampa'
+                'Stampa Scheda'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Proforma Customer Data Form Dialog */}
+      <Dialog open={isProformaFormOpen} onOpenChange={setIsProformaFormOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Crea Contratto di Vendita</DialogTitle>
+            <DialogDescription>
+              Inserisci i dati dell'acquirente per generare il contratto. I dati del veicolo saranno precompilati.
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...proformaForm}>
+            <form onSubmit={proformaForm.handleSubmit(onProformaSubmit)} className="space-y-4">
+              <FormField
+                control={proformaForm.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nome e Cognome Acquirente</FormLabel>
+                    <FormControl><Input placeholder="Es. Mario Rossi" {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={proformaForm.control}
+                name="address"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Indirizzo Completo</FormLabel>
+                    <FormControl><Input placeholder="Es. Via Roma 1, 10121 Torino (TO)" {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField
+                  control={proformaForm.control}
+                  name="cf"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Codice Fiscale / P.IVA</FormLabel>
+                      <FormControl><Input {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={proformaForm.control}
+                  name="docNumber"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Numero Documento (C.I.)</FormLabel>
+                      <FormControl><Input {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <FormField
+                control={proformaForm.control}
+                name="warranty"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Dettagli Garanzia</FormLabel>
+                    <FormControl><Textarea className="min-h-[100px]" {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                  <DialogClose asChild>
+                    <Button type="button" variant="outline">Annulla</Button>
+                  </DialogClose>
+                  <Button type="submit">Genera Anteprima Contratto</Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Proforma Preview Dialog */}
+      <Dialog open={!!proformaCustomerData} onOpenChange={(open) => !open && hideProformaPreview()}>
+        <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Anteprima Contratto di Vendita</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-auto bg-gray-300 p-8">
+            <div ref={proformaSheetRef} className="w-[800px] mx-auto my-8 shadow-2xl">
+              {proformaCustomerData && vehicle && (
+                <PrintableProforma
+                  vehicle={vehicle}
+                  customer={proformaCustomerData}
+                  warranty={proformaCustomerData.warranty || ''}
+                  date={format(new Date(), 'dd/MM/yyyy')}
+                />
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={hideProformaPreview} disabled={isGeneratingProforma}>
+              Annulla
+            </Button>
+            <Button onClick={handleConfirmProformaPrint} disabled={isGeneratingProforma}>
+              {isGeneratingProforma ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Generazione PDF...
+                </>
+              ) : (
+                'Stampa Contratto'
               )}
             </Button>
           </DialogFooter>

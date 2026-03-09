@@ -5,7 +5,7 @@ import type { Vehicle } from '@/lib/types';
 import { formatCurrency, getDirectImageUrl } from '@/lib/utils';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
-import { Camera, Printer } from 'lucide-react';
+import { Camera, Printer, FileSignature } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { StatusBadge } from '@/components/status-badge';
@@ -14,10 +14,11 @@ import { ImageGallery } from '@/components/image-gallery';
 interface VehicleDetailsClientProps {
   vehicle: Vehicle;
   onPrintClick: () => void;
+  onProformaClick: () => void;
   disabled: boolean;
 }
 
-export function VehicleDetailsClient({ vehicle, onPrintClick, disabled }: VehicleDetailsClientProps) {
+export function VehicleDetailsClient({ vehicle, onPrintClick, onProformaClick, disabled }: VehicleDetailsClientProps) {
   const validImageUrls = useMemo(
     () => (vehicle.immagini || []).map(getDirectImageUrl).filter(Boolean),
     [vehicle.immagini]
@@ -104,7 +105,7 @@ export function VehicleDetailsClient({ vehicle, onPrintClick, disabled }: Vehicl
           <div className="sticky top-24 rounded-lg border bg-card text-card-foreground shadow-sm p-6">
             <div className="flex flex-col h-full">
               <p className="text-3xl font-bold mb-4">{formatCurrency(vehicle.prezzo)}</p>
-              <div className="flex-grow space-y-4">
+              <div className="flex-grow space-y-2">
                  {hasImages && (
                     <Button onClick={() => openGallery(0)} className="w-full" size="lg" disabled={vehicle.stato === 'Venduto'}>
                         <Camera className="mr-2 h-5 w-5" />
@@ -125,7 +126,11 @@ export function VehicleDetailsClient({ vehicle, onPrintClick, disabled }: Vehicl
                 )}
                  <Button onClick={onPrintClick} className="w-full" size="lg" variant="outline" disabled={disabled}>
                     <Printer className="mr-2 h-5 w-5" />
-                    Anteprima Stampa
+                    Anteprima Scheda
+                </Button>
+                 <Button onClick={onProformaClick} className="w-full" size="lg" variant="default" disabled={disabled || vehicle.stato === 'Venduto'}>
+                    <FileSignature className="mr-2 h-5 w-5" />
+                    Crea Contratto
                 </Button>
               </div>
             </div>
