@@ -65,14 +65,14 @@ export default function LoginPage() {
       const adminRef = doc(firestore, 'roles_admin', user.uid);
       const adminDoc = await getDoc(adminRef);
       if (adminDoc.exists()) {
-        router.replace('/admin');
+        router.replace('/auto');
         return;
       }
 
       const sellerRef = doc(firestore, 'roles_seller', user.uid);
       const sellerDoc = await getDoc(sellerRef);
       if (sellerDoc.exists()) {
-        router.replace('/seller');
+        router.replace('/auto');
         return;
       }
 
@@ -103,16 +103,16 @@ export default function LoginPage() {
             const adminRef = doc(firestore, 'roles_admin', loggedInUser.uid);
             const adminDoc = await getDoc(adminRef);
             if (adminDoc.exists()) {
-                toast({ title: 'Accesso Admin effettuato!', description: 'Verrai reindirizzato al pannello di amministrazione.' });
-                router.push('/admin');
+                toast({ title: 'Accesso Admin effettuato!', description: 'Verrai reindirizzato al catalogo.' });
+                router.push('/auto');
                 return;
             }
 
             const sellerRef = doc(firestore, 'roles_seller', loggedInUser.uid);
             const sellerDoc = await getDoc(sellerRef);
             if (sellerDoc.exists()) {
-                toast({ title: 'Accesso Venditore effettuato!', description: 'Verrai reindirizzato alla tua area personale.' });
-                router.push('/seller');
+                toast({ title: 'Accesso Venditore effettuato!', description: 'Verrai reindirizzato al catalogo.' });
+                router.push('/auto');
                 return;
             }
 
