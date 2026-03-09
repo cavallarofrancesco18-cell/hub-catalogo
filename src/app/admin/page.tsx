@@ -28,19 +28,16 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatCurrency, getDirectImageUrl, cn } from '@/lib/utils';
 import { Pencil, Trash2, Loader2 } from 'lucide-react';
-import { useFirestore, useFirebaseApp, useMemoFirebase, useUser } from '@/firebase';
+import { useFirestore, useFirebaseApp, useMemoFirebase } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { getStorage, ref, deleteObject } from 'firebase/storage';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 
 export default function AdminPage() {
   const firestore = useFirestore();
   const app = useFirebaseApp();
-  const { user } = useUser();
   const storage = useMemo(
     () => getStorage(app, 'gs://studio-3074982188-44660.appspot.com'),
     [app]
@@ -124,15 +121,6 @@ export default function AdminPage() {
       setIsDeleting(false);
       setVehicleToDelete(null);
     }
-  };
-  
-  const handleCopy = (text: string) => {
-    if (!text) return;
-    navigator.clipboard.writeText(text);
-    toast({
-      title: 'Copiato!',
-      description: 'UID copiato negli appunti.',
-    });
   };
 
   return (
@@ -288,51 +276,6 @@ export default function AdminPage() {
               )}
             </TableBody>
           </Table>
-        </div>
-        <div className="mt-8">
-          <Card>
-            <CardHeader>
-                <CardTitle>Come Abilitare Nuovi Utenti</CardTitle>
-                <CardDescription>
-                    La gestione dei ruoli (Admin/Venditore) è un processo manuale da eseguire nella Console di Firebase per motivi di sicurezza.
-                </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-                <div className="space-y-2">
-                    <Label htmlFor="admin-uid">Il tuo User ID (UID) di Amministratore</Label>
-                    <div className="flex items-center gap-2">
-                        <Input id="admin-uid" value={user?.uid || ''} readOnly className="bg-muted"/>
-                        <Button variant="outline" size="sm" onClick={() => handleCopy(user?.uid || '')}>Copia</Button>
-                    </div>
-                </div>
-                
-                <div>
-                    <h4 className="font-semibold text-md">Procedura Dettagliata:</h4>
-                    <ol className="list-decimal list-inside space-y-3 mt-3 text-sm text-muted-foreground">
-                        <li>
-                            <strong>Crea l'account:</strong> Vai alla sezione <strong>Authentication</strong> della tua Console Firebase, clicca su "Aggiungi utente" e crea un nuovo account con email e password.
-                        </li>
-                        <li>
-                            <strong>Copia l'UID:</strong> Una volta creato, trova l'utente nella lista e copia il suo "User UID".
-                        </li>
-                        <li>
-                            <strong>Assegna il ruolo:</strong> Vai alla sezione <strong>Firestore Database</strong> nella console.
-                        </li>
-                        <li>
-                            Scegli la collezione: `roles_seller` per un Venditore o `roles_admin` per un Amministratore. Se non le vedi, clicca su "Avvia collezione" per crearle.
-                        </li>
-                        <li>
-                            Clicca su "Aggiungi documento". Nel campo <strong>"ID documento"</strong>, incolla l'UID dell'utente. Lascia il documento vuoto (non servono campi) e clicca su "Salva".
-                        </li>
-                    </ol>
-                     <div className="mt-4">
-                        <Button asChild variant="secondary">
-                            <a href="https://console.firebase.google.com/" target="_blank" rel="noopener noreferrer">Apri Console Firebase</a>
-                        </Button>
-                    </div>
-                </div>
-            </CardContent>
-          </Card>
         </div>
       </div>
       <AlertDialog
