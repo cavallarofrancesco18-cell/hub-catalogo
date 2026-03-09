@@ -4,12 +4,12 @@ import { formatNumber } from '@/lib/utils';
 import { notFound, useParams } from 'next/navigation';
 import { VehicleDetailsClient } from './components/vehicle-details-client';
 import { Badge } from '@/components/ui/badge';
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState, useEffect } from 'react';
 import type { Vehicle } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useCollection } from '@/firebase/firestore/use-collection';
-import { collection, query, where, limit } from 'firebase/firestore';
-import { useFirestore, useMemoFirebase } from '@/firebase';
+import { collection, query, where, limit, doc, getDoc } from 'firebase/firestore';
+import { useFirestore, useMemoFirebase, useUser } from '@/firebase';
 import { format } from 'date-fns';
 import { PrintableVehicleSheet } from './components/printable-vehicle-sheet';
 import jsPDF from 'jspdf';
@@ -28,7 +28,7 @@ import { Loader2 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { PrintableProforma } from './components/printable-proforma';
@@ -53,6 +53,10 @@ export default function VehiclePage() {
   const slug = params.slug as string;
 
   const firestore = useFirestore();
+  const { user } = useUser();
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isLoadingRole, setIsLoadingRole] = useState(true);
+
   const vehicleQuery = useMemoFirebase(() => {
     if (!slug || !firestore) return null;
     return query(collection(firestore, 'vehicles'), where('slug', '==', slug), limit(1));
@@ -86,6 +90,22 @@ export default function VehiclePage() {
       price: 0,
     },
   });
+
+  useEffect(() => {
+    if (user && firestore) {
+      setIsLoadingRole(true);
+      const checkAdmin = async () => {
+        const adminRef = doc(firestore, 'roles_admin', user.uid);
+        const adminDoc = await getDoc(adminRef);
+        setIsAdmin(adminDoc.exists());
+        setIsLoadingRole(false);
+      };
+      checkAdmin();
+    } else {
+      setIsAdmin(false);
+      setIsLoadingRole(false);
+    }
+  }, [user, firestore]);
 
   const customerType = proformaForm.watch('customerType');
 
@@ -247,7 +267,7 @@ export default function VehiclePage() {
           vehicle={vehicle}
           onPrintClick={showPreview}
           onProformaClick={showProformaForm}
-          disabled={isPreviewing || isProformaFormOpen || !!proformaCustomerData}
+          disabled={isPreviewing || isProformaFormOpen || !!proformaCustomerData || isLoadingRole}
         />
 
         <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -417,7 +437,8 @@ export default function VehiclePage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Prezzo di Vendita (€) *</FormLabel>
-                      <FormControl><Input type="number" {...field} value={field.value ?? ''} /></FormControl>
+                      <FormControl><Input type="number" {...field} value={field.value ?? ''} disabled={!isAdmin} /></FormControl>
+                      {!isAdmin && <FormDescription>Solo gli amministratori possono modificare il prezzo.</FormDescription>}
                       <FormMessage />
                     </FormItem>
                   )}
