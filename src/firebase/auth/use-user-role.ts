@@ -23,22 +23,22 @@ export function useUserRole(): UserRoleState {
   });
 
   useEffect(() => {
-    // If auth is still loading or Firestore isn't ready, reflect the loading state.
+    // If auth is still loading or Firestore isn't ready, set to a neutral loading state.
     if (isUserLoading || !firestore) {
-      setRoleState((prev) => ({ ...prev, isLoading: true }));
+      setRoleState({ role: null, roleData: null, isLoading: true });
       return;
     }
     
-    // If there is no user, reset the state to logged-out.
+    // If there is no user, reset the state to a clean logged-out state.
     if (!user) {
       setRoleState({ role: null, roleData: null, isLoading: false });
       return;
     }
 
     const checkRoles = async () => {
-      // Set loading to true, but don't clear existing role data yet.
-      // This prevents the UI from flickering back to a default state during role checks.
-      setRoleState((prev) => ({ ...prev, isLoading: true }));
+      // We have a user, so start checking their role.
+      // Set to a neutral loading state to avoid showing stale roles.
+      setRoleState({ role: null, roleData: null, isLoading: true });
 
       try {
         // Check for admin role first.
@@ -68,7 +68,6 @@ export function useUserRole(): UserRoleState {
     };
 
     checkRoles();
-    // This effect should re-run whenever the user's authentication state changes.
   }, [user, isUserLoading, firestore]);
 
   return roleState;
