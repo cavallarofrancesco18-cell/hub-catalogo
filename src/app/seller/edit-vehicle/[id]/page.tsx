@@ -8,7 +8,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { doc, getDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import Image from 'next/image';
 
-import { useFirestore } from '@/firebase';
+import { useFirestore, errorEmitter, FirestorePermissionError } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -208,35 +208,42 @@ export default function SellerEditVehiclePage() {
   };
 
 
-  async function onSubmit(data: VehicleFormValues) {
+  function onSubmit(data: VehicleFormValues) {
     if (!firestore) return;
     
     setIsSubmitting(true);
     const vehicleRef = doc(firestore, 'vehicles', vehicleId);
     
-    const dataToSave = {
-        descrizione: data.descrizione,
-        stato: data.stato,
+    const dataToSave: {descrizione?: string; stato?: 'In vendita' | 'Venduto', updatedAt: any} = {
         updatedAt: serverTimestamp(),
     };
-    
-    try {
-        await updateDoc(vehicleRef, dataToSave);
-        toast({
-            title: 'Veicolo aggiornato!',
-            description: `Le modifiche sono state salvate.`,
-        });
-        router.push('/seller');
-    } catch (error) {
-        console.error('Errore durante l\'aggiornamento:', error);
-        toast({
-            variant: 'destructive',
-            title: 'Uh oh! Qualcosa è andato storto.',
-            description: 'Impossibile salvare le modifiche. Verifica i tuoi permessi.',
-        });
-    } finally {
-        setIsSubmitting(false);
+
+    if (data.descrizione) {
+        dataToSave.descrizione = data.descrizione;
     }
+    if (data.stato) {
+        dataToSave.stato = data.stato;
+    }
+    
+    updateDoc(vehicleRef, dataToSave)
+        .then(() => {
+            toast({
+                title: 'Veicolo aggiornato!',
+                description: `Le modifiche sono state salvate.`,
+            });
+            router.push('/seller');
+        })
+        .catch((error) => {
+            const contextualError = new FirestorePermissionError({
+                path: vehicleRef.path,
+                operation: 'update',
+                requestResourceData: dataToSave,
+            });
+            errorEmitter.emit('permission-error', contextualError);
+        })
+        .finally(() => {
+            setIsSubmitting(false);
+        });
   }
 
   if (isLoading) {

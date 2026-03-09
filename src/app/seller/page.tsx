@@ -18,7 +18,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatCurrency, getDirectImageUrl, cn } from '@/lib/utils';
 import { Pencil, Loader2 } from 'lucide-react';
-import { useFirestore, useMemoFirebase } from '@/firebase';
+import { useFirestore, useMemoFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -33,32 +33,37 @@ export default function SellerPage() {
   const { data: vehicles, isLoading } = useCollection<Vehicle>(vehiclesRef);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState<string | null>(null);
 
-  const handleStatusChange = async (
+  const handleStatusChange = (
     vehicleId: string,
     newStatus: 'In vendita' | 'Venduto'
   ) => {
     if (!firestore) return;
     setIsUpdatingStatus(vehicleId);
     const vehicleRef = doc(firestore, 'vehicles', vehicleId);
-    try {
-      await updateDoc(vehicleRef, {
+    
+    const dataToUpdate = {
         stato: newStatus,
         updatedAt: serverTimestamp(),
+    };
+
+    updateDoc(vehicleRef, dataToUpdate)
+      .then(() => {
+        toast({
+          title: 'Stato aggiornato!',
+          description: `Lo stato del veicolo è ora "${newStatus}".`,
+        });
+      })
+      .catch((error) => {
+        const contextualError = new FirestorePermissionError({
+          path: vehicleRef.path,
+          operation: 'update',
+          requestResourceData: { stato: newStatus },
+        });
+        errorEmitter.emit('permission-error', contextualError);
+      })
+      .finally(() => {
+        setIsUpdatingStatus(null);
       });
-      toast({
-        title: 'Stato aggiornato!',
-        description: `Lo stato del veicolo è ora "${newStatus}".`,
-      });
-    } catch (error) {
-      console.error("Errore durante l'aggiornamento dello stato:", error);
-      toast({
-        variant: 'destructive',
-        title: 'Uh oh! Qualcosa è andato storto.',
-        description: 'Impossibile aggiornare lo stato. Verifica i tuoi permessi.',
-      });
-    } finally {
-      setIsUpdatingStatus(null);
-    }
   };
 
   return (
