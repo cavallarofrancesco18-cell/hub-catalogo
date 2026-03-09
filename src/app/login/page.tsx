@@ -95,44 +95,61 @@ export default function LoginPage() {
         return;
     }
     setIsSubmitting(true);
-    try {
-      const userCredential = await signInWithEmailAndPassword(auth, data.email, data.password);
-      const loggedInUser = userCredential.user;
+    
+    signInWithEmailAndPassword(auth, data.email, data.password)
+        .then(async (userCredential) => {
+            const loggedInUser = userCredential.user;
 
-      const adminRef = doc(firestore, 'roles_admin', loggedInUser.uid);
-      const adminDoc = await getDoc(adminRef);
-      if (adminDoc.exists()) {
-        toast({ title: 'Accesso Admin effettuato!', description: 'Verrai reindirizzato al pannello di amministrazione.' });
-        router.push('/admin');
-        return;
-      }
+            const adminRef = doc(firestore, 'roles_admin', loggedInUser.uid);
+            const adminDoc = await getDoc(adminRef);
+            if (adminDoc.exists()) {
+                toast({ title: 'Accesso Admin effettuato!', description: 'Verrai reindirizzato al pannello di amministrazione.' });
+                router.push('/admin');
+                return;
+            }
 
-      const sellerRef = doc(firestore, 'roles_seller', loggedInUser.uid);
-      const sellerDoc = await getDoc(sellerRef);
-      if (sellerDoc.exists()) {
-        toast({ title: 'Accesso Venditore effettuato!', description: 'Verrai reindirizzato alla tua area personale.' });
-        router.push('/seller');
-        return;
-      }
+            const sellerRef = doc(firestore, 'roles_seller', loggedInUser.uid);
+            const sellerDoc = await getDoc(sellerRef);
+            if (sellerDoc.exists()) {
+                toast({ title: 'Accesso Venditore effettuato!', description: 'Verrai reindirizzato alla tua area personale.' });
+                router.push('/seller');
+                return;
+            }
 
-      // If user has no role
-      await signOut(auth);
-      toast({
-        variant: 'destructive',
-        title: 'Accesso non autorizzato',
-        description: 'Non disponi dei permessi necessari per accedere.',
-      });
+            // If user has no role
+            await signOut(auth);
+            toast({
+                variant: 'destructive',
+                title: 'Accesso non autorizzato',
+                description: 'Non disponi dei permessi necessari per accedere.',
+            });
+        })
+        .catch((error) => {
+            console.error('Errore durante il login:', error);
+            
+            let description = 'Si è verificato un errore imprevisto.';
+            if (error.code) {
+                switch (error.code) {
+                    case 'auth/user-not-found':
+                    case 'auth/wrong-password':
+                    case 'auth/invalid-credential':
+                        description = 'Email o password non corrette. Riprova.';
+                        break;
+                    case 'auth/too-many-requests':
+                        description = 'Accesso temporaneamente bloccato per troppi tentativi falliti. Riprova più tardi.';
+                        break;
+                }
+            }
 
-    } catch (error) {
-      console.error('Errore durante il login:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Uh oh! Login fallito.',
-        description: 'Controlla le tue credenziali e riprova.',
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
+            toast({
+                variant: 'destructive',
+                title: 'Login fallito',
+                description: description,
+            });
+        })
+        .finally(() => {
+            setIsSubmitting(false);
+        });
   }
   
   if (isUserLoading || isCheckingRole) {
