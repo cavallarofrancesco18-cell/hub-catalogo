@@ -29,7 +29,7 @@ export const brandingProfiles: Record<SellerType | 'default', BrandingProfile> =
     companyContact: 'Contatti RESTART',
   },
   TIPO_C: {
-    logoUrl: '',
+    logoUrl: 'https://firebasestorage.googleapis.com/v0/b/studio-3074982188-44660.firebasestorage.app/o/WhatsApp%20Image%202026-03-09%20at%2016.41.30.jpeg?alt=media&token=8c9cc631-8c37-4c08-b420-fca6e14d568b',
     companyName: 'BALDINAUTOMOTIVE',
     companyAddress: 'Indirizzo BALDINAUTOMOTIVE',
     companyContact: 'Contatti BALDINAUTOMOTIVE',
