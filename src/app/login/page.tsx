@@ -65,7 +65,7 @@ export default function LoginPage() {
       const adminRef = doc(firestore, 'roles_admin', user.uid);
       const adminDoc = await getDoc(adminRef);
       if (adminDoc.exists()) {
-        router.replace('/auto');
+        router.replace('/admin');
         return;
       }
 
@@ -103,8 +103,8 @@ export default function LoginPage() {
             const adminRef = doc(firestore, 'roles_admin', loggedInUser.uid);
             const adminDoc = await getDoc(adminRef);
             if (adminDoc.exists()) {
-                toast({ title: 'Accesso Admin effettuato!', description: 'Verrai reindirizzato al catalogo.' });
-                router.push('/auto');
+                toast({ title: 'Accesso Admin effettuato!', description: 'Verrai reindirizzato alla gestione veicoli.' });
+                router.push('/admin');
                 return;
             }
 

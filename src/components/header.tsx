@@ -1,6 +1,6 @@
 'use client';
 
-import { FileText, Home, LogOut } from 'lucide-react';
+import { FileText, Home, LogOut, ClipboardList } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
@@ -54,13 +54,13 @@ export function Header() {
     }
   };
 
-  const isLoading = isUserLoading || isRoleLoading;
+  const isLoading = isUserLoading || isRoleLoading || !isClient;
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background shadow-sm print:hidden">
       <div className="container flex h-16 items-center justify-between">
         <Link href="/auto" className="flex items-center gap-3">
-          {!isClient || isLoading ? (
+          {isLoading ? (
             <Skeleton className="h-8 w-36" />
           ) : logoUrl ? (
             <Image
@@ -78,16 +78,24 @@ export function Header() {
           )}
         </Link>
         <div className="flex items-center gap-2">
-          <Button asChild variant="ghost">
-            <Link href="/auto">
-              <Home className="mr-2 h-4 w-4" />
-              Catalogo
-            </Link>
-          </Button>
-          {!isClient || isLoading ? (
+          {isLoading ? (
             <Skeleton className="h-9 w-56" />
           ) : user ? (
             <>
+              <Button asChild variant="ghost">
+                <Link href="/auto">
+                  <Home className="mr-2 h-4 w-4" />
+                  Catalogo
+                </Link>
+              </Button>
+              {role === 'admin' && (
+                 <Button asChild variant="ghost">
+                    <Link href="/admin">
+                        <ClipboardList className="mr-2 h-4 w-4" />
+                        Gestione Veicoli
+                    </Link>
+                 </Button>
+              )}
               <Button asChild variant="ghost">
                 <Link href="/modulistica">
                   <FileText className="mr-2 h-4 w-4" />
