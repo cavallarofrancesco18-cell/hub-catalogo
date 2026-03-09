@@ -23,7 +23,7 @@ export const brandingProfiles: Record<SellerType | 'default', BrandingProfile> =
     companyContact: 'mail:___________ cell:___________',
   },
   TIPO_B: {
-    logoUrl: '',
+    logoUrl: 'https://firebasestorage.googleapis.com/v0/b/studio-3074982188-44660.firebasestorage.app/o/05993749-8d16-449f-8283-6e27e24007df.pdf?alt=media&token=a3ab1665-b906-43d7-b05a-53e6bb370635',
     companyName: 'RESTART',
     companyAddress: 'Indirizzo RESTART',
     companyContact: 'Contatti RESTART',
