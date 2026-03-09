@@ -27,3 +27,14 @@ export type Vehicle = {
   createdAt?: any;
   updatedAt?: any;
 };
+
+export type Form = {
+  id: string;
+  title: string;
+  category: 'cliente' | 'commerciante';
+  fileUrl: string;
+  fileName: string;
+  createdAt: any;
+};
+
+    

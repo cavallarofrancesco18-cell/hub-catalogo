@@ -2,6 +2,11 @@ rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
+    
+    function isAdmin() {
+      return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+    }
+
     // Allow public read access to all files.
     // This is necessary for the app to display images.
     match /download/{vehicleId}/{allPaths=**} {
@@ -11,5 +16,16 @@ service firebase.storage {
       // Restrict file size to 1MB.
       allow write: if request.auth != null && request.resource.size < 1 * 1024 * 1024;
     }
+
+    // Rules for form uploads
+    match /forms/{formId}/{allPaths=**} {
+      allow read: if request.auth != null;
+
+      // Allow admins to write (create, update, delete).
+      // Restrict file size to 5MB.
+      allow write: if isAdmin() && request.resource.size < 5 * 1024 * 1024;
+    }
   }
 }
+
+    

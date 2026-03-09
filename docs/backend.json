@@ -146,6 +146,42 @@
           "description": "Timestamp indicating when the seller role was assigned."
         }
       }
+    },
+    "Form": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Form",
+      "type": "object",
+      "description": "Represents a document or form, such as a sales agreement or privacy policy.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the form document."
+        },
+        "title": {
+          "type": "string",
+          "description": "The display name of the form (e.g., 'Contratto di Vendita')."
+        },
+        "category": {
+          "type": "string",
+          "description": "The category of the form, used for organization.",
+          "enum": ["cliente", "commerciante"]
+        },
+        "fileUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "The public URL to the stored file in Firebase Storage."
+        },
+        "fileName": {
+            "type": "string",
+            "description": "The name of the uploaded file."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp indicating when the form was uploaded."
+        }
+      },
+      "required": ["id", "title", "category", "fileUrl", "fileName", "createdAt"]
     }
   },
   "auth": {
@@ -203,8 +239,26 @@
             }
           ]
         }
+      },
+      {
+        "path": "/forms/{formId}",
+        "definition": {
+          "entityName": "Form",
+          "schema": {
+            "$ref": "#/backend/entities/Form"
+          },
+          "description": "Collection to store metadata for uploaded forms and documents. Read is allowed for any authenticated user, while create and delete operations are restricted to administrators.",
+          "params": [
+            {
+              "name": "formId",
+              "description": "Unique identifier for a specific form document."
+            }
+          ]
+        }
       }
     ],
     "reasoning": "The Firestore structure for LuxDrive Catalog prioritizes secure, scalable, and debuggable authorization by adhering to the core design principles. It leverages **Structural Segregation** and **DBAC (Database-Backed Access Control)** to clearly separate public data from administrative functions.\n\n**Authorization Independence (CRITICAL):**\nVehicle documents are stored in the top-level `/vehicles/{vehicleId}` collection. Their authorization is self-contained: they are publicly readable, and write operations (create, update, delete) are restricted to administrators. There are no subcollections whose access depends on parent document attributes, thus eliminating the need for `get()` calls in security rules for hierarchical authorization. Admin roles are managed in a separate, independent collection (`/roles_admin/{userId}`), ensuring that checking for administrative privileges is a single, atomic lookup and does not create hierarchical authorization dependencies within the vehicle data itself. This allows for atomic operations (transactions/batches) on vehicle documents without breaking security rule evaluations.\n\n**QAPs (Rules are not Filters):**\nFor the `/vehicles/{vehicleId}` collection, the `read` permission is `allow read: if true;`. This means that `list` queries on the `/vehicles` collection will return all documents that match the query filters (e.g., `where('brand', '==', 'BMW')`) without needing any additional filtering logic in the security rules. This design enables efficient client-side filtering and sorting as described in the requirements, fully supporting the Query-as-Permission principle. Security rules serve solely as authorization gates, not data filters, which is crucial for scalable performance and security.\n\n**Structure Breakdown:**\n1.  **`/vehicles/{vehicleId}`:** This primary collection stores all `Vehicle` entities, including all technical specifications, marketing details, and sales status information. Each document in this collection represents a single car available for sale.\n    *   **Security Posture:** Publicly readable (all authenticated and unauthenticated users can view) for the 'Auto in Vendita' catalog. Write access (create, update, delete) is restricted to authenticated users who possess an administrative role.\n    *   **Fields:** Contains all fields from the `Vehicle` schema, including `id`, `brand`, `model`, `year`, `mileage`, `fuelType`, `transmissionType`, `horsepower`, `exteriorColor`, `price`, `description`, `coverImageUrl`, `imageUrls`, `canvaLink`, `status`, `consultantName`, `consultantPhoneNumber`, `slug`, `createdAt`, and `updatedAt`.\n    *   **Denormalization:** The `slug` field is denormalized within each `Vehicle` document to facilitate SEO-friendly dynamic routing without requiring additional lookups. The `status` field explicitly models the vehicle's sales state, which influences UI behavior (e.g., disabling the contact button).\n\n2.  **`/roles_admin/{userId}`:** This collection is dedicated to managing administrative roles within the system. While not explicitly provided in the initial `backend.entities`, an `AdminRole` entity is conceptually introduced here to fulfill the DBAC mandate and enable secure administrative actions.\n    *   **Security Posture:** Read/write access is highly restricted, typically to a super-admin or internal processes. The mere existence of a document at `/roles_admin/{request.auth.uid}` grants administrative privileges for managing vehicles.\n    *   **Fields:** Documents in this collection can be empty or contain minimal metadata, as their existence itself signifies the role. For the purpose of this design, it maps to a conceptual `AdminRole` entity whose presence grants privileges."
   }
 }
+
+    

@@ -1,6 +1,6 @@
 'use client';
 
-import { Home, LogOut } from 'lucide-react';
+import { FileText, Home, LogOut } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
@@ -64,10 +64,18 @@ export function Header() {
           </Button>
           {!isUserLoading &&
             (user ? (
-              <Button onClick={handleLogout} variant="ghost">
-                <LogOut className="mr-2 h-4 w-4" />
-                Logout
-              </Button>
+              <>
+                <Button asChild variant="outline">
+                  <Link href="/modulistica">
+                    <FileText className="mr-2 h-4 w-4" />
+                    Modulistica
+                  </Link>
+                </Button>
+                <Button onClick={handleLogout} variant="ghost">
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Logout
+                </Button>
+              </>
             ) : (
               <Button asChild>
                 <Link href="/login">Accesso Area Riservata</Link>
@@ -78,3 +86,5 @@ export function Header() {
     </header>
   );
 }
+
+    
