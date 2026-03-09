@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useUser, useFirestore, useFirebaseApp, useMemoFirebase } from '@/firebase';
 import { useCollection } from '@/firebase/firestore/use-collection';
-import { collection, doc, serverTimestamp, getDoc, setDoc } from 'firebase/firestore';
+import { collection, doc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import {
   Card,
@@ -55,7 +55,7 @@ import type { Form as FormType } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { UploadCloud, FileText, Trash2, Loader2 } from 'lucide-react';
 import Link from 'next/link';
-import { deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { deleteDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 
 const formSchema = z.object({
   title: z.string().min(3, 'Il titolo è obbligatorio e deve avere almeno 3 caratteri.'),
@@ -112,7 +112,7 @@ export default function ModulisticaPage() {
   const { user } = useUser();
   const firestore = useFirestore();
   const app = useFirebaseApp();
-  const storage = useMemo(() => getStorage(app), [app]);
+  const storage = useMemo(() => getStorage(app, 'gs://studio-3074982188-44660.appspot.com'), [app]);
   const { toast } = useToast();
 
   const [isAdmin, setIsAdmin] = useState(false);
@@ -169,8 +169,8 @@ export default function ModulisticaPage() {
     toast({ title: 'Eliminazione in corso...' });
 
     try {
-      // Delete file from Storage
-      const fileRef = ref(storage, `forms/${formToDelete.id}/${formToDelete.fileName}`);
+      // Delete file from Storage using the full URL
+      const fileRef = ref(storage, formToDelete.fileUrl);
       await deleteObject(fileRef);
 
       // Delete document from Firestore
@@ -186,7 +186,7 @@ export default function ModulisticaPage() {
         toast({
             variant: "destructive",
             title: "Uh oh! Qualcosa è andato storto.",
-            description: "Impossibile eliminare il modulo.",
+            description: "Impossibile eliminare il modulo. Controlla se il file esiste ancora nello storage.",
         });
     }
   };
@@ -224,7 +224,7 @@ export default function ModulisticaPage() {
         toast({
             variant: "destructive",
             title: "Upload fallito",
-            description: "Impossibile caricare il file.",
+            description: "Impossibile caricare il file. Verifica i permessi di scrittura su Firebase Storage.",
         });
         setIsSubmitting(false);
       },
@@ -232,7 +232,7 @@ export default function ModulisticaPage() {
         try {
             const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
             
-            const formData: Omit<FormType, 'id'> = {
+            const formData = {
                 title: data.title,
                 category: data.category,
                 fileUrl: downloadURL,
@@ -240,13 +240,13 @@ export default function ModulisticaPage() {
                 createdAt: serverTimestamp(),
             };
 
-            await setDoc(newDocRef, formData);
+            await setDocumentNonBlocking(newDocRef, formData, {});
 
             toast({
                 title: "Modulo caricato!",
                 description: `"${data.title}" è stato aggiunto con successo.`,
             });
-            form.reset();
+            form.reset({ title: '', category: undefined });
             setFileToUpload(null);
             if (fileInputRef.current) {
                 fileInputRef.current.value = '';
@@ -257,7 +257,7 @@ export default function ModulisticaPage() {
             toast({
                 variant: "destructive",
                 title: "Salvataggio fallito",
-                description: "Impossibile salvare i dati del modulo.",
+                description: "Impossibile salvare i dati del modulo in Firestore.",
             });
         } finally {
             setIsSubmitting(false);
@@ -324,7 +324,7 @@ export default function ModulisticaPage() {
                  <FormItem>
                     <FormLabel>File *</FormLabel>
                     <FormControl>
-                        <Input ref={fileInputRef} type="file" onChange={handleFileChange} />
+                        <Input ref={fileInputRef} type="file" onChange={handleFileChange} accept=".pdf,.doc,.docx,.jpg,.png" />
                     </FormControl>
                     {fileError && <p className="text-sm font-medium text-destructive">{fileError}</p>}
                 </FormItem>
