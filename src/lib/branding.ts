@@ -5,7 +5,7 @@ export type BrandingProfile = {
   companyContact: string;
 };
 
-export type SellerType = 'TIPO_A' | 'TIPO_B' | 'TIPO_C';
+export type SellerType = 'TIPO_A' | 'TIPO_B' | 'TIPO_C' | 'TIPO_D';
 
 const HUB_LOGO_URL = 'https://firebasestorage.googleapis.com/v0/b/studio-3074982188-44660.firebasestorage.app/o/HUB%20-%20logo%20tutti%20formati_Tavola%20disegno%201%20copia%204%20(4).png?alt=media&token=a2c0e07e-e514-4d75-bc9c-a27e5b4e69d3';
 
@@ -33,6 +33,12 @@ export const brandingProfiles: Record<SellerType | 'default', BrandingProfile> =
     companyName: 'BALDINAUTOMOTIVE',
     companyAddress: 'Indirizzo BALDINAUTOMOTIVE',
     companyContact: 'Contatti BALDINAUTOMOTIVE',
+  },
+  TIPO_D: {
+    logoUrl: 'https://firebasestorage.googleapis.com/v0/b/studio-3074982188-44660.firebasestorage.app/o/Logo-1%20trasparente.png?alt=media&token=a28e26de-7700-4b5e-a0d0-8c230d838c77',
+    companyName: 'AutoMGV',
+    companyAddress: 'Indirizzo AutoMGV',
+    companyContact: 'Contatti AutoMGV',
   },
 };
 

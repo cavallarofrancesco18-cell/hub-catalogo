@@ -151,7 +151,8 @@
           "enum": [
             "TIPO_A",
             "TIPO_B",
-            "TIPO_C"
+            "TIPO_C",
+            "TIPO_D"
           ]
         }
       },
