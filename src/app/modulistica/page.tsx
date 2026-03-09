@@ -1,13 +1,13 @@
 'use client';
 
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useUser, useFirestore, useFirebaseApp, useMemoFirebase } from '@/firebase';
 import { useCollection } from '@/firebase/firestore/use-collection';
 import { collection, doc, serverTimestamp, getDoc } from 'firebase/firestore';
-import { getStorage, ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
+import { getStorage, ref, deleteObject } from 'firebase/storage';
 import {
   Card,
   CardContent,
@@ -37,6 +37,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from '@/components/ui/form';
 import {
     AlertDialog,
@@ -49,7 +50,6 @@ import {
     AlertDialogTitle,
     AlertDialogTrigger,
   } from '@/components/ui/alert-dialog';
-import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import type { Form as FormType } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -62,6 +62,7 @@ const formSchema = z.object({
   category: z.enum(['cliente', 'commerciante'], {
     required_error: 'La categoria è obbligatoria.',
   }),
+  fileUrl: z.string().url("Per favore, inserisci un URL valido.").min(1, "L'URL del file è obbligatorio."),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -118,11 +119,7 @@ export default function ModulisticaPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isLoadingRole, setIsLoadingRole] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [fileToUpload, setFileToUpload] = useState<File | null>(null);
-  const [fileError, setFileError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
+  
   const formsRef = useMemoFirebase(() => collection(firestore, 'forms'), [firestore]);
   const { data: forms, isLoading: isLoadingForms } = useCollection<FormType>(formsRef);
 
@@ -131,6 +128,7 @@ export default function ModulisticaPage() {
     defaultValues: {
         title: '',
         category: undefined,
+        fileUrl: '',
     }
   });
 
@@ -169,11 +167,9 @@ export default function ModulisticaPage() {
     toast({ title: 'Eliminazione in corso...' });
 
     try {
-      // Delete file from Storage using the full URL
       const fileRef = ref(storage, formToDelete.fileUrl);
       await deleteObject(fileRef);
 
-      // Delete document from Firestore
       const docRef = doc(firestore, 'forms', formToDelete.id);
       await deleteDocumentNonBlocking(docRef);
 
@@ -191,79 +187,51 @@ export default function ModulisticaPage() {
     }
   };
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      setFileToUpload(file);
-      setFileError(null);
-    }
-  };
-
-
   async function onSubmit(data: FormValues) {
-    if (!fileToUpload) {
-        setFileError('Il file è obbligatorio.');
-        return;
-    }
-    if (!firestore || !storage) return;
+    if (!firestore) return;
 
     setIsSubmitting(true);
-    setUploadProgress(0);
 
-    const newDocRef = doc(collection(firestore, 'forms'));
-    const storageRef = ref(storage, `forms/${newDocRef.id}/${fileToUpload.name}`);
-    const uploadTask = uploadBytesResumable(storageRef, fileToUpload);
+    try {
+        const newDocRef = doc(collection(firestore, 'forms'));
+        
+        let fileName = 'file_sconosciuto';
+        try {
+            const decodedUrl = decodeURIComponent(data.fileUrl);
+            const pathWithQuery = decodedUrl.split('?')[0];
+            const pathSegments = pathWithQuery.split('/');
+            fileName = pathSegments[pathSegments.length - 1];
+        } catch (e) {
+            console.error("Could not parse file name from URL", e);
+        }
 
-    uploadTask.on('state_changed',
-      (snapshot) => {
-        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-        setUploadProgress(progress);
-      },
-      (error) => {
-        console.error("Upload error:", error);
+        const formData = {
+            id: newDocRef.id,
+            title: data.title,
+            category: data.category,
+            fileUrl: data.fileUrl,
+            fileName: fileName,
+            createdAt: serverTimestamp(),
+        };
+
+        await setDocumentNonBlocking(newDocRef, formData, {});
+
+        toast({
+            title: "Modulo aggiunto!",
+            description: `"${data.title}" è stato aggiunto con successo.`,
+        });
+        form.reset({ title: '', category: undefined, fileUrl: '' });
+
+    } catch (error) {
+        console.error("Error saving document:", error);
         toast({
             variant: "destructive",
-            title: "Upload fallito",
-            description: "Impossibile caricare il file. Verifica i permessi di scrittura su Firebase Storage.",
+            title: "Salvataggio fallito",
+            description: "Impossibile salvare i dati del modulo in Firestore.",
         });
+    } finally {
         setIsSubmitting(false);
-      },
-      async () => {
-        try {
-            const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-            
-            const formData = {
-                title: data.title,
-                category: data.category,
-                fileUrl: downloadURL,
-                fileName: fileToUpload.name,
-                createdAt: serverTimestamp(),
-            };
-
-            await setDocumentNonBlocking(newDocRef, formData, {});
-
-            toast({
-                title: "Modulo caricato!",
-                description: `"${data.title}" è stato aggiunto con successo.`,
-            });
-            form.reset({ title: '', category: undefined });
-            setFileToUpload(null);
-            if (fileInputRef.current) {
-                fileInputRef.current.value = '';
-            }
-
-        } catch (error) {
-            console.error("Error saving document:", error);
-            toast({
-                variant: "destructive",
-                title: "Salvataggio fallito",
-                description: "Impossibile salvare i dati del modulo in Firestore.",
-            });
-        } finally {
-            setIsSubmitting(false);
-        }
-      }
-    );
+    }
   }
 
   const isLoading = isLoadingForms || isLoadingRole;
@@ -277,9 +245,9 @@ export default function ModulisticaPage() {
       {isAdmin && (
         <Card className="mb-8">
           <CardHeader>
-            <CardTitle>Carica Nuovo Modulo</CardTitle>
+            <CardTitle>Aggiungi Nuovo Modulo</CardTitle>
             <CardDescription>
-              Aggiungi un nuovo documento che sarà visibile a tutti gli utenti.
+              Aggiungi un nuovo documento incollando il suo URL da Firebase Storage.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -321,27 +289,34 @@ export default function ModulisticaPage() {
                     )}
                     />
                 </div>
-                 <FormItem>
-                    <FormLabel>File *</FormLabel>
-                    <FormControl>
-                        <Input ref={fileInputRef} type="file" onChange={handleFileChange} accept=".pdf,.doc,.docx,.jpg,.png" />
-                    </FormControl>
-                    {fileError && <p className="text-sm font-medium text-destructive">{fileError}</p>}
-                </FormItem>
-
-                {isSubmitting && <Progress value={uploadProgress} className="w-full" />}
+                 <FormField
+                    control={form.control}
+                    name="fileUrl"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>URL File da Storage *</FormLabel>
+                        <FormControl>
+                            <Input placeholder="https://firebasestorage.googleapis.com/..." {...field} value={field.value ?? ''} />
+                        </FormControl>
+                        <FormDescription>
+                          Apri il file in Firebase Storage, copia l'"URL di download" e incollalo qui.
+                        </FormDescription>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
 
                 <div className="flex justify-end">
                   <Button type="submit" disabled={isSubmitting}>
                     {isSubmitting ? (
                         <>
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Caricamento...
+                            Salvataggio...
                         </>
                     ) : (
                         <>
                             <UploadCloud className="mr-2 h-4 w-4" />
-                            Carica Modulo
+                            Aggiungi Modulo
                         </>
                     )}
                   </Button>
