@@ -52,7 +52,7 @@ export function Header() {
   const isLoading = isUserLoading || isRoleLoading;
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-white/20 bg-black/80 backdrop-blur supports-[backdrop-filter]:bg-black/50 print:hidden">
+    <header className="sticky top-0 z-50 w-full border-b bg-background shadow-sm print:hidden">
       <div className="container flex h-16 items-center justify-between">
         <Link href="/auto" className="flex items-center gap-3">
           {isLoading ? (
@@ -67,13 +67,13 @@ export function Header() {
               priority
             />
           ) : (
-            <span className="text-xl font-bold tracking-tight font-headline text-white">
+            <span className="text-xl font-bold tracking-tight font-headline">
               {companyName}
             </span>
           )}
         </Link>
         <div className="flex items-center gap-2">
-          <Button asChild variant="outline" className="text-white border-white/30 bg-transparent hover:bg-white/10 hover:text-white">
+          <Button asChild variant="ghost">
             <Link href="/auto">
               <Home className="mr-2 h-4 w-4" />
               Catalogo
@@ -82,13 +82,13 @@ export function Header() {
           {!isUserLoading &&
             (user ? (
               <>
-                <Button asChild variant="outline" className="text-white border-white/30 bg-transparent hover:bg-white/10 hover:text-white">
+                <Button asChild variant="ghost">
                   <Link href="/modulistica">
                     <FileText className="mr-2 h-4 w-4" />
                     Modulistica
                   </Link>
                 </Button>
-                <Button onClick={handleLogout} variant="ghost" className="text-white hover:bg-white/10 hover:text-white">
+                <Button onClick={handleLogout} variant="ghost">
                   <LogOut className="mr-2 h-4 w-4" />
                   Logout
                 </Button>
