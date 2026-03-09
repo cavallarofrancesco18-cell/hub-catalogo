@@ -60,7 +60,7 @@ export function Header() {
     <header className="sticky top-0 z-50 w-full border-b bg-background shadow-sm print:hidden">
       <div className="container flex h-16 items-center justify-between">
         <Link href="/auto" className="flex items-center gap-3">
-          {isLoading ? (
+          {!isClient || isLoading ? (
             <Skeleton className="h-8 w-36" />
           ) : logoUrl ? (
             <Image
@@ -84,7 +84,7 @@ export function Header() {
               Catalogo
             </Link>
           </Button>
-          {!isClient || isUserLoading ? (
+          {!isClient || isLoading ? (
             <Skeleton className="h-9 w-56" />
           ) : user ? (
             <>
