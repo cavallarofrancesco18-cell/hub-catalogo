@@ -32,8 +32,14 @@ import { useFirestore, useFirebaseApp, useMemoFirebase } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { getStorage, ref, deleteObject } from 'firebase/storage';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
 
 export default function AdminPage() {
   const firestore = useFirestore();
@@ -55,7 +61,7 @@ export default function AdminPage() {
 
   const handleStatusChange = async (
     vehicleId: string,
-    newStatus: 'In vendita' | 'Venduto'
+    newStatus: 'In vendita' | 'Venduto' | 'Prenotato'
   ) => {
     if (!firestore) return;
     setIsUpdatingStatus(vehicleId);
@@ -165,10 +171,7 @@ export default function AdminPage() {
                       <Skeleton className="h-4 w-20" />
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Skeleton className="h-6 w-11 rounded-full" />
-                        <Skeleton className="h-4 w-20" />
-                      </div>
+                      <Skeleton className="h-10 w-32" />
                     </TableCell>
                     <TableCell className="text-right">
                       <Skeleton className="h-8 w-8 rounded-md" />
@@ -218,34 +221,34 @@ export default function AdminPage() {
                     </TableCell>
                     <TableCell>{formatCurrency(vehicle.prezzo)}</TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        {isUpdatingStatus === vehicle.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Switch
-                            id={`status-switch-${vehicle.id}`}
-                            checked={vehicle.stato === 'Venduto'}
-                            onCheckedChange={checked => {
-                              handleStatusChange(
-                                vehicle.id,
-                                checked ? 'Venduto' : 'In vendita'
-                              );
-                            }}
-                            aria-label="Cambia stato veicolo"
-                          />
-                        )}
-                        <Label
-                          htmlFor={`status-switch-${vehicle.id}`}
-                          className={cn(
-                            'cursor-pointer',
-                            vehicle.stato === 'Venduto'
-                              ? 'text-destructive'
-                              : 'text-muted-foreground'
-                          )}
+                      {isUpdatingStatus === vehicle.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Select
+                          value={vehicle.stato}
+                          onValueChange={newStatus =>
+                            handleStatusChange(
+                              vehicle.id,
+                              newStatus as 'In vendita' | 'Venduto' | 'Prenotato'
+                            )
+                          }
                         >
-                          {vehicle.stato}
-                        </Label>
-                      </div>
+                          <SelectTrigger
+                            className={cn(
+                              'w-[130px]',
+                              vehicle.stato === 'Venduto' && 'text-destructive',
+                              vehicle.stato === 'Prenotato' && 'text-primary'
+                            )}
+                          >
+                            <SelectValue placeholder="Seleziona stato" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="In vendita">In vendita</SelectItem>
+                            <SelectItem value="Prenotato">Prenotato</SelectItem>
+                            <SelectItem value="Venduto">Venduto</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )}
                     </TableCell>
                     <TableCell className="text-right">
                       <Button asChild variant="ghost" size="icon">

@@ -1,7 +1,7 @@
 export type Vehicle = {
   id: string;
   data_inserimento: string;
-  stato: 'In vendita' | 'Venduto';
+  stato: 'In vendita' | 'Venduto' | 'Prenotato';
   marca: string;
   modello: string;
   versione: string;

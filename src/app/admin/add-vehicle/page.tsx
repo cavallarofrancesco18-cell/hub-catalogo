@@ -65,7 +65,7 @@ const vehicleSchema = z.object({
   descrizione: z.string().optional(),
   immagini: z.string().optional(),
   link_canva: z.string().url({ message: "URL non valido." }).optional().or(z.literal('')),
-  stato: z.enum(['In vendita', 'Venduto']).optional(),
+  stato: z.enum(['In vendita', 'Venduto', 'Prenotato']).optional(),
 });
 
 type VehicleFormValues = z.infer<typeof vehicleSchema>;
@@ -622,6 +622,7 @@ export default function AddVehiclePage() {
                         </FormControl>
                         <SelectContent>
                             <SelectItem value="In vendita">In vendita</SelectItem>
+                            <SelectItem value="Prenotato">Prenotato</SelectItem>
                             <SelectItem value="Venduto">Venduto</SelectItem>
                         </SelectContent>
                         </Select>

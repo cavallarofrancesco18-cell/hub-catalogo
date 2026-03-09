@@ -61,9 +61,14 @@ service cloud.firestore {
       // Sellers can only update 'descrizione'.
       // We also ensure that 'updatedAt' is being set to the server time.
       allow update: if isSeller()
-                    // The only fields that can be changed are 'descrizione' and 'updatedAt'
                     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['descrizione', 'updatedAt'])
-                    // The 'updatedAt' field must be set to the server timestamp
+                    && request.resource.data.updatedAt == request.time;
+      
+      // Sellers can also change the status from 'In vendita' to 'Prenotato'.
+      allow update: if isSeller()
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stato', 'updatedAt'])
+                    && resource.data.stato == 'In vendita'
+                    && request.resource.data.stato == 'Prenotato'
                     && request.resource.data.updatedAt == request.time;
     }
 

@@ -74,7 +74,8 @@
         },
         "status": {
           "type": "string",
-          "description": "The current sales status of the vehicle (e.g., 'Pubblicato', 'Opzionato', 'Venduto')."
+          "description": "The current sales status of the vehicle (e.g., 'Pubblicato', 'Opzionato', 'Venduto').",
+          "enum": ["In vendita", "Venduto", "Prenotato"]
         },
         "consultantName": {
           "type": "string",

@@ -8,7 +8,7 @@ import { useMemo, useRef, useState, useEffect } from 'react';
 import type { Vehicle, SellerRole as SellerRoleData } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useCollection } from '@/firebase/firestore/use-collection';
-import { collection, query, where, limit } from 'firebase/firestore';
+import { collection, query, where, limit, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { useFirestore, useMemoFirebase, useUserRole } from '@/firebase';
 import { format } from 'date-fns';
 import { PrintableVehicleSheet } from './components/printable-vehicle-sheet';
@@ -34,6 +34,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { PrintableProforma } from './components/printable-proforma';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { getBranding } from '@/lib/branding';
+import { useToast } from '@/hooks/use-toast';
 
 const proformaSchema = z.object({
   name: z.string().min(1, 'Nome e cognome sono obbligatori.'),
@@ -64,6 +65,7 @@ type PriceSheetFormValues = z.infer<typeof priceSheetSchema>;
 export default function VehiclePage() {
   const params = useParams();
   const slug = params.slug as string;
+  const { toast } = useToast();
 
   const firestore = useFirestore();
   const { role, roleData, isLoading: isLoadingRole } = useUserRole();
@@ -103,6 +105,7 @@ export default function VehiclePage() {
   const [isProformaFormOpen, setIsProformaFormOpen] = useState(false);
   const [proformaCustomerData, setProformaCustomerData] = useState<ProformaFormValues | null>(null);
   const [isGeneratingProforma, setIsGeneratingProforma] = useState(false);
+  const [isBooking, setIsBooking] = useState(false);
 
   const proformaForm = useForm<ProformaFormValues>({
     resolver: zodResolver(proformaSchema),
@@ -187,8 +190,8 @@ export default function VehiclePage() {
 
   const hidePreview = () => {
     setIsPreviewing(false);
+    priceSheetForm.reset({ price: vehicle?.prezzo ?? 0 });
     setFinalSheetPrice(null);
-    priceSheetForm.reset();
   };
   
   const handleConfirmPrint = async () => {
@@ -203,8 +206,32 @@ export default function VehiclePage() {
     setIsProformaFormOpen(false);
   }
 
-  const showProformaForm = () => {
-    if (vehicle) {
+  const showProformaForm = async () => {
+    if (!vehicle || !firestore) return;
+
+    if (vehicle.stato !== 'In vendita') {
+      toast({
+        variant: 'destructive',
+        title: 'Veicolo non disponibile',
+        description: `Questo veicolo è già "${vehicle.stato}" e non può essere prenotato.`,
+      });
+      return;
+    }
+
+    setIsBooking(true);
+    const vehicleRef = doc(firestore, 'vehicles', vehicle.id);
+    
+    try {
+      await updateDoc(vehicleRef, {
+        stato: 'Prenotato',
+        updatedAt: serverTimestamp(),
+      });
+
+      toast({
+        title: 'Veicolo Prenotato!',
+        description: 'Il veicolo è stato prenotato con successo. Compila i dati per il contratto.',
+      });
+
       proformaForm.reset({
         name: '',
         address: '',
@@ -221,8 +248,17 @@ export default function VehiclePage() {
         withdrawal: 'Per i contratti conclusi a distanza, l\'acquirente consumatore ha diritto di recedere dal contratto, senza alcuna penalità e senza specificarne il motivo, entro il termine di 14 giorni dalla presa in consegna del veicolo.',
         price: vehicle.prezzo ?? 0,
       });
+      setIsProformaFormOpen(true);
+    } catch (error) {
+      console.error("Errore durante la prenotazione del veicolo:", error);
+      toast({
+        variant: 'destructive',
+        title: 'Prenotazione Fallita',
+        description: 'Impossibile prenotare il veicolo. Potrebbe essere stato prenotato da un altro utente.',
+      });
+    } finally {
+      setIsBooking(false);
     }
-    setIsProformaFormOpen(true);
   };
   
   const hideProformaPreview = () => setProformaCustomerData(null);
@@ -283,6 +319,7 @@ export default function VehiclePage() {
           onProformaClick={showProformaForm}
           disabled={isLoadingRole || role === null}
           editPath={editPath}
+          isBooking={isBooking}
         />
 
         <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -349,7 +386,7 @@ export default function VehiclePage() {
                 )}
                 <div className="flex justify-between items-center">
                   <span className="font-medium text-muted-foreground">Stato</span>
-                  <Badge variant={vehicle.stato === 'Venduto' ? 'destructive' : 'secondary'}>
+                  <Badge variant={vehicle.stato === 'Venduto' ? 'destructive' : vehicle.stato === 'Prenotato' ? 'default' : 'secondary'}>
                     {vehicle.stato}
                   </Badge>
                 </div>

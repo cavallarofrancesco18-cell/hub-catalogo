@@ -9,9 +9,11 @@ interface StatusBadgeProps {
 }
 
 export function StatusBadge({ status, className }: StatusBadgeProps) {
-  if (status !== 'Venduto') {
+  if (status !== 'Venduto' && status !== 'Prenotato') {
     return null;
   }
+
+  const text = status === 'Venduto' ? 'Venduto' : 'Prenotato';
 
   return (
     <div
@@ -22,7 +24,7 @@ export function StatusBadge({ status, className }: StatusBadgeProps) {
     >
       <div className="transform -rotate-12 rounded-sm border-2 border-white px-4 py-1 md:px-6 md:py-2">
         <span className="text-xl font-bold uppercase tracking-wider text-white md:text-2xl">
-          Venduto
+          {text}
         </span>
       </div>
     </div>

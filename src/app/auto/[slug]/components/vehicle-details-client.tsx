@@ -5,7 +5,7 @@ import type { Vehicle } from '@/lib/types';
 import { formatCurrency, getDirectImageUrl } from '@/lib/utils';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
-import { Camera, Printer, FileSignature, Pencil } from 'lucide-react';
+import { Camera, Printer, FileSignature, Pencil, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { StatusBadge } from '@/components/status-badge';
@@ -17,9 +17,10 @@ interface VehicleDetailsClientProps {
   onProformaClick: () => void;
   disabled: boolean;
   editPath: string | null;
+  isBooking: boolean;
 }
 
-export function VehicleDetailsClient({ vehicle, onPrintClick, onProformaClick, disabled, editPath }: VehicleDetailsClientProps) {
+export function VehicleDetailsClient({ vehicle, onPrintClick, onProformaClick, disabled, editPath, isBooking }: VehicleDetailsClientProps) {
   const validImageUrls = useMemo(
     () => (vehicle.immagini || []).map(getDirectImageUrl).filter(Boolean),
     [vehicle.immagini]
@@ -108,13 +109,13 @@ export function VehicleDetailsClient({ vehicle, onPrintClick, onProformaClick, d
               <p className="text-3xl font-bold mb-4">{formatCurrency(vehicle.prezzo)}</p>
               <div className="flex-grow space-y-2">
                  {hasImages && (
-                    <Button onClick={() => openGallery(0)} className="w-full" size="lg" disabled={vehicle.stato === 'Venduto'}>
+                    <Button onClick={() => openGallery(0)} className="w-full" size="lg" disabled={vehicle.stato !== 'In vendita'}>
                         <Camera className="mr-2 h-5 w-5" />
                         Guarda la galleria ({validImageUrls.length} foto)
                     </Button>
                 )}
                 {vehicle.link_canva && (
-                  <Button asChild className="w-full" size="lg" variant={hasImages ? 'secondary' : 'default'} disabled={vehicle.stato === 'Venduto'}>
+                  <Button asChild className="w-full" size="lg" variant={hasImages ? 'secondary' : 'default'} disabled={vehicle.stato !== 'In vendita'}>
                     <Link
                       href={vehicle.link_canva}
                       target="_blank"
@@ -129,9 +130,9 @@ export function VehicleDetailsClient({ vehicle, onPrintClick, onProformaClick, d
                     <Printer className="mr-2 h-5 w-5" />
                     Anteprima Scheda
                 </Button>
-                 <Button onClick={onProformaClick} className="w-full" size="lg" variant="default" disabled={disabled || vehicle.stato === 'Venduto'}>
-                    <FileSignature className="mr-2 h-5 w-5" />
-                    Crea Contratto
+                 <Button onClick={onProformaClick} className="w-full" size="lg" variant="default" disabled={disabled || isBooking || vehicle.stato !== 'In vendita'}>
+                    {isBooking ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <FileSignature className="mr-2 h-5 w-5" />}
+                    {isBooking ? 'Prenotazione...' : 'Crea Contratto'}
                 </Button>
                 {editPath && (
                   <Button asChild className="w-full" size="lg" variant="secondary">

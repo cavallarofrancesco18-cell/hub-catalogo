@@ -118,7 +118,7 @@ export default function SellerPage() {
                     </TableCell>
                     <TableCell>{formatCurrency(vehicle.prezzo)}</TableCell>
                     <TableCell>
-                       <Badge variant={vehicle.stato === 'Venduto' ? 'destructive' : 'secondary'}>
+                       <Badge variant={vehicle.stato === 'Venduto' ? 'destructive' : vehicle.stato === 'Prenotato' ? 'default' : 'secondary'}>
                         {vehicle.stato}
                       </Badge>
                     </TableCell>
