@@ -5,7 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { signOut } from 'firebase/auth';
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { getBranding } from '@/lib/branding';
@@ -20,6 +20,11 @@ export function Header() {
   const auth = useAuth();
   const router = useRouter();
   const { toast } = useToast();
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   const branding = useMemo(() => {
     if (!user) {
@@ -79,25 +84,26 @@ export function Header() {
               Catalogo
             </Link>
           </Button>
-          {!isUserLoading &&
-            (user ? (
-              <>
-                <Button asChild variant="ghost">
-                  <Link href="/modulistica">
-                    <FileText className="mr-2 h-4 w-4" />
-                    Modulistica
-                  </Link>
-                </Button>
-                <Button onClick={handleLogout} variant="ghost">
-                  <LogOut className="mr-2 h-4 w-4" />
-                  Logout
-                </Button>
-              </>
-            ) : (
-              <Button asChild>
-                <Link href="/login">Accesso Area Riservata</Link>
+          {!isClient || isUserLoading ? (
+            <Skeleton className="h-9 w-56" />
+          ) : user ? (
+            <>
+              <Button asChild variant="ghost">
+                <Link href="/modulistica">
+                  <FileText className="mr-2 h-4 w-4" />
+                  Modulistica
+                </Link>
               </Button>
-            ))}
+              <Button onClick={handleLogout} variant="ghost">
+                <LogOut className="mr-2 h-4 w-4" />
+                Logout
+              </Button>
+            </>
+          ) : (
+            <Button asChild>
+              <Link href="/login">Accesso Area Riservata</Link>
+            </Button>
+          )}
         </div>
       </div>
     </header>
