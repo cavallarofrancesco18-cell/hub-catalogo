@@ -59,7 +59,12 @@ service cloud.firestore {
       allow update: if isAdmin();
       
       // Sellers can only update 'descrizione'.
-      allow update: if isSeller() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['descrizione', 'updatedAt']);
+      // We also ensure that 'updatedAt' is being set to the server time.
+      allow update: if isSeller()
+                    // The only fields that can be changed are 'descrizione' and 'updatedAt'
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['descrizione', 'updatedAt'])
+                    // The 'updatedAt' field must be set to the server timestamp
+                    && request.resource.data.updatedAt == request.time;
     }
 
     /**
@@ -90,16 +95,13 @@ service cloud.firestore {
      * @description
      *   Rules for the forms collection.
      *   - Authenticated users can read/list forms.
-     *   - Only Admins can create or delete forms.
+     *   - Only Admins can create, update, or delete forms.
      * @path
      *   /forms/{formId}
      */
     match /forms/{formId} {
       allow get, list: if isSignedIn();
-      allow create, delete: if isAdmin();
-      allow update: if false; // Forms are immutable. To update, delete and re-upload.
+      allow create, update, delete: if isAdmin();
     }
   }
 }
-
-    
