@@ -8,7 +8,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { doc, getDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import Image from 'next/image';
 
-import { useFirestore } from '@/firebase';
+import { useFirestore, useUserRole } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -34,7 +34,7 @@ import { getDirectImageUrl } from '@/lib/utils';
 import Link from 'next/link';
 import { Printer, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import type { Vehicle } from '@/lib/types';
+import type { Vehicle, SellerRole as SellerRoleData } from '@/lib/types';
 import {
   Dialog,
   DialogContent,
@@ -42,10 +42,12 @@ import {
   DialogTitle,
   DialogFooter,
   DialogClose,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import { PrintableVehicleSheet } from '@/app/auto/[slug]/components/printable-vehicle-sheet';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import { getBranding } from '@/lib/branding';
 
 const vehicleSchema = z.object({
   descrizione: z.string().optional(),
@@ -62,8 +64,12 @@ const vehicleSchema = z.object({
   colore_esterno: z.string().optional(),
 });
 
+const priceSheetSchema = z.object({
+  price: z.coerce.number().positive('Il prezzo deve essere un numero positivo.'),
+});
 
 type VehicleFormValues = z.infer<typeof vehicleSchema>;
+type PriceSheetFormValues = z.infer<typeof priceSheetSchema>;
 
 export default function SellerEditVehiclePage() {
   const router = useRouter();
@@ -78,10 +84,22 @@ export default function SellerEditVehiclePage() {
   
   const [existingImages, setExistingImages] = useState<string[]>([]);
   const printableSheetRef = useRef<HTMLDivElement>(null);
+
   const [isPrinting, setIsPrinting] = useState(false);
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [vehicleForPreview, setVehicleForPreview] = useState<Vehicle | null>(null);
+  const [isPriceSheetEditorOpen, setIsPriceSheetEditorOpen] = useState(false);
+  const [finalSheetPrice, setFinalSheetPrice] = useState<number | null>(null);
 
+  const { role, roleData } = useUserRole();
+
+  const branding = useMemo(() => {
+    return getBranding(role === 'admin' ? 'admin' : (roleData as SellerRoleData)?.sellerType);
+  }, [role, roleData]);
+
+  const priceSheetForm = useForm<PriceSheetFormValues>({
+    resolver: zodResolver(priceSheetSchema),
+  });
 
   const form = useForm<VehicleFormValues>({
     resolver: zodResolver(vehicleSchema),
@@ -159,14 +177,14 @@ export default function SellerEditVehiclePage() {
       let heightLeft = totalImgHeightInPdf;
       let position = 0;
 
-      pdf.addImage(imgData, 'PNG', margin, margin, contentWidth, totalImgHeightInPdf);
+      pdf.addImage(imgData, 'PNG', margin, position, contentWidth, totalImgHeightInPdf);
       heightLeft -= (pdfHeight - margin * 2);
 
       while (heightLeft > 0) {
-        position -= (pdfHeight - margin * 2);
+        position -= pdfHeight;
         pdf.addPage();
         pdf.addImage(imgData, 'PNG', margin, position + margin, contentWidth, totalImgHeightInPdf);
-        heightLeft -= (pdfHeight - margin * 2);
+        heightLeft -= pdfHeight;
       }
       
       pdf.save(`scheda-veicolo-${vehicleForPreview.slug}.pdf`);
@@ -177,29 +195,40 @@ export default function SellerEditVehiclePage() {
     }
   };
 
-  const showPreview = () => {
-     if (!vehicle) return;
+  const showPriceSheetEditor = () => {
+    if (vehicle) {
+        priceSheetForm.reset({ price: vehicle.prezzo ?? 0 });
+        setIsPriceSheetEditorOpen(true);
+    }
+  };
+
+  function onPriceSheetSubmit(values: PriceSheetFormValues) {
+    if (!vehicle) return;
+    setFinalSheetPrice(values.price);
+    setIsPriceSheetEditorOpen(false);
+
     const currentFormData = form.getValues();
     const previewData: Vehicle = {
-      ...vehicle,
-      // The status for preview is taken directly from the source vehicle data
-      stato: vehicle.stato, 
-      descrizione: currentFormData.descrizione || vehicle.descrizione,
+        ...vehicle,
+        stato: vehicle.stato,
+        descrizione: currentFormData.descrizione || vehicle.descrizione,
     };
     setVehicleForPreview(previewData);
     setIsPreviewing(true);
-  };
-
+  }
+  
   const hidePreview = () => {
     setIsPreviewing(false);
     setVehicleForPreview(null);
+    setFinalSheetPrice(null);
   };
 
   const handleConfirmPrint = async () => {
-    await handleGeneratePdf();
+    if (vehicleForPreview) {
+        await handleGeneratePdf();
+    }
     hidePreview();
   };
-
 
   async function onSubmit(data: VehicleFormValues) {
     if (!firestore) return;
@@ -388,7 +417,7 @@ export default function SellerEditVehiclePage() {
           </Card>
 
           <div className="flex items-center justify-between">
-             <Button onClick={showPreview} type="button" variant="outline" disabled={isPrinting || isPreviewing}>
+             <Button onClick={showPriceSheetEditor} type="button" variant="outline" disabled={isPrinting || isPreviewing}>
                 <Printer className="mr-2 h-5 w-5" />
                 Anteprima Stampa
             </Button>
@@ -404,8 +433,40 @@ export default function SellerEditVehiclePage() {
         </form>
       </Form>
     </div>
-    {vehicleForPreview && (
-      <Dialog open={isPreviewing} onOpenChange={setIsPreviewing}>
+    
+    <Dialog open={isPriceSheetEditorOpen} onOpenChange={setIsPriceSheetEditorOpen}>
+        <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Modifica Prezzo per la Stampa</DialogTitle>
+              <DialogDescription>
+                Inserisci il prezzo finale da mostrare sulla scheda del veicolo.
+              </DialogDescription>
+            </DialogHeader>
+            <Form {...priceSheetForm}>
+                <form onSubmit={priceSheetForm.handleSubmit(onPriceSheetSubmit)} className="space-y-4">
+                    <FormField
+                    control={priceSheetForm.control}
+                    name="price"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Prezzo Finale (€)</FormLabel>
+                        <FormControl><Input type="number" {...field} value={field.value ?? ''} /></FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                    <DialogFooter>
+                        <DialogClose asChild>
+                            <Button type="button" variant="outline">Annulla</Button>
+                        </DialogClose>
+                        <Button type="submit">Genera Anteprima</Button>
+                    </DialogFooter>
+                </form>
+            </Form>
+        </DialogContent>
+      </Dialog>
+    
+      <Dialog open={isPreviewing} onOpenChange={hidePreview}>
         <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Anteprima di Stampa</DialogTitle>
@@ -415,7 +476,9 @@ export default function SellerEditVehiclePage() {
               ref={printableSheetRef}
               className="w-[800px] mx-auto my-8 shadow-2xl"
             >
-              <PrintableVehicleSheet vehicle={vehicleForPreview} />
+              {vehicleForPreview && finalSheetPrice !== null && (
+                <PrintableVehicleSheet vehicle={vehicleForPreview} price={finalSheetPrice} branding={branding} />
+              )}
             </div>
           </div>
           <DialogFooter>
@@ -437,7 +500,6 @@ export default function SellerEditVehiclePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    )}
     </>
   );
 }
