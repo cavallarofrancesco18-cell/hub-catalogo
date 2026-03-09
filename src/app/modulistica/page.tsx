@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
-import { useForm, Controller } from 'react-hook-form';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useUser, useFirestore, useFirebaseApp, useMemoFirebase } from '@/firebase';
@@ -62,7 +62,6 @@ const formSchema = z.object({
   category: z.enum(['cliente', 'commerciante'], {
     required_error: 'La categoria è obbligatoria.',
   }),
-  file: z.instanceof(File).refine(file => file.size > 0, 'Il file è obbligatorio.'),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -120,6 +119,9 @@ export default function ModulisticaPage() {
   const [isLoadingRole, setIsLoadingRole] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [fileToUpload, setFileToUpload] = useState<File | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const formsRef = useMemoFirebase(() => collection(firestore, 'forms'), [firestore]);
   const { data: forms, isLoading: isLoadingForms } = useCollection<FormType>(formsRef);
@@ -129,7 +131,6 @@ export default function ModulisticaPage() {
     defaultValues: {
         title: '',
         category: undefined,
-        file: undefined
     }
   });
 
@@ -190,16 +191,28 @@ export default function ModulisticaPage() {
     }
   };
 
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setFileToUpload(file);
+      setFileError(null);
+    }
+  };
+
 
   async function onSubmit(data: FormValues) {
+    if (!fileToUpload) {
+        setFileError('Il file è obbligatorio.');
+        return;
+    }
     if (!firestore || !storage) return;
 
     setIsSubmitting(true);
     setUploadProgress(0);
 
     const newDocRef = doc(collection(firestore, 'forms'));
-    const storageRef = ref(storage, `forms/${newDocRef.id}/${data.file.name}`);
-    const uploadTask = uploadBytesResumable(storageRef, data.file);
+    const storageRef = ref(storage, `forms/${newDocRef.id}/${fileToUpload.name}`);
+    const uploadTask = uploadBytesResumable(storageRef, fileToUpload);
 
     uploadTask.on('state_changed',
       (snapshot) => {
@@ -223,7 +236,7 @@ export default function ModulisticaPage() {
                 title: data.title,
                 category: data.category,
                 fileUrl: downloadURL,
-                fileName: data.file.name,
+                fileName: fileToUpload.name,
                 createdAt: serverTimestamp(),
             };
 
@@ -233,7 +246,12 @@ export default function ModulisticaPage() {
                 title: "Modulo caricato!",
                 description: `"${data.title}" è stato aggiunto con successo.`,
             });
-            form.reset({ title: '', category: undefined, file: undefined });
+            form.reset();
+            setFileToUpload(null);
+            if (fileInputRef.current) {
+                fileInputRef.current.value = '';
+            }
+
         } catch (error) {
             console.error("Error saving document:", error);
             toast({
@@ -303,19 +321,13 @@ export default function ModulisticaPage() {
                     )}
                     />
                 </div>
-                <FormField
-                  control={form.control}
-                  name="file"
-                  render={({ field: { onChange, value, ...rest } }) => (
-                    <FormItem>
-                      <FormLabel>File *</FormLabel>
-                      <FormControl>
-                        <Input type="file" onChange={e => onChange(e.target.files?.[0])} {...rest} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                 <FormItem>
+                    <FormLabel>File *</FormLabel>
+                    <FormControl>
+                        <Input ref={fileInputRef} type="file" onChange={handleFileChange} />
+                    </FormControl>
+                    {fileError && <p className="text-sm font-medium text-destructive">{fileError}</p>}
+                </FormItem>
 
                 {isSubmitting && <Progress value={uploadProgress} className="w-full" />}
 
