@@ -99,6 +99,7 @@ export default function VehiclePage() {
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [isPriceSheetEditorOpen, setIsPriceSheetEditorOpen] = useState(false);
   const [finalSheetPrice, setFinalSheetPrice] = useState<number | null>(null);
+  const [hasSheetBeenPreviewed, setHasSheetBeenPreviewed] = useState(false);
 
   // State for proforma contract
   const proformaSheetRef = useRef<HTMLDivElement>(null);
@@ -186,12 +187,12 @@ export default function VehiclePage() {
     setFinalSheetPrice(values.price);
     setIsPriceSheetEditorOpen(false);
     setIsPreviewing(true);
+    setHasSheetBeenPreviewed(true);
   }
 
   const hidePreview = () => {
     setIsPreviewing(false);
     priceSheetForm.reset({ price: vehicle?.prezzo ?? 0 });
-    setFinalSheetPrice(null);
   };
   
   const handleConfirmPrint = async () => {
@@ -246,7 +247,7 @@ export default function VehiclePage() {
         insurance: 'L\'acquirente si impegna a stipulare una polizza assicurativa RC auto prima del ritiro del veicolo.',
         wearAndTear: 'L\'acquirente dichiara di aver preso visione dello stato d\'uso del veicolo e di accettarlo nelle condizioni in cui si trova, tenuto conto della normale usura pregressa in base all\'anno di immatricolazione e al chilometraggio.',
         withdrawal: 'Per i contratti conclusi a distanza, l\'acquirente consumatore ha diritto di recedere dal contratto, senza alcuna penalità e senza specificarne il motivo, entro il termine di 14 giorni dalla presa in consegna del veicolo.',
-        price: vehicle.prezzo ?? 0,
+        price: finalSheetPrice ?? vehicle.prezzo ?? 0,
       });
       setIsProformaFormOpen(true);
     } catch (error) {
@@ -320,6 +321,7 @@ export default function VehiclePage() {
           disabled={isLoadingRole || role === null}
           editPath={editPath}
           isBooking={isBooking}
+          isProformaButtonDisabled={!hasSheetBeenPreviewed}
         />
 
         <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-8">
