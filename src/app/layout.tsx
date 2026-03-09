@@ -11,6 +11,9 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
 export const metadata: Metadata = {
   title: 'Hub Catalogo',
   description: 'Esplora il nostro catalogo.',
+  icons: {
+    icon: 'https://firebasestorage.googleapis.com/v0/b/studio-3074982188-44660.firebasestorage.app/o/ChatGPT%20Image%209%20mar%202026%2C%2017_09_14.png?alt=media&token=f0a22208-62a2-4979-8c12-2e45ddc0ddd4',
+  },
 };
 
 export default function RootLayout({
