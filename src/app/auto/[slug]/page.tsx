@@ -82,6 +82,15 @@ export default function VehiclePage() {
   const vehicle = useMemo(() => vehicles?.[0], [vehicles]);
   const registrationDate = vehicle?.data_immatricolazione ? format(new Date(vehicle.data_immatricolazione), 'dd/MM/yyyy') : vehicle?.anno;
 
+  let editPath: string | null = null;
+  if (!isLoadingRole && role && vehicle) {
+    if (role === 'admin') {
+      editPath = `/admin/edit-vehicle/${vehicle.id}`;
+    } else if (role === 'seller') {
+      editPath = `/seller/edit-vehicle/${vehicle.id}`;
+    }
+  }
+
   // State for vehicle sheet printing
   const printableSheetRef = useRef<HTMLDivElement>(null);
   const [isPrinting, setIsPrinting] = useState(false);
@@ -273,6 +282,7 @@ export default function VehiclePage() {
           onPrintClick={showPriceSheetEditor}
           onProformaClick={showProformaForm}
           disabled={isLoadingRole || role === null}
+          editPath={editPath}
         />
 
         <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-8">

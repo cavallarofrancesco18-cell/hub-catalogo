@@ -5,7 +5,7 @@ import type { Vehicle } from '@/lib/types';
 import { formatCurrency, getDirectImageUrl } from '@/lib/utils';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
-import { Camera, Printer, FileSignature } from 'lucide-react';
+import { Camera, Printer, FileSignature, Pencil } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { StatusBadge } from '@/components/status-badge';
@@ -16,9 +16,10 @@ interface VehicleDetailsClientProps {
   onPrintClick: () => void;
   onProformaClick: () => void;
   disabled: boolean;
+  editPath: string | null;
 }
 
-export function VehicleDetailsClient({ vehicle, onPrintClick, onProformaClick, disabled }: VehicleDetailsClientProps) {
+export function VehicleDetailsClient({ vehicle, onPrintClick, onProformaClick, disabled, editPath }: VehicleDetailsClientProps) {
   const validImageUrls = useMemo(
     () => (vehicle.immagini || []).map(getDirectImageUrl).filter(Boolean),
     [vehicle.immagini]
@@ -132,6 +133,14 @@ export function VehicleDetailsClient({ vehicle, onPrintClick, onProformaClick, d
                     <FileSignature className="mr-2 h-5 w-5" />
                     Crea Contratto
                 </Button>
+                {editPath && (
+                  <Button asChild className="w-full" size="lg" variant="secondary">
+                    <Link href={editPath}>
+                      <Pencil className="mr-2 h-5 w-5" />
+                      Modifica Annuncio
+                    </Link>
+                  </Button>
+                )}
               </div>
             </div>
           </div>
