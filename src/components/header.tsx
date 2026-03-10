@@ -99,9 +99,14 @@ export function Header() {
               </Button>
             </>
           ) : (
-            <Button asChild>
-              <Link href="/login">Accesso Area Riservata</Link>
-            </Button>
+            <>
+              <Button asChild variant="outline">
+                <Link href="/login">Accesso Area Riservata</Link>
+              </Button>
+              <Button asChild>
+                <Link href="/admin/login">Accesso Admin</Link>
+              </Button>
+            </>
           )}
         </div>
       </div>
