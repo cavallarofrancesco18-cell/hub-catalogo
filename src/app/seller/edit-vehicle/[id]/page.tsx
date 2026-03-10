@@ -94,7 +94,7 @@ export default function SellerEditVehiclePage() {
   const { role, roleData } = useUserRole();
 
   const branding = useMemo(() => {
-    return getBranding(role === 'admin' ? 'admin' : (roleData as SellerRoleData)?.sellerType);
+    return getBranding(role, (roleData as SellerRoleData)?.sellerType);
   }, [role, roleData]);
 
   const priceSheetForm = useForm<PriceSheetFormValues>({

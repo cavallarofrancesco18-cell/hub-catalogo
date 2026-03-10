@@ -1,3 +1,5 @@
+import type { Role, SellerRole } from "./types";
+
 export type BrandingProfile = {
   logoUrl: string;
   companyName: string;
@@ -9,12 +11,18 @@ export type SellerType = 'TIPO_A' | 'TIPO_B' | 'TIPO_C' | 'TIPO_D';
 
 const HUB_LOGO_URL = 'https://firebasestorage.googleapis.com/v0/b/studio-3074982188-44660.firebasestorage.app/o/HUB%20-%20logo%20tutti%20formati_Tavola%20disegno%201%20copia%204%20(4).png?alt=media&token=a2c0e07e-e514-4d75-bc9c-a27e5b4e69d3';
 
-export const brandingProfiles: Record<SellerType | 'default', BrandingProfile> = {
+export const brandingProfiles: Record<SellerType | 'default' | 'guest', BrandingProfile> = {
   default: {
     logoUrl: HUB_LOGO_URL,
     companyName: 'Hub Mobility',
     companyAddress: 'Via Pietro Ferrero 1/bis (TO)',
     companyContact: 'mail:___________ cell:___________',
+  },
+  guest: {
+    logoUrl: '',
+    companyName: 'Utente Ospite',
+    companyAddress: 'Indirizzo non disponibile',
+    companyContact: 'Contatto non disponibile',
   },
   TIPO_A: {
     logoUrl: HUB_LOGO_URL,
@@ -42,10 +50,14 @@ export const brandingProfiles: Record<SellerType | 'default', BrandingProfile> =
   },
 };
 
-export const getBranding = (sellerType?: SellerType | 'admin'): BrandingProfile => {
-  if (sellerType && sellerType !== 'admin' && brandingProfiles[sellerType]) {
-    return brandingProfiles[sellerType];
+export const getBranding = (role?: Role, sellerType?: SellerType): BrandingProfile => {
+  if (role === 'seller') {
+    if (sellerType && brandingProfiles[sellerType]) {
+      return brandingProfiles[sellerType];
+    }
+    return brandingProfiles.guest;
   }
-  // Admins and users with no/invalid sellerType get the default branding
+  
+  // Admins and logged-out users (role is null) get default branding
   return brandingProfiles.default;
 };

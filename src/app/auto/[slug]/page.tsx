@@ -71,7 +71,7 @@ export default function VehiclePage() {
   const { role, roleData, isLoading: isLoadingRole } = useUserRole();
 
   const branding = useMemo(() => {
-    return getBranding(role === 'admin' ? 'admin' : (roleData as SellerRoleData)?.sellerType);
+    return getBranding(role, (roleData as SellerRoleData)?.sellerType);
   }, [role, roleData]);
 
   const vehicleQuery = useMemoFirebase(() => {
@@ -192,6 +192,7 @@ export default function VehiclePage() {
 
   const hidePreview = () => {
     setIsPreviewing(false);
+    setFinalSheetPrice(null);
     priceSheetForm.reset({ price: vehicle?.prezzo ?? 0 });
   };
   

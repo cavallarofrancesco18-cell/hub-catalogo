@@ -27,11 +27,8 @@ export function Header() {
   }, []);
 
   const branding = useMemo(() => {
-    if (!user) {
-        return getBranding(); // Default branding for logged-out users
-    }
-    return getBranding(role === 'admin' ? 'admin' : (roleData as SellerRoleData)?.sellerType);
-  }, [user, role, roleData]);
+    return getBranding(role, (roleData as SellerRoleData)?.sellerType);
+  }, [role, roleData]);
 
   const { logoUrl, companyName } = branding;
 
