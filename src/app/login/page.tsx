@@ -125,8 +125,6 @@ export default function LoginPage() {
             });
         })
         .catch((error) => {
-            console.error('Errore durante il login:', error);
-            
             let description = 'Si è verificato un errore imprevisto.';
             if (error.code) {
                 switch (error.code) {
