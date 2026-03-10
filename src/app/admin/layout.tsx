@@ -1,6 +1,6 @@
 'use client';
 
-import { useUser } from '@/firebase';
+import { useUserRole } from '@/firebase';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -10,16 +10,16 @@ export default function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { user, isUserLoading } = useUser();
+  const { role, isLoading } = useUserRole();
   const router = useRouter();
 
   useEffect(() => {
-    if (!isUserLoading && !user) {
-      router.replace('/login');
+    if (!isLoading && role !== 'admin') {
+      router.replace('/admin/login');
     }
-  }, [user, isUserLoading, router]);
+  }, [role, isLoading, router]);
 
-  if (isUserLoading || !user) {
+  if (isLoading || role !== 'admin') {
     return (
         <div className="container mx-auto px-4 py-8">
             <div className="flex justify-between items-center mb-8">
