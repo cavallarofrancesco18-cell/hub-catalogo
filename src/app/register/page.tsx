@@ -6,8 +6,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useRouter } from 'next/navigation';
 import { createUserWithEmailAndPassword, signOut } from 'firebase/auth';
-import { useAuth } from '@/firebase';
+import { useAuth, useFirestore } from '@/firebase';
 import Link from 'next/link';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -44,6 +45,7 @@ type RegisterFormValues = z.infer<typeof registerSchema>;
 export default function RegisterPage() {
   const router = useRouter();
   const auth = useAuth();
+  const firestore = useFirestore();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [registrationSuccess, setRegistrationSuccess] = useState(false);
@@ -58,7 +60,7 @@ export default function RegisterPage() {
   });
 
   async function onSubmit(data: RegisterFormValues) {
-    if (!auth) {
+    if (!auth || !firestore) {
         toast({
             variant: 'destructive',
             title: 'Errore di autenticazione',
@@ -69,7 +71,15 @@ export default function RegisterPage() {
     setIsSubmitting(true);
     
     try {
-      await createUserWithEmailAndPassword(auth, data.email, data.password);
+      const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
+      const user = userCredential.user;
+
+      // Create a document in the 'users' collection for admin management
+      const userDocRef = doc(firestore, 'users', user.uid);
+      await setDoc(userDocRef, {
+          email: user.email,
+          createdAt: serverTimestamp(),
+      });
       
       // Sign out the user immediately after creation. They need to be approved.
       await signOut(auth);
