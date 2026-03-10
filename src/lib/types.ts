@@ -39,5 +39,5 @@ export type Form = {
 
 export type SellerRole = {
   assignedAt?: any;
-  sellerType?: 'TIPO_A' | 'TIPO_B' | 'TIPO_C' | 'TIPO_D';
+  sellerType?: 'OSPITE_SELLER' | 'HUB_SELLER' | 'RESTART_SELLER' | 'EXPRESS_SELLER' | 'MGV_SELLER';
 };

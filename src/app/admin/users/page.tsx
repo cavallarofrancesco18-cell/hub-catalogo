@@ -47,7 +47,7 @@ type UserProfile = {
 type RoleDoc = { id: string; };
 type SellerDoc = RoleDoc & SellerRoleData;
 
-const sellerTypes = ['TIPO_A', 'TIPO_B', 'TIPO_C', 'TIPO_D', 'OSPITE_SELLER', 'HUB_SELLER', 'RESTART_SELLER', 'EXPRESS_SELLER', 'MGV_SELLER'];
+const sellerTypes = ['OSPITE_SELLER', 'HUB_SELLER', 'RESTART_SELLER', 'EXPRESS_SELLER', 'MGV_SELLER'];
 
 export default function UsersPage() {
   const firestore = useFirestore();
