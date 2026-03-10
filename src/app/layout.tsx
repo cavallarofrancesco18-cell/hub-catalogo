@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   title: 'Hub Catalogo',
   description: 'Esplora il nostro catalogo.',
   icons: {
-    icon: 'https://firebasestorage.googleapis.com/v0/b/studio-3074982188-44660.firebasestorage.app/o/ChatGPT%20Image%209%20mar%202026%2C%2017_09_14.png?alt=media&token=f0a22208-62a2-4979-8c12-2e45ddc0ddd4',
+    icon: 'https://firebasestorage.googleapis.com/v0/b/studio-3074982188-44660.firebasestorage.app/o/LOGHI%2Flogo%20hub_catalogo.png?alt=media&token=de48c8a8-7841-4f92-82f7-af057c4b42bb',
   },
 };
 
