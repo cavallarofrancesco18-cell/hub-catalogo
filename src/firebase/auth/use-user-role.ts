@@ -25,6 +25,7 @@ export function useUserRole(): UserRoleState {
   useEffect(() => {
     // If auth is still loading or Firestore isn't ready, just wait.
     if (isUserLoading || !firestore) {
+      setRoleState({ role: null, roleData: null, isLoading: isUserLoading || !firestore });
       return;
     }
     
@@ -47,7 +48,7 @@ export function useUserRole(): UserRoleState {
         }
 
         // If not admin, check for seller role.
-        const sellerRef = doc(firestore, 'roles_seller', user.uid);
+        const sellerRef = doc(firestore, 'sellertype', user.uid);
         const sellerDoc = await getDoc(sellerRef);
         if (sellerDoc.exists()) {
           setRoleState({ role: 'seller', roleData: sellerDoc.data() as SellerRoleData, isLoading: false });

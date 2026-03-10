@@ -73,7 +73,7 @@ export default function LoginPage() {
         return;
       }
 
-      const sellerRef = doc(firestore, 'roles_seller', user.uid);
+      const sellerRef = doc(firestore, 'sellertype', user.uid);
       const sellerDoc = await getDoc(sellerRef);
       if (sellerDoc.exists()) {
         router.replace('/auto');
@@ -112,7 +112,7 @@ export default function LoginPage() {
                 return;
             }
 
-            const sellerRef = doc(firestore, 'roles_seller', loggedInUser.uid);
+            const sellerRef = doc(firestore, 'sellertype', loggedInUser.uid);
             const sellerDoc = await getDoc(sellerRef);
             if (sellerDoc.exists()) {
                 toast({ title: 'Accesso Venditore effettuato!', description: 'Verrai reindirizzato al catalogo.' });

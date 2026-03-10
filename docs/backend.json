@@ -139,7 +139,7 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "SellerRole",
       "type": "object",
-      "description": "Represents a seller role. The existence of a document for a user in the roles_seller collection grants them seller privileges. Contains the seller's specific branding type.",
+      "description": "Represents a seller role. The existence of a document for a user in the sellertype collection grants them seller privileges. Contains the seller's specific branding type.",
       "properties": {
         "assignedAt": {
           "type": "string",
@@ -236,7 +236,7 @@
         }
       },
       {
-        "path": "/roles_seller/{userId}",
+        "path": "/sellertype/{userId}",
         "definition": {
           "entityName": "SellerRole",
           "schema": {
