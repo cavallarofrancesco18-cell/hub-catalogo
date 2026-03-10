@@ -39,7 +39,7 @@ export function useUserRole(): UserRoleState {
       // from the initial state until we determine the role.
       try {
         // Check for admin role first.
-        const adminRef = doc(firestore, 'roles_admin', user.uid);
+        const adminRef = doc(firestore, 'Admin', user.uid);
         const adminDoc = await getDoc(adminRef);
         if (adminDoc.exists()) {
           setRoleState({ role: 'admin', roleData: adminDoc.data(), isLoading: false });

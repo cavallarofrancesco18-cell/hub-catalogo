@@ -66,7 +66,7 @@ export default function LoginPage() {
     }
 
     const checkRoleAndRedirect = async () => {
-      const adminRef = doc(firestore, 'roles_admin', user.uid);
+      const adminRef = doc(firestore, 'Admin', user.uid);
       const adminDoc = await getDoc(adminRef);
       if (adminDoc.exists()) {
         router.replace('/admin');
@@ -103,18 +103,8 @@ export default function LoginPage() {
     signInWithEmailAndPassword(auth, data.email, data.password)
         .then(async (userCredential) => {
             const loggedInUser = userCredential.user;
-            
-            if (!loggedInUser.emailVerified) {
-                await signOut(auth);
-                toast({
-                    variant: 'destructive',
-                    title: 'Verifica la tua email',
-                    description: 'Devi prima verificare il tuo indirizzo email. Controlla la tua casella di posta.',
-                });
-                return;
-            }
 
-            const adminRef = doc(firestore, 'roles_admin', loggedInUser.uid);
+            const adminRef = doc(firestore, 'Admin', loggedInUser.uid);
             const adminDoc = await getDoc(adminRef);
             if (adminDoc.exists()) {
                 toast({ title: 'Accesso Admin effettuato!', description: 'Verrai reindirizzato alla gestione veicoli.' });

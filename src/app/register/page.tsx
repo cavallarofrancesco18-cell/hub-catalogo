@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useRouter } from 'next/navigation';
-import { createUserWithEmailAndPassword, sendEmailVerification, signOut } from 'firebase/auth';
+import { createUserWithEmailAndPassword, signOut } from 'firebase/auth';
 import { useAuth } from '@/firebase';
 import Link from 'next/link';
 
@@ -69,11 +69,8 @@ export default function RegisterPage() {
     setIsSubmitting(true);
     
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
-      const user = userCredential.user;
+      await createUserWithEmailAndPassword(auth, data.email, data.password);
       
-      await sendEmailVerification(user);
-
       // Sign out the user immediately after creation. They need to be approved.
       await signOut(auth);
 
@@ -109,11 +106,11 @@ export default function RegisterPage() {
         <Card className="w-full max-w-lg">
           <CardHeader className="items-center text-center">
             <CardTitle>Registrazione completata!</CardTitle>
-            <CardDescription>Controlla la tua casella di posta per continuare.</CardDescription>
+            <CardDescription>Quasi finito...</CardDescription>
           </CardHeader>
           <CardContent className="text-center">
-            <p>Ti abbiamo inviato un'email di verifica. Clicca sul link nell'email per confermare il tuo indirizzo.</p>
-            <p className="mt-4 font-semibold">Una volta verificato il tuo indirizzo, un amministratore dovrà approvare il tuo account prima che tu possa accedere.</p>
+            <p>La tua registrazione è stata completata con successo.</p>
+            <p className="mt-4 font-semibold">Un amministratore dovrà approvare il tuo account prima che tu possa accedere.</p>
           </CardContent>
           <CardFooter>
             <Button asChild className="w-full">
