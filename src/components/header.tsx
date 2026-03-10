@@ -5,7 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { signOut } from 'firebase/auth';
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { getBranding } from '@/lib/branding';
@@ -20,11 +20,6 @@ export function Header() {
   const auth = useAuth();
   const router = useRouter();
   const { toast } = useToast();
-  const [isClient, setIsClient] = useState(false);
-
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
 
   const branding = useMemo(() => {
     return getBranding(role, (roleData as SellerRoleData)?.sellerType);
@@ -50,7 +45,7 @@ export function Header() {
     }
   };
 
-  const isLoading = isUserLoading || isRoleLoading || !isClient;
+  const isLoading = isUserLoading || isRoleLoading;
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background shadow-sm print:hidden">
@@ -62,9 +57,9 @@ export function Header() {
             <Image
               src={logoUrl}
               alt={`${companyName} Logo`}
-              width={200}
-              height={50}
-              className="h-16 w-auto"
+              width={240}
+              height={60}
+              className="h-20 w-auto"
               priority
             />
           ) : (
