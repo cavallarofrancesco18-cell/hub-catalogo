@@ -53,28 +53,46 @@ export default function AdminLoginPage() {
     },
   });
 
-  // If an admin is already logged in, redirect them to the dashboard
   useEffect(() => {
+    // We are still waiting for Firebase Auth to initialize.
     if (isUserLoading) {
-      return;
-    }
-    if (!user || !firestore) {
-      setIsCheckingRole(false);
+      setIsCheckingRole(true);
       return;
     }
 
-    const checkRoleAndRedirect = async () => {
+    // Auth is resolved, but we have no user. Show the login form.
+    if (!user) {
+      setIsCheckingRole(false);
+      return;
+    }
+    
+    // Auth is resolved, and we have a user. We need to check if they are an admin.
+    if (!firestore || !auth) {
+        setIsCheckingRole(false);
+        return;
+    }
+    
+    const checkAdminRole = async () => {
       const adminRef = doc(firestore, 'roles_admin', user.uid);
-      const adminDoc = await getDoc(adminRef);
-      if (adminDoc.exists()) {
-        router.replace('/admin');
-      } else {
+      try {
+        const adminDoc = await getDoc(adminRef);
+        if (adminDoc.exists()) {
+          // User is an admin, redirect them.
+          router.replace('/admin');
+        } else {
+          // User is NOT an admin. Sign them out and let them log in as an admin.
+          await signOut(auth);
+          setIsCheckingRole(false);
+        }
+      } catch (error) {
+        console.error("Error checking admin role, signing out.", error);
+        await signOut(auth).catch(console.error);
         setIsCheckingRole(false);
       }
     };
 
-    checkRoleAndRedirect();
-  }, [user, isUserLoading, firestore, router]);
+    checkAdminRole();
+  }, [user, isUserLoading, firestore, auth, router]);
 
 
   async function onSubmit(data: LoginFormValues) {
