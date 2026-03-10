@@ -49,7 +49,7 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background shadow-sm print:hidden">
-      <div className="container flex h-20 items-center justify-between">
+      <div className="container flex h-24 items-center justify-between">
         <Link href="/auto" className="flex items-center gap-3">
           {isLoading ? (
             <Skeleton className="h-16 w-64" />
@@ -59,7 +59,7 @@ export function Header() {
               alt={`${companyName} Logo`}
               width={240}
               height={60}
-              className="h-20 w-auto"
+              className="h-24 w-auto"
               priority
             />
           ) : (
@@ -70,7 +70,7 @@ export function Header() {
         </Link>
         <div className="flex items-center gap-2">
           {isLoading ? (
-            <Skeleton className="h-9 w-56" />
+            <Skeleton className="h-9 w-40" />
           ) : user ? (
             <>
               <Button asChild variant="ghost">
@@ -99,14 +99,9 @@ export function Header() {
               </Button>
             </>
           ) : (
-            <>
-              <Button asChild variant="outline">
-                <Link href="/login">Accesso Area Riservata</Link>
-              </Button>
-              <Button asChild>
-                <Link href="/admin/login">Accesso Admin</Link>
-              </Button>
-            </>
+            <Button asChild>
+              <Link href="/login">Accesso Area Riservata</Link>
+            </Button>
           )}
         </div>
       </div>
