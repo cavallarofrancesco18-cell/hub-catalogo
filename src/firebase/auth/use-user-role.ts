@@ -23,9 +23,8 @@ export function useUserRole(): UserRoleState {
   });
 
   useEffect(() => {
-    // If auth is still loading or Firestore isn't ready, set to a neutral loading state.
+    // If auth is still loading or Firestore isn't ready, just wait.
     if (isUserLoading || !firestore) {
-      setRoleState({ role: null, roleData: null, isLoading: true });
       return;
     }
     
