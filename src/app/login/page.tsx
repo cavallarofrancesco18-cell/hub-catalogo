@@ -8,12 +8,14 @@ import { useRouter } from 'next/navigation';
 import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { useAuth, useUser, useFirestore } from '@/firebase';
+import Link from 'next/link';
 
 import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
@@ -55,7 +57,9 @@ export default function LoginPage() {
 
   // If user is already logged in, check their role and redirect
   useEffect(() => {
-    if (isUserLoading) return;
+    if (isUserLoading) {
+      return;
+    }
     if (!user || !firestore) {
       setIsCheckingRole(false);
       return;
@@ -99,6 +103,16 @@ export default function LoginPage() {
     signInWithEmailAndPassword(auth, data.email, data.password)
         .then(async (userCredential) => {
             const loggedInUser = userCredential.user;
+            
+            if (!loggedInUser.emailVerified) {
+                await signOut(auth);
+                toast({
+                    variant: 'destructive',
+                    title: 'Verifica la tua email',
+                    description: 'Devi prima verificare il tuo indirizzo email. Controlla la tua casella di posta.',
+                });
+                return;
+            }
 
             const adminRef = doc(firestore, 'roles_admin', loggedInUser.uid);
             const adminDoc = await getDoc(adminRef);
@@ -116,12 +130,12 @@ export default function LoginPage() {
                 return;
             }
 
-            // If user has no role
+            // If user has role but is not yet approved
             await signOut(auth);
             toast({
                 variant: 'destructive',
                 title: 'Accesso non autorizzato',
-                description: 'Non disponi dei permessi necessari per accedere.',
+                description: 'Il tuo account è in attesa di approvazione da parte di un amministratore.',
             });
         })
         .catch((error) => {
@@ -138,7 +152,6 @@ export default function LoginPage() {
                         break;
                 }
             }
-
             toast({
                 variant: 'destructive',
                 title: 'Login fallito',
@@ -205,6 +218,14 @@ export default function LoginPage() {
             </form>
           </Form>
         </CardContent>
+        <CardFooter className="flex justify-center">
+            <p className="text-sm text-muted-foreground">
+                Non hai un account?{' '}
+                <Link href="/register" className="underline hover:text-primary">
+                    Registrati
+                </Link>
+            </p>
+        </CardFooter>
       </Card>
     </div>
   );
