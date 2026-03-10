@@ -35,7 +35,7 @@ import { useFirestore, useMemoFirebase, useUser } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { setDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Shield, User as UserIcon, X } from 'lucide-react';
+import { Loader2, Shield, User as UserIcon, X, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 
 type UserProfile = {
@@ -55,6 +55,7 @@ export default function UsersPage() {
   const { toast } = useToast();
 
   const [actionState, setActionState] = useState<{ type: 'confirm' | null; user: any | null; newRole?: any; }>({ type: null, user: null });
+  const [userToDelete, setUserToDelete] = useState<UserProfile | null>(null);
   const [isProcessing, setIsProcessing] = useState<string | null>(null);
 
   const usersRef = useMemoFirebase(() => collection(firestore, 'users'), [firestore]);
@@ -88,7 +89,7 @@ export default function UsersPage() {
   }, [users, admins, sellers]);
 
   const handleRoleChange = async () => {
-    if (!actionState.user || !actionState.type) return;
+    if (!actionState.user || !actionState.type || !firestore) return;
 
     const { user, newRole } = actionState;
     const userId = user.id;
@@ -118,6 +119,35 @@ export default function UsersPage() {
     } finally {
       setIsProcessing(null);
       setActionState({ type: null, user: null });
+    }
+  };
+
+  const handleDeleteUser = async () => {
+    if (!userToDelete || !firestore) return;
+
+    const { id: userId, email } = userToDelete;
+
+    setIsProcessing(userId);
+
+    const userDocRef = doc(firestore, 'users', userId);
+    const adminRef = doc(firestore, 'Admin', userId);
+    const sellerRef = doc(firestore, 'sellertype', userId);
+
+    try {
+        await Promise.all([
+            deleteDocumentNonBlocking(userDocRef),
+            deleteDocumentNonBlocking(adminRef),
+            deleteDocumentNonBlocking(sellerRef)
+        ]);
+        
+        toast({ title: 'Successo', description: `L'utente ${email} è stato eliminato con successo.` });
+
+    } catch (e: any)        {
+        console.error("Errore durante l'eliminazione dell'utente:", e);
+        toast({ variant: 'destructive', title: 'Errore', description: "Impossibile eliminare l'utente." });
+    } finally {
+        setIsProcessing(null);
+        setUserToDelete(null);
     }
   };
   
@@ -197,6 +227,16 @@ export default function UsersPage() {
                                 <X className="h-4 w-4 text-destructive" />
                             </Button>
                         )}
+                        
+                        <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            title="Elimina Utente"
+                            onClick={() => setUserToDelete(user)}
+                            disabled={currentUser?.uid === user.id}
+                        >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
                       </div>
                     )}
                   </TableCell>
@@ -225,6 +265,23 @@ export default function UsersPage() {
               </AlertDialogFooter>
           </AlertDialogContent>
       </AlertDialog>
+      
+      <AlertDialog open={!!userToDelete} onOpenChange={(open) => !open && setUserToDelete(null)}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Sei sicuro di voler eliminare questo utente?</AlertDialogTitle>
+                <AlertDialogDescription>
+                    Questa azione non può essere annullata. Questo eliminerà permanentemente l'utente <span className="font-medium">{userToDelete?.email}</span> e tutti i suoi ruoli di accesso dal sistema.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setUserToDelete(null)}>Annulla</AlertDialogCancel>
+                <AlertDialogAction onClick={handleDeleteUser} disabled={isProcessing === userToDelete?.id}>
+                    {isProcessing === userToDelete?.id ? "Eliminazione..." : "Conferma Eliminazione"}
+                </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
     </>
   );
 }
