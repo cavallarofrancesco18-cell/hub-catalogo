@@ -36,7 +36,7 @@ export function PrintableVehicleSheet({ vehicle, price, branding }: PrintableVeh
               alt={`${companyName} Logo`}
               width={200}
               height={50}
-              className="h-10 w-auto"
+              className="h-12 w-auto"
             />
           ) : (
             <h1 className="text-xl font-bold">{companyName}</h1>

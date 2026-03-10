@@ -47,7 +47,6 @@ export function Header() {
         title: 'Errore durante il logout',
         description: 'Non è stato possibile effettuare il logout. Riprova.',
       });
-      console.error('Errore durante il logout:', error);
     }
   };
 
@@ -55,17 +54,17 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background shadow-sm print:hidden">
-      <div className="container flex h-16 items-center justify-between">
+      <div className="container flex h-20 items-center justify-between">
         <Link href="/auto" className="flex items-center gap-3">
           {isLoading ? (
-            <Skeleton className="h-8 w-36" />
+            <Skeleton className="h-12 w-48" />
           ) : logoUrl ? (
             <Image
               src={logoUrl}
               alt={`${companyName} Logo`}
-              width={150}
-              height={40}
-              className="h-8 w-auto"
+              width={200}
+              height={50}
+              className="h-12 w-auto"
               priority
             />
           ) : (
