@@ -57,14 +57,14 @@ export function Header() {
       <div className="container flex h-20 items-center justify-between">
         <Link href="/auto" className="flex items-center gap-3">
           {isLoading ? (
-            <Skeleton className="h-12 w-48" />
+            <Skeleton className="h-16 w-64" />
           ) : logoUrl ? (
             <Image
               src={logoUrl}
               alt={`${companyName} Logo`}
               width={200}
               height={50}
-              className="h-12 w-auto"
+              className="h-16 w-auto"
               priority
             />
           ) : (
