@@ -26,6 +26,8 @@ export function PrintableVehicleSheet({ vehicle, price, branding }: PrintableVeh
   }, []);
 
   const hasAdditionalDetails = vehicle.cilindrata || vehicle.colore_interni || vehicle.classe_emissioni || vehicle.garanzia || vehicle.bollo;
+  const shortDescription = vehicle.descrizione ? vehicle.descrizione.split(/[.!?]/)[0] + '.' : '';
+
 
   return (
     <div className="bg-white text-black p-6 font-sans">
@@ -109,6 +111,16 @@ export function PrintableVehicleSheet({ vehicle, price, branding }: PrintableVeh
           </div>
         </div>
       </div>
+      
+      {/* Short Description */}
+      {shortDescription && shortDescription.length > 1 && (
+        <div className="mt-8">
+            <h3 className="text-2xl font-bold border-b pb-2 mb-4">Descrizione</h3>
+            <p className="text-gray-700 text-base leading-relaxed">
+                {shortDescription}
+            </p>
+        </div>
+      )}
 
       {/* Additional Details */}
       {hasAdditionalDetails && (
