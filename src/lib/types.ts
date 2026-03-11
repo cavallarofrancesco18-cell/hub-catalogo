@@ -17,6 +17,7 @@ export type Vehicle = {
   colore_esterno: string;
   colore_interni?: string;
   prezzo: number;
+  garanzia_legale_prezzo?: number;
   targa?: string;
   garanzia?: string;
   descrizione: string;

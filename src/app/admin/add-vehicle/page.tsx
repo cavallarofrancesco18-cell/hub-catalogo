@@ -59,6 +59,7 @@ const vehicleSchema = z.object({
   colore_esterno: z.string().optional(),
   colore_interni: z.string().optional(),
   prezzo: z.coerce.number().optional().or(z.literal('')),
+  garanzia_legale_prezzo: z.coerce.number().optional().or(z.literal('')),
   garanzia: z.string().optional(),
   classe_emissioni: z.string().optional(),
   bollo: z.string().optional(),
@@ -100,6 +101,7 @@ export default function AddVehiclePage() {
       colore_esterno: '',
       colore_interni: '',
       prezzo: '',
+      garanzia_legale_prezzo: '',
       targa: '',
       garanzia: '',
       classe_emissioni: '',
@@ -402,6 +404,7 @@ export default function AddVehiclePage() {
       chilometraggio: data.chilometraggio ? Number(data.chilometraggio) : null,
       potenza: data.potenza ? Number(data.potenza) : null,
       prezzo: data.prezzo ? Number(data.prezzo) : null,
+      garanzia_legale_prezzo: data.garanzia_legale_prezzo ? Number(data.garanzia_legale_prezzo) : null,
       potenza_kw: data.potenza_kw ? Number(data.potenza_kw) : null,
       cilindrata: data.cilindrata ? Number(data.cilindrata) : null,
       carburante: data.carburante ?? null,
@@ -539,6 +542,20 @@ export default function AddVehiclePage() {
                     <FormControl>
                       <Input type="number" placeholder="Es. 32000" {...field} value={field.value ?? ''}/>
                     </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="garanzia_legale_prezzo"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Garanzia Legale (€)</FormLabel>
+                    <FormControl>
+                      <Input type="number" placeholder="Es. 500" {...field} value={field.value ?? ''}/>
+                    </FormControl>
+                    <FormDescription>Verrà sommato al prezzo finale.</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -954,5 +971,3 @@ https://.../immagine2.png"
     </div>
   );
 }
-
-    

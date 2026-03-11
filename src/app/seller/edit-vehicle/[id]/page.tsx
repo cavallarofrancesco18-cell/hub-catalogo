@@ -54,6 +54,7 @@ const vehicleSchema = z.object({
   descrizione: z.string().optional(),
   // Read-only fields
   prezzo: z.coerce.number().optional().or(z.literal('')),
+  garanzia_legale_prezzo: z.coerce.number().optional().or(z.literal('')),
   marca: z.string(),
   modello: z.string(),
   versione: z.string(),
@@ -122,6 +123,7 @@ export default function SellerEditVehiclePage() {
           const dataForForm = {
             ...vehicleData,
             prezzo: vehicleData.prezzo ?? '',
+            garanzia_legale_prezzo: vehicleData.garanzia_legale_prezzo ?? '',
             descrizione: vehicleData.descrizione ?? '',
             data_immatricolazione: new Date(registrationDateISO).toISOString().split('T')[0],
           };
@@ -198,7 +200,7 @@ export default function SellerEditVehiclePage() {
 
   const showPriceSheetEditor = () => {
     if (vehicle) {
-        priceSheetForm.reset({ price: vehicle.prezzo ?? 0 });
+        priceSheetForm.reset({ price: (vehicle.prezzo ?? 0) + (vehicle.garanzia_legale_prezzo ?? 0) });
         setIsPriceSheetEditorOpen(true);
     }
   };
@@ -348,6 +350,18 @@ export default function SellerEditVehiclePage() {
                       <Input type="number" placeholder="Es. 32000" {...field} value={field.value ?? ''} readOnly disabled />
                     </FormControl>
                     <FormDescription>Il prezzo può essere modificato solo da un amministratore.</FormDescription>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="garanzia_legale_prezzo"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Garanzia Legale (€)</FormLabel>
+                    <FormControl>
+                      <Input type="number" {...field} value={field.value ?? ''} readOnly disabled />
+                    </FormControl>
                   </FormItem>
                 )}
               />

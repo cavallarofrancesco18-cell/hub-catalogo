@@ -38,6 +38,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { PrintableProforma } from './components/printable-proforma';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { getBranding } from '@/lib/branding';
 import { useToast } from '@/hooks/use-toast';
 
@@ -53,6 +54,9 @@ const proformaSchema = z.object({
   price: z.coerce.number().positive('Il prezzo deve essere un numero positivo.'),
   customerType: z.enum(['privato', 'commerciante'], {
     required_error: 'Selezionare il tipo di cliente.',
+  }),
+  paymentMethod: z.enum(['contanti', 'bonifico', 'assegno', 'finanziamento'], {
+    required_error: 'Selezionare la modalità di pagamento.',
   }),
   warranty: z.string().optional(),
   insurance: z.string().optional(),
@@ -122,6 +126,7 @@ export default function VehiclePage() {
       docNumber: '',
       price: 0,
       customerType: 'privato',
+      paymentMethod: 'bonifico',
       warranty: 'Il veicolo viene venduto con garanzia legale di conformità per 12 mesi come da D.Lgs. 206/2005 (Codice del Consumo).',
       insurance: 'L\'acquirente si impegna a stipulare una polizza assicurativa RC auto prima del ritiro del veicolo.',
       wearAndTear: 'L\'acquirente dichiara di aver preso visione dello stato d\'uso del veicolo e di accettarlo nelle condizioni in cui si trova, tenuto conto della normale usura pregressa in base all\'anno di immatricolazione e al chilometraggio.',
@@ -183,7 +188,7 @@ export default function VehiclePage() {
   
   const showPriceSheetEditor = () => {
     if (vehicle) {
-        priceSheetForm.reset({ price: vehicle.prezzo ?? 0 });
+        priceSheetForm.reset({ price: (vehicle.prezzo ?? 0) + (vehicle.garanzia_legale_prezzo ?? 0) });
         setIsPriceSheetEditorOpen(true);
     }
   };
@@ -198,7 +203,7 @@ export default function VehiclePage() {
   const hidePreview = () => {
     setIsPreviewing(false);
     setFinalSheetPrice(null);
-    priceSheetForm.reset({ price: vehicle?.prezzo ?? 0 });
+    priceSheetForm.reset({ price: (vehicle?.prezzo ?? 0) + (vehicle?.garanzia_legale_prezzo ?? 0) });
   };
   
   const handleConfirmPrint = async () => {
@@ -249,6 +254,7 @@ export default function VehiclePage() {
           phone: '',
           email: '',
           customerType: 'privato',
+          paymentMethod: 'bonifico',
           warranty:
             'Il veicolo viene venduto con garanzia legale di conformità per 12 mesi come da D.Lgs. 206/2005 (Codice del Consumo).',
           insurance:
@@ -257,7 +263,7 @@ export default function VehiclePage() {
             'L\'acquirente dichiara di aver preso visione dello stato d\'uso del veicolo e di accettarlo nelle condizioni in cui si trova, tenuto conto della normale usura pregressa in base all\'anno di immatricolazione e al chilometraggio.',
           withdrawal:
             'Per i contratti conclusi a distanza, l\'acquirente consumatore ha diritto di recedere dal contratto, senza alcuna penalità e senza specificarne il motivo, entro il termine di 14 giorni dalla presa in consegna del veicolo.',
-          price: finalSheetPrice ?? vehicle.prezzo ?? 0,
+          price: finalSheetPrice ?? ((vehicle.prezzo ?? 0) + (vehicle.garanzia_legale_prezzo ?? 0)),
         });
         setIsProformaFormOpen(true);
       })
@@ -489,36 +495,61 @@ export default function VehiclePage() {
           </DialogHeader>
           <Form {...proformaForm}>
             <form onSubmit={proformaForm.handleSubmit(onProformaSubmit)} className="space-y-4">
-              <FormField
-                control={proformaForm.control}
-                name="customerType"
-                render={({ field }) => (
-                  <FormItem className="space-y-3">
-                    <FormLabel>Tipo di Cliente *</FormLabel>
-                    <FormControl>
-                      <RadioGroup
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                        className="flex items-center space-x-4"
-                      >
-                        <FormItem className="flex items-center space-x-2 space-y-0">
-                          <FormControl>
-                            <RadioGroupItem value="privato" />
-                          </FormControl>
-                          <FormLabel className="font-normal">Privato</FormLabel>
-                        </FormItem>
-                        <FormItem className="flex items-center space-x-2 space-y-0">
-                          <FormControl>
-                            <RadioGroupItem value="commerciante" />
-                          </FormControl>
-                          <FormLabel className="font-normal">Commerciante</FormLabel>
-                        </FormItem>
-                      </RadioGroup>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField
+                  control={proformaForm.control}
+                  name="customerType"
+                  render={({ field }) => (
+                    <FormItem className="space-y-3">
+                      <FormLabel>Tipo di Cliente *</FormLabel>
+                      <FormControl>
+                        <RadioGroup
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                          className="flex items-center space-x-4"
+                        >
+                          <FormItem className="flex items-center space-x-2 space-y-0">
+                            <FormControl>
+                              <RadioGroupItem value="privato" />
+                            </FormControl>
+                            <FormLabel className="font-normal">Privato</FormLabel>
+                          </FormItem>
+                          <FormItem className="flex items-center space-x-2 space-y-0">
+                            <FormControl>
+                              <RadioGroupItem value="commerciante" />
+                            </FormControl>
+                            <FormLabel className="font-normal">Commerciante</FormLabel>
+                          </FormItem>
+                        </RadioGroup>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={proformaForm.control}
+                  name="paymentMethod"
+                  render={({ field }) => (
+                    <FormItem className="space-y-3">
+                      <FormLabel>Modalità di Pagamento *</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Seleziona modalità" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="contanti">Contanti</SelectItem>
+                          <SelectItem value="bonifico">Bonifico</SelectItem>
+                          <SelectItem value="assegno">Assegno</SelectItem>
+                          <SelectItem value="finanziamento">Finanziamento</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <FormField
@@ -710,12 +741,13 @@ export default function VehiclePage() {
                   customer={proformaCustomerData}
                   price={proformaCustomerData.price}
                   customerType={proformaCustomerData.customerType}
+                  paymentMethod={proformaCustomerData.paymentMethod}
                   warranty={proformaCustomerData.warranty || ''}
                   insurance={proformaCustomerData.insurance || ''}
                   wearAndTear={proformaCustomerData.wearAndTear || ''}
                   withdrawal={proformaCustomerData.withdrawal || ''}
                   date={format(new Date(), 'dd/MM/yyyy')}
-                  branding={branding}
+                  branding={getBranding()}
                 />
               )}
             </div>

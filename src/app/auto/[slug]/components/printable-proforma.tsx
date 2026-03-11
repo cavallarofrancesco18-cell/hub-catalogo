@@ -21,6 +21,7 @@ interface PrintableProformaProps {
   customer: CustomerData;
   price: number;
   customerType: 'privato' | 'commerciante';
+  paymentMethod: string;
   warranty: string;
   insurance: string;
   wearAndTear: string;
@@ -29,7 +30,7 @@ interface PrintableProformaProps {
   branding: BrandingProfile;
 }
 
-export function PrintableProforma({ vehicle, customer, price, customerType, warranty, insurance, wearAndTear, withdrawal, date, branding }: PrintableProformaProps) {
+export function PrintableProforma({ vehicle, customer, price, customerType, paymentMethod, warranty, insurance, wearAndTear, withdrawal, date, branding }: PrintableProformaProps) {
   
   const { logoUrl, companyName, companyAddress, companyContact } = branding;
 
@@ -105,7 +106,8 @@ export function PrintableProforma({ vehicle, customer, price, customerType, warr
 
       <section className="mb-6">
         <h2 className="font-bold text-base mb-2 pb-1 border-b">Art. 2 - Prezzo e Pagamento</h2>
-        <p>Il prezzo di vendita è convenuto in <span className="font-bold">{formatCurrency(price)}</span> (IVA inclusa), che l'ACQUIRENTE si impegna a versare secondo le modalità concordate.</p>
+        <p>Il prezzo di vendita è convenuto in <span className="font-bold">{formatCurrency(price)}</span> (IVA inclusa).</p>
+        <p className="mt-2">Modalità di pagamento: <span className="font-bold capitalize">{paymentMethod}</span>.</p>
       </section>
 
       <section className="mb-6">
@@ -142,6 +144,10 @@ export function PrintableProforma({ vehicle, customer, price, customerType, warr
       <footer className="mt-16">
         <p>Letto, approvato e sottoscritto.</p>
         <p>Data: {date}</p>
+        <div className="mt-12">
+            <p className="font-bold">Caparra Controfirmatoria</p>
+            <div className="mt-8 border-b border-gray-400"></div>
+        </div>
         <div className="flex justify-between mt-12">
             <div className="w-2/5">
                 <p className="font-bold">Firma del Venditore</p>

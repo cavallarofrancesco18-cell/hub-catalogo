@@ -51,6 +51,10 @@
           "type": "number",
           "description": "The selling price of the vehicle."
         },
+        "garanzia_legale_prezzo": {
+          "type": "number",
+          "description": "The price for the legal warranty, to be added to the main price."
+        },
         "description": {
           "type": "string",
           "description": "A comprehensive commercial description of the vehicle, highlighting its features and selling points. This can be AI-assisted."
