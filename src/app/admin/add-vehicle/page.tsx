@@ -239,7 +239,8 @@ export default function AddVehiclePage() {
   };
 
   const handleImportFromFolder = async () => {
-    if (!folderPath.trim()) {
+    const originalPath = folderPath.trim();
+    if (!originalPath) {
       toast({
         variant: 'destructive',
         title: 'Percorso mancante',
@@ -250,14 +251,49 @@ export default function AddVehiclePage() {
     if (!storage) return;
 
     setIsImportingFolder(true);
+
+    let pathToUse = originalPath;
+    if (pathToUse.includes('console.firebase.google.com')) {
+        try {
+            // This is a URL from the Firebase Console browser bar. We need to parse it.
+            // e.g., https://console.firebase.google.com/project/.../storage/.../files/~2Fmy-folder
+            const pathParts = pathToUse.split('/files/');
+            if (pathParts.length > 1) {
+                let consolePath = pathParts[1];
+                // The console path might start with ~2F which represents a leading '/'
+                if (consolePath.startsWith('~2F')) {
+                    consolePath = consolePath.substring(3);
+                }
+                // It also uses ~2F for sub-folder slashes
+                pathToUse = decodeURIComponent(consolePath.replace(/~2F/g, '/'));
+            } else {
+                 toast({
+                    variant: 'destructive',
+                    title: 'URL non valido',
+                    description: "L'URL della console non è valido. Copia il percorso della cartella (es. 'download/abc-123') e non l'intero URL del browser.",
+                });
+                setIsImportingFolder(false);
+                return;
+            }
+        } catch (e) {
+            toast({
+                variant: 'destructive',
+                title: 'Importazione fallita',
+                description: 'Impossibile analizzare l\'URL della console. Riprova con il percorso diretto.',
+            });
+            setIsImportingFolder(false);
+            return;
+        }
+    }
+
     try {
-      const folderRef = ref(storage, folderPath.trim());
+      const folderRef = ref(storage, pathToUse);
       const result = await listAll(folderRef);
 
       if (result.items.length === 0) {
         toast({
           title: 'Nessuna immagine trovata',
-          description: `La cartella "${folderPath}" è vuota o non esiste.`,
+          description: `La cartella "${pathToUse}" è vuota o non esiste.`,
         });
         return;
       }
@@ -279,7 +315,9 @@ export default function AddVehiclePage() {
       console.error('Errore durante l\'importazione dalla cartella:', error);
       let description = 'Si è verificato un errore imprevisto.';
       if (error.code === 'storage/object-not-found') {
-          description = 'Cartella non trovata. Controlla il percorso e riprova.';
+          description = `Cartella "${pathToUse}" non trovata. Controlla il percorso e riprova.`;
+      } else if (error.code === 'storage/invalid-url') {
+          description = `Il percorso "${originalPath}" non è un URL o un percorso valido per lo storage.`;
       }
       toast({
         variant: 'destructive',
@@ -840,7 +878,7 @@ https://.../immagine2.png"
                   <FormLabel>Importa da cartella Storage</FormLabel>
                   <div className="flex items-center gap-2">
                       <Input 
-                          placeholder="Es. download/VEHICLE_ID" 
+                          placeholder="Es. download/VEHICLE_ID o URL console" 
                           value={folderPath} 
                           onChange={(e) => setFolderPath(e.target.value)}
                       />
@@ -854,7 +892,7 @@ https://.../immagine2.png"
                       </Button>
                   </div>
                   <FormDescription>
-                      Incolla il percorso della cartella da Firebase Storage (es. "download/xyz-123"). Tutte le immagini nella cartella verranno aggiunte.
+                      Incolla il percorso della cartella (es. "download/xyz-123") o l'URL completo dalla console di Firebase Storage.
                   </FormDescription>
               </div>
 
