@@ -88,8 +88,8 @@ export default function UsersPage() {
     }).sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0));
   }, [users, admins, sellers]);
 
-  const handleRoleChange = async () => {
-    if (!actionState.user || !actionState.type || !firestore) return;
+  const handleRoleChange = () => {
+    if (!actionState.user || !actionState.type || !actionState.newRole || !firestore) return;
 
     const { user, newRole } = actionState;
     const userId = user.id;
@@ -99,30 +99,48 @@ export default function UsersPage() {
     const adminRef = doc(firestore, 'Admin', userId);
     const sellerRef = doc(firestore, 'sellertype', userId);
 
-    try {
-      if (newRole.role === 'Admin') {
-        await deleteDocumentNonBlocking(sellerRef);
-        await setDocumentNonBlocking(adminRef, { assignedAt: serverTimestamp() }, {});
-        toast({ title: 'Successo', description: `${user.email} è ora un Amministratore.` });
-      } else if (newRole.role === 'Seller') {
-        await deleteDocumentNonBlocking(adminRef);
-        await setDocumentNonBlocking(sellerRef, { sellerType: newRole.sellerType, assignedAt: serverTimestamp() }, {});
-        toast({ title: 'Successo', description: `${user.email} è ora un Venditore (${newRole.sellerType}).` });
-      } else if (newRole.role === 'Remove') {
-        await deleteDocumentNonBlocking(adminRef);
-        await deleteDocumentNonBlocking(sellerRef);
-        toast({ title: 'Successo', description: `I ruoli per ${user.email} sono stati rimossi.` });
-      }
-    } catch (e: any) {
-      console.error(e);
-      toast({ variant: 'destructive', title: 'Errore', description: "Impossibile modificare il ruolo." });
-    } finally {
-      setIsProcessing(null);
-      setActionState({ type: null, user: null });
+    let roleChangePromise: Promise<any>;
+
+    if (newRole.role === 'Admin') {
+      roleChangePromise = Promise.all([
+        deleteDocumentNonBlocking(sellerRef),
+        setDocumentNonBlocking(adminRef, { assignedAt: serverTimestamp() }, {})
+      ]);
+    } else if (newRole.role === 'Seller') {
+      roleChangePromise = Promise.all([
+        deleteDocumentNonBlocking(adminRef),
+        setDocumentNonBlocking(sellerRef, { sellerType: newRole.sellerType, assignedAt: serverTimestamp() }, {})
+      ]);
+    } else if (newRole.role === 'Remove') {
+      roleChangePromise = Promise.all([
+        deleteDocumentNonBlocking(adminRef),
+        deleteDocumentNonBlocking(sellerRef)
+      ]);
+    } else {
+        roleChangePromise = Promise.resolve();
     }
+
+    roleChangePromise.then(() => {
+        let description = '';
+        if (newRole.role === 'Admin') {
+            description = `${user.email} è ora un Amministratore.`;
+        } else if (newRole.role === 'Seller') {
+            description = `${user.email} è ora un Venditore (${newRole.sellerType}).`;
+        } else if (newRole.role === 'Remove') {
+            description = `I ruoli per ${user.email} sono stati rimossi.`;
+        }
+        toast({ title: 'Successo', description });
+    }).catch((e) => {
+        // The error is already emitted by non-blocking functions.
+        // The developer will see a detailed error overlay from the FirebaseErrorListener.
+        toast({ variant: 'destructive', title: 'Errore', description: 'Impossibile modificare il ruolo. Controlla la console per i dettagli.' });
+    }).finally(() => {
+        setIsProcessing(null);
+        setActionState({ type: null, user: null });
+    });
   };
 
-  const handleDeleteUser = async () => {
+  const handleDeleteUser = () => {
     if (!userToDelete || !firestore) return;
 
     const { id: userId, email } = userToDelete;
@@ -133,22 +151,18 @@ export default function UsersPage() {
     const adminRef = doc(firestore, 'Admin', userId);
     const sellerRef = doc(firestore, 'sellertype', userId);
 
-    try {
-        await Promise.all([
-            deleteDocumentNonBlocking(userDocRef),
-            deleteDocumentNonBlocking(adminRef),
-            deleteDocumentNonBlocking(sellerRef)
-        ]);
-        
+    Promise.all([
+        deleteDocumentNonBlocking(userDocRef),
+        deleteDocumentNonBlocking(adminRef),
+        deleteDocumentNonBlocking(sellerRef)
+    ]).then(() => {
         toast({ title: 'Successo', description: `L'utente ${email} è stato eliminato con successo.` });
-
-    } catch (e: any)        {
-        console.error("Errore durante l'eliminazione dell'utente:", e);
-        toast({ variant: 'destructive', title: 'Errore', description: "Impossibile eliminare l'utente." });
-    } finally {
+    }).catch((e) => {
+        toast({ variant: 'destructive', title: 'Errore', description: "Impossibile eliminare l'utente. Controlla la console per i dettagli." });
+    }).finally(() => {
         setIsProcessing(null);
         setUserToDelete(null);
-    }
+    });
   };
   
   const isLoading = isLoadingUsers || isLoadingAdmins || isLoadingSellers;
