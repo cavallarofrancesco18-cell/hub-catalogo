@@ -63,12 +63,20 @@ export function getDirectImageUrl(url: string): string {
       }
     }
 
-    // Handle Google Drive sharing URLs
-    if (urlObj.hostname === 'drive.google.com' && urlObj.pathname.includes('/file/d/')) {
-      const match = urlObj.pathname.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
-      if (match && match[1]) {
-        const fileId = match[1];
-        return `https://drive.google.com/uc?export=view&id=${fileId}`;
+    // Handle Google Drive URLs
+    if (urlObj.hostname === 'drive.google.com') {
+      // It's a folder link, which is not a direct image. Return empty.
+      if (urlObj.pathname.includes('/drive/folders/')) {
+        return '';
+      }
+      
+      // It's a file link, transform it.
+      if (urlObj.pathname.includes('/file/d/')) {
+        const match = urlObj.pathname.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+        if (match && match[1]) {
+          const fileId = match[1];
+          return `https://drive.google.com/uc?export=view&id=${fileId}`;
+        }
       }
     }
 
