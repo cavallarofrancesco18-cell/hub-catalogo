@@ -856,7 +856,7 @@ https://.../immagine2.png"
                       />
                     </FormControl>
                      <FormDescription>
-                      Per importare da Firebase Storage, apri ogni immagine e copia il suo "URL di download". Incolla un URL per riga. Non è possibile usare il link di una cartella.
+                      Puoi incollare link da Firebase Storage ("URL di download") o Google Drive (link di condivisione "Chiunque abbia il link"). Un URL per riga.
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -892,7 +892,7 @@ https://.../immagine2.png"
                       </Button>
                   </div>
                   <FormDescription>
-                      Dalla console di Firebase Storage, copia il percorso (es. "download/xyz-123") che trovi sopra la lista dei file. Questo metodo è più veloce rispetto all'URL completo.
+                      Per importare velocemente, copia il percorso della cartella (es. "download/xyz-123") direttamente da Firebase Storage.
                   </FormDescription>
               </div>
 
@@ -936,3 +936,5 @@ https://.../immagine2.png"
     </div>
   );
 }
+
+    
