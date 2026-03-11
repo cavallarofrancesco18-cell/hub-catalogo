@@ -878,7 +878,7 @@ https://.../immagine2.png"
                   <FormLabel>Importa da cartella Storage</FormLabel>
                   <div className="flex items-center gap-2">
                       <Input 
-                          placeholder="Es. download/VEHICLE_ID o URL console" 
+                          placeholder="Es. download/VEHICLE_ID" 
                           value={folderPath} 
                           onChange={(e) => setFolderPath(e.target.value)}
                       />
@@ -892,7 +892,7 @@ https://.../immagine2.png"
                       </Button>
                   </div>
                   <FormDescription>
-                      Incolla il percorso della cartella (es. "download/xyz-123") o l'URL completo dalla console di Firebase Storage.
+                      Dalla console di Firebase Storage, copia il percorso (es. "download/xyz-123") che trovi sopra la lista dei file. Questo metodo è più veloce rispetto all'URL completo.
                   </FormDescription>
               </div>
 
