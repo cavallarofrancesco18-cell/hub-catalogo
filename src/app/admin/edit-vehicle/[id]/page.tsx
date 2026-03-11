@@ -514,19 +514,35 @@ export default function EditVehiclePage() {
       id: vehicleId,
     });
     
-    const { immagini, ...restOfData } = data;
-
     const dataToSave = {
-        ...restOfData,
-        immagini: allImageUrls,
-        slug,
-        chilometraggio: data.chilometraggio ? Number(data.chilometraggio) : null,
-        potenza: data.potenza ? Number(data.potenza) : null,
-        prezzo: data.prezzo ? Number(data.prezzo) : null,
-        potenza_kw: data.potenza_kw ? Number(data.potenza_kw) : null,
-        cilindrata: data.cilindrata ? Number(data.cilindrata) : null,
-        data_immatricolazione: new Date(data.data_immatricolazione).toISOString(),
-        updatedAt: serverTimestamp(),
+      // Required fields from form
+      marca: data.marca,
+      modello: data.modello,
+      versione: data.versione,
+      data_immatricolazione: new Date(data.data_immatricolazione).toISOString(),
+      targa: data.targa,
+
+      // Optional fields that need null conversion
+      chilometraggio: data.chilometraggio ? Number(data.chilometraggio) : null,
+      potenza: data.potenza ? Number(data.potenza) : null,
+      prezzo: data.prezzo ? Number(data.prezzo) : null,
+      potenza_kw: data.potenza_kw ? Number(data.potenza_kw) : null,
+      cilindrata: data.cilindrata ? Number(data.cilindrata) : null,
+      carburante: data.carburante ?? null,
+      cambio: data.cambio ?? null,
+      colore_esterno: data.colore_esterno || null,
+      colore_interni: data.colore_interni || null,
+      garanzia: data.garanzia || null,
+      classe_emissioni: data.classe_emissioni || null,
+      bollo: data.bollo || null,
+      descrizione: data.descrizione || null,
+      link_canva: data.link_canva || null,
+      stato: data.stato ?? 'In vendita',
+
+      // Generated/updated fields
+      immagini: allImageUrls,
+      slug,
+      updatedAt: serverTimestamp(),
     };
     
     updateDocumentNonBlocking(vehicleRef, dataToSave)
@@ -1141,5 +1157,3 @@ https://.../immagine2.png"
     </div>
   );
 }
-
-    
