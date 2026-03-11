@@ -4,28 +4,30 @@ service firebase.storage {
   match /b/{bucket}/o {
     
     function isAdmin() {
-      return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+      // Corrected to use 'Admin' collection to match Firestore rules and database structure.
+      return request.auth != null && exists(/databases/$(database)/documents/Admin/$(request.auth.uid));
     }
 
-    // Allow public read access to all files.
-    // This is necessary for the app to display images.
+    // This rule gives Admins full read/write access to all files in Storage.
+    // This will resolve the 'storage/unauthorized' error when listing folders.
+    match /{allPaths=**} {
+      allow read, write: if isAdmin();
+    }
+
+    // The rules below apply to non-admin users or public access.
+    
+    // Vehicle images are publicly readable so anyone can view the catalog.
     match /download/{vehicleId}/{allPaths=**} {
-      allow read: if true;
-
-      // Allow authenticated users to write (create, update, delete).
-      // Restrict file size to 1MB.
-      allow write: if request.auth != null && request.resource.size < 1 * 1024 * 1024;
+      allow get: if true;
+      // Writes are handled by the admin rule above. For non-admins, write is disallowed.
+      allow write: if false;
     }
 
-    // Rules for form uploads
+    // Form documents can be read by any authenticated user.
     match /forms/{formId}/{allPaths=**} {
       allow read: if request.auth != null;
-
-      // Allow authenticated users to write (create, update, delete).
-      // Restrict file size to 5MB.
-      allow write: if request.auth != null && request.resource.size < 5 * 1024 * 1024;
+      // Writes are handled by the admin rule above. For non-admins, write is disallowed.
+      allow write: if false;
     }
   }
 }
-
-    

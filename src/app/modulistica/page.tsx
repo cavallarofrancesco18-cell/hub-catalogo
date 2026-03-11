@@ -136,7 +136,7 @@ export default function ModulisticaPage() {
     if (user && firestore) {
       setIsLoadingRole(true);
       const checkAdmin = async () => {
-        const adminRef = doc(firestore, 'roles_admin', user.uid);
+        const adminRef = doc(firestore, 'Admin', user.uid);
         const adminDoc = await getDoc(adminRef);
         setIsAdmin(adminDoc.exists());
         setIsLoadingRole(false);
