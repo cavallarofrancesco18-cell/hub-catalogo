@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useRouter, useParams } from 'next/navigation';
 import { doc, getDoc, serverTimestamp } from 'firebase/firestore';
-import { getStorage, ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
+import { getStorage, ref, uploadBytesResumable, getDownloadURL, deleteObject, listAll } from 'firebase/storage';
 import Image from 'next/image';
 
 import { useFirestore, useFirebaseApp } from '@/firebase';
@@ -102,6 +102,9 @@ export default function EditVehiclePage() {
   const [filesToUpload, setFilesToUpload] = useState<{ file: File; previewUrl: string }[]>([]);
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
   const [isUploading, setIsUploading] = useState(false);
+
+  const [folderPath, setFolderPath] = useState('');
+  const [isImportingFolder, setIsImportingFolder] = useState(false);
 
   const form = useForm<VehicleFormValues>({
     resolver: zodResolver(vehicleSchema),
@@ -361,6 +364,56 @@ export default function EditVehiclePage() {
       });
     } finally {
       setIsGeneratingDescription(false);
+    }
+  };
+
+  const handleImportFromFolder = async () => {
+    if (!folderPath.trim()) {
+      toast({
+        variant: 'destructive',
+        title: 'Percorso mancante',
+        description: 'Inserisci un percorso di cartella valido.',
+      });
+      return;
+    }
+    if (!storage) return;
+
+    setIsImportingFolder(true);
+    try {
+      const folderRef = ref(storage, folderPath.trim());
+      const result = await listAll(folderRef);
+
+      if (result.items.length === 0) {
+        toast({
+          title: 'Nessuna immagine trovata',
+          description: `La cartella "${folderPath}" è vuota o non esiste.`,
+        });
+        return;
+      }
+
+      const urlPromises = result.items.map(itemRef => getDownloadURL(itemRef));
+      const newUrls = await Promise.all(urlPromises);
+      
+      setExistingImages(prev => [...new Set([...prev, ...newUrls])]);
+
+      toast({
+        title: 'Importazione completata!',
+        description: `${newUrls.length} immagini aggiunte alla galleria.`,
+      });
+      setFolderPath('');
+    } catch (error: any) {
+      console.error('Errore durante l\'importazione dalla cartella:', error);
+      let description = 'Si è verificato un errore imprevisto.';
+      if (error.code === 'storage/object-not-found') {
+          description = 'Cartella non trovata. Controlla il percorso e riprova.';
+      }
+      toast({
+        variant: 'destructive',
+        title: 'Importazione fallita',
+        description,
+      });
+    } finally {
+      setIsImportingFolder(false);
     }
   };
 
@@ -951,6 +1004,39 @@ https://.../immagine2.png"
                   </FormItem>
                 )}
               />
+
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-card px-2 text-muted-foreground">
+                    Oppure importa da cartella
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                  <FormLabel>Importa da cartella Storage</FormLabel>
+                  <div className="flex items-center gap-2">
+                      <Input 
+                          placeholder="Es. download/VEHICLE_ID" 
+                          value={folderPath} 
+                          onChange={(e) => setFolderPath(e.target.value)}
+                      />
+                      <Button 
+                          type="button" 
+                          variant="secondary" 
+                          onClick={handleImportFromFolder}
+                          disabled={isImportingFolder || isSubmitting}
+                      >
+                          {isImportingFolder ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Importa'}
+                      </Button>
+                  </div>
+                  <FormDescription>
+                      Incolla il percorso della cartella da Firebase Storage (es. "download/xyz-123"). Tutte le immagini nella cartella verranno aggiunte alla galleria esistente.
+                  </FormDescription>
+              </div>
 
                <div className="relative">
                   <div className="absolute inset-0 flex items-center">
