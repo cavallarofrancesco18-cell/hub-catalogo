@@ -4,8 +4,11 @@ service firebase.storage {
   match /b/{bucket}/o {
     
     function isAdmin() {
-      // Corrected to use 'Admin' collection to match Firestore rules and database structure.
-      return request.auth != null && exists(/databases/$(database)/documents/Admin/$(request.auth.uid));
+      // Corrected to use 'Admin' or 'roles_admin' collection to match Firestore rules and database structure.
+      return request.auth != null && (
+        exists(/databases/$(database)/documents/Admin/$(request.auth.uid)) ||
+        exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid))
+      );
     }
 
     // This rule gives Admins full read/write access to all files in Storage.
@@ -28,6 +31,23 @@ service firebase.storage {
       allow read: if request.auth != null;
       // Writes are handled by the admin rule above. For non-admins, write is disallowed.
       allow write: if false;
+    }
+
+     // Publicly readable logos
+    match /LOGHI/{allPaths=**} {
+      allow get: if true;
+    }
+    match /HUB - logo tutti formati_Tavola disegno 1 copia 4 (4).png {
+        allow get: if true;
+    }
+     match /logo-restart-mobility-white-300x154.png {
+        allow get: if true;
+    }
+     match /WhatsApp Image 2026-03-09 at 16.41.30.jpeg {
+        allow get: if true;
+    }
+     match /Logo-1 trasparente.png {
+        allow get: if true;
     }
   }
 }
