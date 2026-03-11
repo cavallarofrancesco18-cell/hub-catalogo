@@ -8,8 +8,13 @@ import { useMemo, useRef, useState, useEffect } from 'react';
 import type { Vehicle, SellerRole as SellerRoleData } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useCollection } from '@/firebase/firestore/use-collection';
-import { collection, query, where, limit, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { useFirestore, useMemoFirebase, useUserRole } from '@/firebase';
+import { collection, query, where, limit, doc, serverTimestamp } from 'firebase/firestore';
+import {
+  useFirestore,
+  useMemoFirebase,
+  useUserRole,
+  updateDocumentNonBlocking,
+} from '@/firebase';
 import { format } from 'date-fns';
 import { PrintableVehicleSheet } from './components/printable-vehicle-sheet';
 import jsPDF from 'jspdf';
@@ -208,7 +213,7 @@ export default function VehiclePage() {
     setIsProformaFormOpen(false);
   }
 
-  const showProformaForm = async () => {
+  const showProformaForm = () => {
     if (!vehicle || !firestore) return;
 
     if (vehicle.stato !== 'In vendita') {
@@ -222,45 +227,51 @@ export default function VehiclePage() {
 
     setIsBooking(true);
     const vehicleRef = doc(firestore, 'vehicles', vehicle.id);
-    
-    try {
-      await updateDoc(vehicleRef, {
-        stato: 'Prenotato',
-        updatedAt: serverTimestamp(),
-      });
 
-      toast({
-        title: 'Veicolo Prenotato!',
-        description: 'Il veicolo è stato prenotato con successo. Compila i dati per il contratto.',
-      });
+    updateDocumentNonBlocking(vehicleRef, {
+      stato: 'Prenotato',
+      updatedAt: serverTimestamp(),
+    })
+      .then(() => {
+        toast({
+          title: 'Veicolo Prenotato!',
+          description:
+            'Il veicolo è stato prenotato con successo. Compila i dati per il contratto.',
+        });
 
-      proformaForm.reset({
-        name: '',
-        address: '',
-        cf: '',
-        docNumber: '',
-        birthDate: '',
-        birthPlace: '',
-        phone: '',
-        email: '',
-        customerType: 'privato',
-        warranty: 'Il veicolo viene venduto con garanzia legale di conformità per 12 mesi come da D.Lgs. 206/2005 (Codice del Consumo).',
-        insurance: 'L\'acquirente si impegna a stipulare una polizza assicurativa RC auto prima del ritiro del veicolo.',
-        wearAndTear: 'L\'acquirente dichiara di aver preso visione dello stato d\'uso del veicolo e di accettarlo nelle condizioni in cui si trova, tenuto conto della normale usura pregressa in base all\'anno di immatricolazione e al chilometraggio.',
-        withdrawal: 'Per i contratti conclusi a distanza, l\'acquirente consumatore ha diritto di recedere dal contratto, senza alcuna penalità e senza specificarne il motivo, entro il termine di 14 giorni dalla presa in consegna del veicolo.',
-        price: finalSheetPrice ?? vehicle.prezzo ?? 0,
+        proformaForm.reset({
+          name: '',
+          address: '',
+          cf: '',
+          docNumber: '',
+          birthDate: '',
+          birthPlace: '',
+          phone: '',
+          email: '',
+          customerType: 'privato',
+          warranty:
+            'Il veicolo viene venduto con garanzia legale di conformità per 12 mesi come da D.Lgs. 206/2005 (Codice del Consumo).',
+          insurance:
+            'L\'acquirente si impegna a stipulare una polizza assicurativa RC auto prima del ritiro del veicolo.',
+          wearAndTear:
+            'L\'acquirente dichiara di aver preso visione dello stato d\'uso del veicolo e di accettarlo nelle condizioni in cui si trova, tenuto conto della normale usura pregressa in base all\'anno di immatricolazione e al chilometraggio.',
+          withdrawal:
+            'Per i contratti conclusi a distanza, l\'acquirente consumatore ha diritto di recedere dal contratto, senza alcuna penalità e senza specificarne il motivo, entro il termine di 14 giorni dalla presa in consegna del veicolo.',
+          price: finalSheetPrice ?? vehicle.prezzo ?? 0,
+        });
+        setIsProformaFormOpen(true);
+      })
+      .catch(error => {
+        toast({
+          variant: 'destructive',
+          title: 'Prenotazione Fallita',
+          description:
+            'Impossibile prenotare il veicolo. Controlla la console per i dettagli.',
+        });
+      })
+      .finally(() => {
+        setIsBooking(false);
       });
-      setIsProformaFormOpen(true);
-    } catch (error) {
-      console.error("Errore durante la prenotazione del veicolo:", error);
-      toast({
-        variant: 'destructive',
-        title: 'Prenotazione Fallita',
-        description: 'Impossibile prenotare il veicolo. Potrebbe essere stato prenotato da un altro utente.',
-      });
-    } finally {
-      setIsBooking(false);
-    }
   };
   
   const hideProformaPreview = () => setProformaCustomerData(null);

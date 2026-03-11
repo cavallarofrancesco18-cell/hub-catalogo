@@ -4,7 +4,7 @@ import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useCollection } from '@/firebase/firestore/use-collection';
-import { collection, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { collection, doc, serverTimestamp } from 'firebase/firestore';
 import type { Vehicle } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import {
@@ -30,7 +30,10 @@ import { formatCurrency, getDirectImageUrl, cn } from '@/lib/utils';
 import { Pencil, Trash2, Loader2 } from 'lucide-react';
 import { useFirestore, useFirebaseApp, useMemoFirebase } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
-import { deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import {
+  deleteDocumentNonBlocking,
+  updateDocumentNonBlocking,
+} from '@/firebase/non-blocking-updates';
 import { getStorage, ref, deleteObject } from 'firebase/storage';
 import {
   Select,
@@ -59,32 +62,36 @@ export default function AdminPage() {
   const [vehicleToDelete, setVehicleToDelete] = useState<Vehicle | null>(null);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState<string | null>(null);
 
-  const handleStatusChange = async (
+  const handleStatusChange = (
     vehicleId: string,
     newStatus: 'In vendita' | 'Venduto' | 'Prenotato'
   ) => {
     if (!firestore) return;
     setIsUpdatingStatus(vehicleId);
     const vehicleRef = doc(firestore, 'vehicles', vehicleId);
-    try {
-      await updateDoc(vehicleRef, {
-        stato: newStatus,
-        updatedAt: serverTimestamp(),
+    const dataToUpdate = {
+      stato: newStatus,
+      updatedAt: serverTimestamp(),
+    };
+
+    updateDocumentNonBlocking(vehicleRef, dataToUpdate)
+      .then(() => {
+        toast({
+          title: 'Stato aggiornato!',
+          description: `Lo stato del veicolo è ora "${newStatus}".`,
+        });
+      })
+      .catch(error => {
+        toast({
+          variant: 'destructive',
+          title: 'Uh oh! Qualcosa è andato storto.',
+          description:
+            'Impossibile aggiornare lo stato del veicolo. Controlla la console per i dettagli.',
+        });
+      })
+      .finally(() => {
+        setIsUpdatingStatus(null);
       });
-      toast({
-        title: 'Stato aggiornato!',
-        description: `Lo stato del veicolo è ora "${newStatus}".`,
-      });
-    } catch (error) {
-      console.error("Errore durante l'aggiornamento dello stato:", error);
-      toast({
-        variant: 'destructive',
-        title: 'Uh oh! Qualcosa è andato storto.',
-        description: 'Impossibile aggiornare lo stato del veicolo.',
-      });
-    } finally {
-      setIsUpdatingStatus(null);
-    }
   };
 
   const handleDeleteClick = (vehicle: Vehicle) => {

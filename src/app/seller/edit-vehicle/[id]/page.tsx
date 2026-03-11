@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useRouter, useParams } from 'next/navigation';
-import { doc, getDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, serverTimestamp } from 'firebase/firestore';
 import Image from 'next/image';
 
 import { useFirestore, useUserRole } from '@/firebase';
@@ -48,6 +48,7 @@ import { PrintableVehicleSheet } from '@/app/auto/[slug]/components/printable-ve
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { getBranding } from '@/lib/branding';
+import { updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 
 const vehicleSchema = z.object({
   descrizione: z.string().optional(),
@@ -230,7 +231,7 @@ export default function SellerEditVehiclePage() {
     hidePreview();
   };
 
-  async function onSubmit(data: VehicleFormValues) {
+  function onSubmit(data: VehicleFormValues) {
     if (!firestore) return;
     
     setIsSubmitting(true);
@@ -244,23 +245,24 @@ export default function SellerEditVehiclePage() {
         dataToSave.descrizione = data.descrizione;
     }
     
-    try {
-        await updateDoc(vehicleRef, dataToSave);
-        toast({
-            title: 'Veicolo aggiornato!',
-            description: `Le modifiche sono state salvate.`,
+    updateDocumentNonBlocking(vehicleRef, dataToSave)
+        .then(() => {
+            toast({
+                title: 'Veicolo aggiornato!',
+                description: `Le modifiche sono state salvate.`,
+            });
+            router.push('/seller');
+        })
+        .catch((error) => {
+            toast({
+                variant: "destructive",
+                title: "Uh oh! Qualcosa è andato storto.",
+                description: "Impossibile salvare le modifiche. Controlla la console per i dettagli.",
+            });
+        })
+        .finally(() => {
+            setIsSubmitting(false);
         });
-        router.push('/seller');
-    } catch (error) {
-        console.error("Errore durante l'aggiornamento:", error);
-        toast({
-            variant: "destructive",
-            title: "Uh oh! Qualcosa è andato storto.",
-            description: "Impossibile salvare le modifiche. Verifica i tuoi permessi.",
-        });
-    } finally {
-        setIsSubmitting(false);
-    }
   }
 
   if (isLoading) {
