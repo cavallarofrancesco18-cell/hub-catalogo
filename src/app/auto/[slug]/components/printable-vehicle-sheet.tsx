@@ -25,6 +25,8 @@ export function PrintableVehicleSheet({ vehicle, price, branding }: PrintableVeh
     setGeneratedDate(format(new Date(), 'dd/MM/yyyy HH:mm'));
   }, []);
 
+  const hasAdditionalDetails = vehicle.cilindrata || vehicle.colore_interni || vehicle.classe_emissioni || vehicle.garanzia || vehicle.bollo;
+
   return (
     <div className="bg-white text-black p-6 font-sans">
       {/* Header */}
@@ -108,50 +110,46 @@ export function PrintableVehicleSheet({ vehicle, price, branding }: PrintableVeh
         </div>
       </div>
 
-      {/* Description and Full Specs */}
-      <div className="mt-8">
-        <div className="grid grid-cols-12 gap-8">
-            <div className="col-span-7">
-                 <h3 className="text-2xl font-bold border-b pb-2 mb-4">Descrizione del Veicolo</h3>
-                 <p className="text-base text-gray-700 leading-relaxed whitespace-pre-wrap">{vehicle.descrizione || 'Nessuna descrizione fornita.'}</p>
-            </div>
-            <div className="col-span-5">
-                 <h3 className="text-2xl font-bold border-b pb-2 mb-4">Dettagli Aggiuntivi</h3>
-                  <div className="space-y-3 text-base">
-                    {vehicle.cilindrata && (
-                        <div className="flex justify-between">
-                        <span className="font-medium text-gray-500">Cilindrata</span>
-                        <span className="font-semibold">{formatNumber(vehicle.cilindrata)} cc</span>
-                        </div>
-                    )}
-                    {vehicle.colore_interni && (
-                        <div className="flex justify-between">
-                        <span className="font-medium text-gray-500">Colore Interni</span>
-                        <span className="font-semibold">{vehicle.colore_interni}</span>
-                        </div>
-                    )}
-                    {vehicle.classe_emissioni && (
-                        <div className="flex justify-between">
-                        <span className="font-medium text-gray-500">Classe Emissioni</span>
-                        <span className="font-semibold">{vehicle.classe_emissioni}</span>
-                        </div>
-                    )}
-                    {vehicle.garanzia && (
-                        <div className="flex justify-between">
-                        <span className="font-medium text-gray-500">Garanzia</span>
-                        <span className="font-semibold">{vehicle.garanzia}</span>
-                        </div>
-                    )}
-                    {vehicle.bollo && (
-                        <div className="flex justify-between">
-                        <span className="font-medium text-gray-500">Bollo</span>
-                        <span className="font-semibold">{vehicle.bollo}</span>
-                        </div>
-                    )}
+      {/* Additional Details */}
+      {hasAdditionalDetails && (
+          <div className="mt-8">
+            <h3 className="text-2xl font-bold border-b pb-2 mb-4">Caratteristiche Principali</h3>
+            <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-base">
+            
+            {vehicle.cilindrata && (
+                <div className="flex justify-between py-2 border-b">
+                <span className="font-medium text-gray-500">Cilindrata</span>
+                <span className="font-semibold">{formatNumber(vehicle.cilindrata)} cc</span>
                 </div>
+            )}
+            {vehicle.colore_interni && (
+                <div className="flex justify-between py-2 border-b">
+                <span className="font-medium text-gray-500">Colore Interni</span>
+                <span className="font-semibold">{vehicle.colore_interni}</span>
+                </div>
+            )}
+            {vehicle.classe_emissioni && (
+                <div className="flex justify-between py-2 border-b">
+                <span className="font-medium text-gray-500">Classe Emissioni</span>
+                <span className="font-semibold">{vehicle.classe_emissioni}</span>
+                </div>
+            )}
+            {vehicle.garanzia && (
+                <div className="flex justify-between py-2 border-b">
+                <span className="font-medium text-gray-500">Garanzia</span>
+                <span className="font-semibold">{vehicle.garanzia}</span>
+                </div>
+            )}
+            {vehicle.bollo && (
+                <div className="flex justify-between py-2 border-b">
+                <span className="font-medium text-gray-500">Bollo</span>
+                <span className="font-semibold">{vehicle.bollo}</span>
+                </div>
+            )}
             </div>
         </div>
-      </div>
+      )}
+
 
       {/* Photo Gallery */}
       {otherImages.length > 0 && (
