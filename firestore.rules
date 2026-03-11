@@ -25,25 +25,17 @@ service cloud.firestore {
     }
     
     /**
-     * Checks if the user is an administrator by checking for their UID in the 'Admin' or 'roles_admin' collection.
-     * This requires the client to be authenticated.
+     * Checks if the user is an administrator by checking for their UID in the 'Admin' collection.
      */
     function isAdmin() {
-      return isSignedIn() && (
-        exists(/databases/$(database)/documents/Admin/$(request.auth.uid)) ||
-        exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid))
-      );
+      return isSignedIn() && exists(/databases/$(database)/documents/Admin/$(request.auth.uid));
     }
 
     /**
-     * Checks if the user is a seller by checking for their UID in the 'sellertype' or 'roles_seller' collection.
-     * This requires the client to be authenticated.
+     * Checks if the user is a seller by checking for their UID in the 'sellertype' collection.
      */
     function isSeller() {
-        return isSignedIn() && (
-            exists(/databases/$(database)/documents/sellertype/$(request.auth.uid)) ||
-            exists(/databases/$(database)/documents/roles_seller/$(request.auth.uid))
-        );
+        return isSignedIn() && exists(/databases/$(database)/documents/sellertype/$(request.auth.uid));
     }
 
     /**
@@ -81,36 +73,26 @@ service cloud.firestore {
 
     /**
      * @description
-     *   Admin roles collection. Users can read their own role document.
-     *   Writes are disallowed from the client.
+     *   Admin roles collection. Reading is allowed for any signed-in user to enable
+     *   cross-service security rules (e.g., from Storage).
+     *   Writes are restricted to other admins.
      * @path
      *   /Admin/{userId}
      */
     match /Admin/{userId} {
-      allow get: if isSignedIn() && request.auth.uid == userId;
-      // Admin roles should only be managed from the server or Firebase console
+      allow get: if isSignedIn();
       allow list, create, update, delete: if isAdmin();
     }
-    match /roles_admin/{userId} {
-      allow get: if isSignedIn() && request.auth.uid == userId;
-      allow list, create, update, delete: if isAdmin();
-    }
-
 
     /**
      * @description
-     *   Seller roles collection. Users can read their own role document.
-     *   Writes are disallowed from the client.
+     *   Seller roles collection. Reading is allowed for any signed-in user.
+     *   Writes are restricted to admins.
      * @path
      *   /sellertype/{userId}
      */
     match /sellertype/{userId} {
-      allow get: if isSignedIn() && request.auth.uid == userId;
-      // Seller roles should only be managed from the server or Firebase console
-      allow list, create, update, delete: if isAdmin();
-    }
-     match /roles_seller/{userId} {
-      allow get: if isSignedIn() && request.auth.uid == userId;
+      allow get: if isSignedIn();
       allow list, create, update, delete: if isAdmin();
     }
 

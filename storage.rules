@@ -4,11 +4,8 @@ service firebase.storage {
   match /b/{bucket}/o {
     
     function isAdmin() {
-      // Use 'Admin' or 'roles_admin' collection to check for admin role.
-      return request.auth != null && (
-        exists(/databases/$(database)/documents/Admin/$(request.auth.uid)) ||
-        exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid))
-      );
+      // Check for admin role in the 'Admin' collection in Firestore.
+      return request.auth != null && exists(/databases/$(database)/documents/Admin/$(request.auth.uid));
     }
 
     // Rule for vehicle images.
