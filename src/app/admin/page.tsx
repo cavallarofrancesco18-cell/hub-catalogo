@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useCollection } from '@/firebase/firestore/use-collection';
@@ -27,8 +27,14 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatCurrency, getDirectImageUrl, cn } from '@/lib/utils';
-import { Pencil, Trash2, Loader2 } from 'lucide-react';
-import { useFirestore, useFirebaseApp, useMemoFirebase, useUser } from '@/firebase';
+import { Pencil, Trash2, Loader2, FileSignature } from 'lucide-react';
+import {
+  useFirestore,
+  useFirebaseApp,
+  useMemoFirebase,
+  useUser,
+  useUserRole,
+} from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import {
   deleteDocumentNonBlocking,
@@ -43,6 +49,59 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogClose,
+  DialogDescription,
+} from '@/components/ui/dialog';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+  FormDescription,
+} from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { PrintableProforma } from '@/app/auto/[slug]/components/printable-proforma';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
+import { format } from 'date-fns';
+import { brandingProfiles } from '@/lib/branding';
+
+const proformaSchema = z.object({
+  name: z.string().min(1, 'Nome e cognome sono obbligatori.'),
+  address: z.string().min(1, 'Indirizzo obbligatorio.'),
+  cf: z.string().min(1, 'Codice Fiscale o P.IVA sono obbligatori.'),
+  docNumber: z.string().min(1, 'Numero documento obbligatorio.'),
+  birthDate: z.string().min(1, 'Data di nascita obbligatoria.'),
+  birthPlace: z.string().min(1, 'Luogo di nascita obbligatorio.'),
+  phone: z.string().min(1, 'Numero di cellulare obbligatorio.'),
+  email: z.string().email('Email non valida.'),
+  price: z.coerce.number().positive('Il prezzo deve essere un numero positivo.'),
+  customerType: z.enum(['privato', 'commerciante'], {
+    required_error: 'Selezionare il tipo di cliente.',
+  }),
+  paymentMethod: z.enum(['contanti', 'bonifico', 'assegno', 'finanziamento'], {
+    required_error: 'Selezionare la modalità di pagamento.',
+  }),
+  warranty: z.string().optional(),
+  insurance: z.string().optional(),
+  wearAndTear: z.string().optional(),
+  withdrawal: z.string().optional(),
+});
+
+type ProformaFormValues = z.infer<typeof proformaSchema>;
 
 export default function AdminPage() {
   const firestore = useFirestore();
@@ -53,6 +112,7 @@ export default function AdminPage() {
   );
   const { toast } = useToast();
   const { user: currentUser } = useUser();
+  const { role } = useUserRole(); // Get role for price edit check
   const vehiclesRef = useMemoFirebase(
     () => collection(firestore, 'vehicles'),
     [firestore]
@@ -62,6 +122,39 @@ export default function AdminPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [vehicleToDelete, setVehicleToDelete] = useState<Vehicle | null>(null);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState<string | null>(null);
+
+  // State for contract creation
+  const [vehicleForContract, setVehicleForContract] =
+    useState<Vehicle | null>(null);
+  const proformaSheetRef = useRef<HTMLDivElement>(null);
+  const [isProformaFormOpen, setIsProformaFormOpen] = useState(false);
+  const [proformaCustomerData, setProformaCustomerData] =
+    useState<ProformaFormValues | null>(null);
+  const [isGeneratingProforma, setIsGeneratingProforma] = useState(false);
+  const [isBooking, setIsBooking] = useState<string | null>(null);
+
+  const proformaForm = useForm<ProformaFormValues>({
+    resolver: zodResolver(proformaSchema),
+    defaultValues: {
+      name: '',
+      address: '',
+      cf: '',
+      docNumber: '',
+      price: 0,
+      customerType: 'privato',
+      paymentMethod: 'bonifico',
+      warranty:
+        'Il veicolo viene venduto con garanzia legale di conformità per 12 mesi come da D.Lgs. 206/2005 (Codice del Consumo).',
+      insurance:
+        "L'acquirente si impegna a stipulare una polizza assicurativa RC auto prima del ritiro del veicolo.",
+      wearAndTear:
+        "L'acquirente dichiara di aver preso visione dello stato d'uso del veicolo e di accettarlo nelle condizioni in cui si trova, tenuto conto della normale usura pregressa in base all'anno di immatricolazione e al chilometraggio.",
+      withdrawal:
+        "Per i contratti conclusi a distanza, l'acquirente consumatore ha diritto di recedere dal contratto, senza alcuna penalità e senza specificarne il motivo, entro il termine di 14 giorni dalla presa in consegna del veicolo.",
+    },
+  });
+
+  const customerType = proformaForm.watch('customerType');
 
   const handleStatusChange = (
     vehicleId: string,
@@ -138,6 +231,181 @@ export default function AdminPage() {
     }
   };
 
+  // --- Contract Creation Functions ---
+  const handleGeneratePdf = async (
+    ref: React.RefObject<HTMLDivElement>,
+    fileName: string
+  ) => {
+    if (!ref.current) return;
+
+    setIsGeneratingProforma(true);
+
+    try {
+      const canvas = await html2canvas(ref.current, {
+        scale: 2,
+        useCORS: true,
+      });
+
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4',
+      });
+
+      const margin = 15;
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      const contentWidth = pdfWidth - margin * 2;
+      const imgProps = pdf.getImageProperties(imgData);
+      const totalImgHeightInPdf =
+        (imgProps.height * contentWidth) / imgProps.width;
+
+      let heightLeft = totalImgHeightInPdf;
+      let position = 0;
+
+      pdf.addImage(
+        imgData,
+        'PNG',
+        margin,
+        position,
+        contentWidth,
+        totalImgHeightInPdf
+      );
+      heightLeft -= pdfHeight - margin * 2;
+
+      while (heightLeft > 0) {
+        position -= pdfHeight;
+        pdf.addPage();
+        pdf.addImage(
+          imgData,
+          'PNG',
+          margin,
+          position + margin,
+          contentWidth,
+          totalImgHeightInPdf
+        );
+        heightLeft -= pdfHeight;
+      }
+
+      pdf.save(fileName);
+    } catch (error) {
+      console.error('Errore durante la creazione del PDF:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Errore PDF',
+        description: 'Impossibile generare il PDF.',
+      });
+    } finally {
+      setIsGeneratingProforma(false);
+    }
+  };
+
+  function onProformaSubmit(values: ProformaFormValues) {
+    setProformaCustomerData(values);
+    setIsProformaFormOpen(false);
+  }
+
+  const hideProformaPreview = () => {
+    setProformaCustomerData(null);
+    setVehicleForContract(null);
+  };
+
+  const handleConfirmProformaPrint = async () => {
+    if (vehicleForContract) {
+      await handleGeneratePdf(
+        proformaSheetRef,
+        `contratto-vendita-${vehicleForContract.slug}.pdf`
+      );
+    }
+    hideProformaPreview();
+  };
+
+  const handleCreateContractClick = (vehicle: Vehicle) => {
+    if (!firestore || !currentUser) return;
+    setVehicleForContract(vehicle);
+
+    const openTheForm = () => {
+      proformaForm.reset({
+        name: '',
+        address: '',
+        cf: '',
+        docNumber: '',
+        birthDate: '',
+        birthPlace: '',
+        phone: '',
+        email: '',
+        customerType: 'privato',
+        paymentMethod: 'bonifico',
+        warranty:
+          'Il veicolo viene venduto con garanzia legale di conformità per 12 mesi come da D.Lgs. 206/2005 (Codice del Consumo).',
+        insurance:
+          "L'acquirente si impegna a stipulare una polizza assicurativa RC auto prima del ritiro del veicolo.",
+        wearAndTear:
+          "L'acquirente dichiara di aver preso visione dello stato d'uso del veicolo e di accettarlo nelle condizioni in cui si trova, tenuto conto della normale usura pregressa in base all'anno di immatricolazione e al chilometraggio.",
+        withdrawal:
+          "Per i contratti conclusi a distanza, l'acquirente consumatore ha diritto di recedere dal contratto, senza alcuna penalità e senza specificarne il motivo, entro il termine di 14 giorni dalla presa in consegna del veicolo.",
+        price: (vehicle.prezzo ?? 0) + (vehicle.garanzia_legale_prezzo ?? 0),
+      });
+      setIsProformaFormOpen(true);
+    };
+
+    if (vehicle.stato === 'In vendita') {
+      setIsBooking(vehicle.id);
+      const vehicleRef = doc(firestore, 'vehicles', vehicle.id);
+
+      updateDocumentNonBlocking(vehicleRef, {
+        stato: 'Prenotato',
+        updatedAt: serverTimestamp(),
+        statusChangedBy: currentUser.uid,
+      })
+        .then(() => {
+          toast({
+            title: 'Veicolo Prenotato!',
+            description:
+              'Il veicolo è stato prenotato. Compila i dati per il contratto.',
+          });
+          openTheForm();
+        })
+        .catch(error => {
+          toast({
+            variant: 'destructive',
+            title: 'Prenotazione Fallita',
+            description:
+              'Impossibile prenotare il veicolo. Controlla la console per i dettagli.',
+          });
+        })
+        .finally(() => {
+          setIsBooking(null);
+        });
+    } else if (
+      (vehicle.stato === 'Prenotato' || vehicle.stato === 'Venduto') &&
+      vehicle.statusChangedBy === currentUser.uid
+    ) {
+      openTheForm();
+    } else {
+      toast({
+        variant: 'destructive',
+        title: 'Azione non consentita',
+        description: `Lo stato attuale del veicolo (${vehicle.stato}) non permette di creare un nuovo contratto, oppure non sei l'utente che ha effettuato l'ultima modifica.`,
+      });
+    }
+  };
+
+  const canCreateContract = (vehicle: Vehicle) => {
+    if (!currentUser) return false;
+    if (vehicle.stato === 'In vendita') {
+      return true;
+    }
+    if (
+      (vehicle.stato === 'Venduto' || vehicle.stato === 'Prenotato') &&
+      vehicle.statusChangedBy === currentUser.uid
+    ) {
+      return true;
+    }
+    return false;
+  };
+
   return (
     <>
       <div className="container mx-auto px-4 py-8">
@@ -182,7 +450,9 @@ export default function AdminPage() {
                     <TableCell>
                       <Skeleton className="h-10 w-32" />
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right flex justify-end gap-2">
+                      <Skeleton className="h-8 w-8 rounded-md" />
+                      <Skeleton className="h-8 w-8 rounded-md" />
                       <Skeleton className="h-8 w-8 rounded-md" />
                     </TableCell>
                   </TableRow>
@@ -260,7 +530,25 @@ export default function AdminPage() {
                       )}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button asChild variant="ghost" size="icon">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleCreateContractClick(vehicle)}
+                        disabled={
+                          isBooking === vehicle.id ||
+                          isDeleting ||
+                          !canCreateContract(vehicle)
+                        }
+                        title="Crea Contratto"
+                      >
+                        {isBooking === vehicle.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <FileSignature className="h-4 w-4" />
+                        )}
+                        <span className="sr-only">Crea Contratto</span>
+                      </Button>
+                      <Button asChild variant="ghost" size="icon" title="Modifica">
                         <Link href={`/admin/edit-vehicle/${vehicle.id}`}>
                           <Pencil className="h-4 w-4" />
                           <span className="sr-only">Modifica</span>
@@ -270,6 +558,7 @@ export default function AdminPage() {
                         variant="ghost"
                         size="icon"
                         onClick={() => handleDeleteClick(vehicle)}
+                        title="Cancella"
                       >
                         <Trash2 className="h-4 w-4 text-destructive" />
                         <span className="sr-only">Cancella</span>
@@ -314,6 +603,401 @@ export default function AdminPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Proforma Customer Data Form Dialog */}
+      <Dialog open={isProformaFormOpen} onOpenChange={setIsProformaFormOpen}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Crea Contratto di Vendita</DialogTitle>
+            <DialogDescription>
+              Inserisci i dati dell'acquirente e le clausole per generare il
+              contratto.
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...proformaForm}>
+            <form
+              onSubmit={proformaForm.handleSubmit(onProformaSubmit)}
+              className="space-y-4"
+            >
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField
+                  control={proformaForm.control}
+                  name="customerType"
+                  render={({ field }) => (
+                    <FormItem className="space-y-3">
+                      <FormLabel>Tipo di Cliente *</FormLabel>
+                      <FormControl>
+                        <RadioGroup
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                          className="flex items-center space-x-4"
+                        >
+                          <FormItem className="flex items-center space-x-2 space-y-0">
+                            <FormControl>
+                              <RadioGroupItem value="privato" />
+                            </FormControl>
+                            <FormLabel className="font-normal">
+                              Privato
+                            </FormLabel>
+                          </FormItem>
+                          <FormItem className="flex items-center space-x-2 space-y-0">
+                            <FormControl>
+                              <RadioGroupItem value="commerciante" />
+                            </FormControl>
+                            <FormLabel className="font-normal">
+                              Commerciante
+                            </FormLabel>
+                          </FormItem>
+                        </RadioGroup>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={proformaForm.control}
+                  name="paymentMethod"
+                  render={({ field }) => (
+                    <FormItem className="space-y-3">
+                      <FormLabel>Modalità di Pagamento *</FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Seleziona modalità" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="contanti">Contanti</SelectItem>
+                          <SelectItem value="bonifico">Bonifico</SelectItem>
+                          <SelectItem value="assegno">Assegno</SelectItem>
+                          <SelectItem value="finanziamento">
+                            Finanziamento
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField
+                  control={proformaForm.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Nome e Cognome / Ragione Sociale *</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Es. Mario Rossi"
+                          {...field}
+                          value={field.value ?? ''}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={proformaForm.control}
+                  name="price"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Prezzo di Vendita (€) *</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          {...field}
+                          value={field.value ?? ''}
+                          disabled={role !== 'admin'}
+                        />
+                      </FormControl>
+                      {role !== 'admin' && (
+                        <FormDescription>
+                          Solo gli amministratori possono modificare il prezzo.
+                        </FormDescription>
+                      )}
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <FormField
+                control={proformaForm.control}
+                name="address"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>
+                      Indirizzo Completo di Residenza/Sede *
+                    </FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Es. Via Roma 1, 10121 Torino (TO)"
+                        {...field}
+                        value={field.value ?? ''}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField
+                  control={proformaForm.control}
+                  name="birthDate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Data di Nascita *</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="date"
+                          {...field}
+                          value={field.value ?? ''}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={proformaForm.control}
+                  name="birthPlace"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Luogo di Nascita *</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Es. Torino"
+                          {...field}
+                          value={field.value ?? ''}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField
+                  control={proformaForm.control}
+                  name="cf"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Codice Fiscale / P.IVA *</FormLabel>
+                      <FormControl>
+                        <Input {...field} value={field.value ?? ''} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={proformaForm.control}
+                  name="docNumber"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Numero Documento (C.I.) *</FormLabel>
+                      <FormControl>
+                        <Input {...field} value={field.value ?? ''} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField
+                  control={proformaForm.control}
+                  name="phone"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Cellulare *</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="tel"
+                          {...field}
+                          value={field.value ?? ''}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={proformaForm.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email *</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="email"
+                          {...field}
+                          value={field.value ?? ''}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              {customerType === 'privato' && (
+                <FormField
+                  control={proformaForm.control}
+                  name="warranty"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Dettagli Garanzia</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          className="min-h-[100px]"
+                          {...field}
+                          value={field.value ?? ''}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              <FormField
+                control={proformaForm.control}
+                name="wearAndTear"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Stato di Usura del Mezzo</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        className="min-h-[100px]"
+                        {...field}
+                        value={field.value ?? ''}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={proformaForm.control}
+                name="insurance"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Assicurazione</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        className="min-h-[80px]"
+                        {...field}
+                        value={field.value ?? ''}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {customerType === 'privato' && (
+                <FormField
+                  control={proformaForm.control}
+                  name="withdrawal"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Diritto di Recesso</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          className="min-h-[100px]"
+                          {...field}
+                          value={field.value ?? ''}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setIsProformaFormOpen(false)}
+                  >
+                    Annulla
+                  </Button>
+                </DialogClose>
+                <Button type="submit">Genera Anteprima Contratto</Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Proforma Preview Dialog */}
+      <Dialog
+        open={!!proformaCustomerData}
+        onOpenChange={open => !open && hideProformaPreview()}
+      >
+        <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Anteprima Contratto di Vendita</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-auto bg-gray-300 p-8">
+            <div
+              ref={proformaSheetRef}
+              className="w-[800px] mx-auto my-8 shadow-2xl"
+            >
+              {proformaCustomerData && vehicleForContract && (
+                <PrintableProforma
+                  vehicle={vehicleForContract}
+                  customer={proformaCustomerData}
+                  price={proformaCustomerData.price}
+                  customerType={proformaCustomerData.customerType}
+                  paymentMethod={proformaCustomerData.paymentMethod}
+                  warranty={proformaCustomerData.warranty || ''}
+                  insurance={proformaCustomerData.insurance || ''}
+                  wearAndTear={proformaCustomerData.wearAndTear || ''}
+                  withdrawal={proformaCustomerData.withdrawal || ''}
+                  date={format(new Date(), 'dd/MM/yyyy')}
+                  branding={brandingProfiles.default}
+                />
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={hideProformaPreview}
+              disabled={isGeneratingProforma}
+            >
+              Annulla
+            </Button>
+            <Button
+              onClick={handleConfirmProformaPrint}
+              disabled={isGeneratingProforma}
+            >
+              {isGeneratingProforma ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Generazione PDF...
+                </>
+              ) : (
+                'Stampa Contratto'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
