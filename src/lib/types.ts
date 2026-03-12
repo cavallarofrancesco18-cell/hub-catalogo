@@ -39,7 +39,37 @@ export type Form = {
   createdAt: any;
 };
 
+export type Contract = {
+  id: string; // Will be same as vehicleId
+  vehicleId: string;
+  creatorId: string;
+  name: string;
+  address: string;
+  cf: string;
+  docNumber?: string;
+  birthDate?: string;
+  birthPlace?: string;
+  phone?: string;
+  email?: string;
+  customerType: 'privato' | 'commerciante';
+  price: number;
+  costoVultura?: number;
+  paymentMethod: 'contanti' | 'bonifico' | 'assegno' | 'finanziamento';
+  financingCompany?: string;
+  numberOfInstallments?: number;
+  installmentAmount?: number;
+  totalFinancedAmount?: number;
+  warranty?: string;
+  insurance?: string;
+  wearAndTear?: string;
+  withdrawal?: string;
+  createdAt: any;
+  updatedAt: any;
+};
+
 export type SellerRole = {
   assignedAt?: any;
   sellerType?: 'OSPITE_SELLER' | 'HUB_SELLER' | 'RESTART_SELLER' | 'EXPRESS_SELLER' | 'MGV_SELLER';
 };
+
+    

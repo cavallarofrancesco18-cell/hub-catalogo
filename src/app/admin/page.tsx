@@ -4,8 +4,8 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useCollection } from '@/firebase/firestore/use-collection';
-import { collection, doc, serverTimestamp } from 'firebase/firestore';
-import type { Vehicle } from '@/lib/types';
+import { collection, doc, serverTimestamp, getDoc } from 'firebase/firestore';
+import type { Vehicle, Contract } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import {
   Table,
@@ -39,6 +39,7 @@ import { useToast } from '@/hooks/use-toast';
 import {
   deleteDocumentNonBlocking,
   updateDocumentNonBlocking,
+  setDocumentNonBlocking
 } from '@/firebase/non-blocking-updates';
 import { getStorage, ref, deleteObject } from 'firebase/storage';
 import {
@@ -191,14 +192,14 @@ export default function AdminPage() {
   const [isUpdatingStatus, setIsUpdatingStatus] = useState<string | null>(null);
 
   // State for contract creation
-  const [vehicleForContract, setVehicleForContract] =
-    useState<Vehicle | null>(null);
+  const [vehicleForContract, setVehicleForContract] = useState<Vehicle | null>(null);
   const proformaSheetRef = useRef<HTMLDivElement>(null);
   const [isProformaFormOpen, setIsProformaFormOpen] = useState(false);
-  const [proformaCustomerData, setProformaCustomerData] =
-    useState<ProformaFormValues | null>(null);
+  const [proformaCustomerData, setProformaCustomerData] = useState<ProformaFormValues | null>(null);
   const [isGeneratingProforma, setIsGeneratingProforma] = useState(false);
   const [isBooking, setIsBooking] = useState<string | null>(null);
+  const [existingContract, setExistingContract] = useState<Contract | null>(null);
+
 
   const proformaForm = useForm<ProformaFormValues>({
     resolver: zodResolver(proformaSchema),
@@ -387,6 +388,27 @@ export default function AdminPage() {
   };
 
   function onProformaSubmit(values: ProformaFormValues) {
+    if (!vehicleForContract || !currentUser) return;
+
+    const contractRef = doc(firestore, 'contracts', vehicleForContract.id);
+
+    const dataToSave = {
+      ...values,
+      id: vehicleForContract.id,
+      vehicleId: vehicleForContract.id,
+      creatorId: currentUser.uid,
+      updatedAt: serverTimestamp(),
+      ...(existingContract ? {} : { createdAt: serverTimestamp() }),
+    };
+
+    setDocumentNonBlocking(contractRef, dataToSave, { merge: true })
+      .then(() => {
+        toast({
+          title: `Contratto ${existingContract ? 'aggiornato' : 'creato'}!`,
+          description: "L'anteprima è pronta per la stampa.",
+        });
+      });
+
     setProformaCustomerData(values);
     setIsProformaFormOpen(false);
   }
@@ -406,79 +428,87 @@ export default function AdminPage() {
     hideProformaPreview();
   };
 
-  const handleCreateContractClick = (vehicle: Vehicle) => {
+  const handleCreateContractClick = async (vehicle: Vehicle) => {
     if (!firestore || !currentUser) return;
     setVehicleForContract(vehicle);
-
-    const openTheForm = () => {
-      proformaForm.reset({
-        name: '',
-        address: '',
-        cf: '',
-        docNumber: '',
-        birthDate: '',
-        birthPlace: '',
-        phone: '',
-        email: '',
-        customerType: 'privato',
-        paymentMethod: 'bonifico',
-        costoVultura: '',
-        warranty:
-          'Il veicolo viene venduto con garanzia legale di conformità per 12 mesi come da D.Lgs. 206/2005 (Codice del Consumo).',
-        insurance:
-          "L'acquirente si impegna a stipulare una polizza assicurativa RC auto prima del ritiro del veicolo.",
-        wearAndTear:
-          "L'acquirente dichiara di aver preso visione dello stato d'uso del veicolo e di accettarlo nelle condizioni in cui si trova, tenuto conto della normale usura pregressa in base all'anno di immatricolazione e al chilometraggio.",
-        withdrawal:
-          "Per i contratti conclusi a distanza, l'acquirente consumatore ha diritto di recedere dal contratto, senza alcuna penalità e senza specificarne il motivo, entro il termine di 14 giorni dalla presa in consegna del veicolo.",
-        price: (vehicle.prezzo ?? 0) + (vehicle.garanzia_legale_prezzo ?? 0),
-        financingCompany: '',
-        numberOfInstallments: '',
-        installmentAmount: '',
-        totalFinancedAmount: '',
-      });
+  
+    // Check for an existing contract for this vehicle
+    const contractRef = doc(firestore, 'contracts', vehicle.id);
+    const contractSnap = await getDoc(contractRef);
+  
+    if (contractSnap.exists()) {
+      // If contract exists, load its data into the form
+      setExistingContract(contractSnap.data() as Contract);
+      proformaForm.reset(contractSnap.data() as ProformaFormValues);
       setIsProformaFormOpen(true);
-    };
-
-    if (vehicle.stato === 'In vendita') {
-      setIsBooking(vehicle.id);
-      const vehicleRef = doc(firestore, 'vehicles', vehicle.id);
-
-      updateDocumentNonBlocking(vehicleRef, {
-        stato: 'Prenotato',
-        updatedAt: serverTimestamp(),
-        statusChangedBy: currentUser.uid,
-      })
-        .then(() => {
-          toast({
-            title: 'Veicolo Prenotato!',
-            description:
-              'Il veicolo è stato prenotato. Compila i dati per il contratto.',
-          });
-          openTheForm();
-        })
-        .catch(error => {
-          toast({
-            variant: 'destructive',
-            title: 'Prenotazione Fallita',
-            description:
-              'Impossibile prenotare il veicolo. Controlla la console per i dettagli.',
-          });
-        })
-        .finally(() => {
-          setIsBooking(null);
-        });
-    } else if (
-      (vehicle.stato === 'Prenotato' || vehicle.stato === 'Venduto') &&
-      vehicle.statusChangedBy === currentUser.uid
-    ) {
-      openTheForm();
-    } else {
       toast({
-        variant: 'destructive',
-        title: 'Azione non consentita',
-        description: `Lo stato attuale del veicolo (${vehicle.stato}) non permette di creare un nuovo contratto, oppure non sei l'utente che ha effettuato l'ultima modifica.`,
+        title: 'Contratto caricato',
+        description: 'Modifica i dati del contratto esistente.',
       });
+    } else {
+      // No contract exists, proceed with the creation logic
+      setExistingContract(null);
+      const openTheForm = () => {
+        proformaForm.reset({
+          name: '',
+          address: '',
+          cf: '',
+          docNumber: '',
+          birthDate: '',
+          birthPlace: '',
+          phone: '',
+          email: '',
+          customerType: 'privato',
+          paymentMethod: 'bonifico',
+          costoVultura: '',
+          warranty: 'Il veicolo viene venduto con garanzia legale di conformità per 12 mesi come da D.Lgs. 206/2005 (Codice del Consumo).',
+          insurance: 'L\'acquirente si impegna a stipulare una polizza assicurativa RC auto prima del ritiro del veicolo.',
+          wearAndTear: 'L\'acquirente dichiara di aver preso visione dello stato d\'uso del veicolo e di accettarlo nelle condizioni in cui si trova, tenuto conto della normale usura pregressa in base all\'anno di immatricolazione e al chilometraggio.',
+          withdrawal: 'Per i contratti conclusi a distanza, l\'acquirente consumatore ha diritto di recedere dal contratto, senza alcuna penalità e senza specificarne il motivo, entro il termine di 14 giorni dalla presa in consegna del veicolo.',
+          price: (vehicle.prezzo ?? 0) + (vehicle.garanzia_legale_prezzo ?? 0),
+          financingCompany: '',
+          numberOfInstallments: '',
+          installmentAmount: '',
+          totalFinancedAmount: '',
+        });
+        setIsProformaFormOpen(true);
+      };
+  
+      if (vehicle.stato === 'In vendita') {
+        setIsBooking(vehicle.id);
+        const vehicleRef = doc(firestore, 'vehicles', vehicle.id);
+  
+        updateDocumentNonBlocking(vehicleRef, {
+          stato: 'Prenotato',
+          updatedAt: serverTimestamp(),
+          statusChangedBy: currentUser.uid,
+        })
+          .then(() => {
+            toast({
+              title: 'Veicolo Prenotato!',
+              description: 'Il veicolo è stato prenotato. Compila i dati per il contratto.',
+            });
+            openTheForm();
+          })
+          .catch(error => {
+            toast({
+              variant: 'destructive',
+              title: 'Prenotazione Fallita',
+              description: 'Impossibile prenotare il veicolo. Controlla la console per i dettagli.',
+            });
+          })
+          .finally(() => {
+            setIsBooking(null);
+          });
+      } else if (canCreateContract(vehicle)) {
+        openTheForm();
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'Azione non consentita',
+          description: `Lo stato attuale del veicolo (${vehicle.stato}) non permette di creare un nuovo contratto, oppure non sei l'utente che ha effettuato l'ultima modifica.`,
+        });
+      }
     }
   };
 
@@ -1176,3 +1206,5 @@ export default function AdminPage() {
     </>
   );
 }
+
+    

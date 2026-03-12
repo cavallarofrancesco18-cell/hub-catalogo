@@ -126,5 +126,29 @@ service cloud.firestore {
       // Only admins can update or delete user profile documents.
       allow update, delete: if isAdmin();
     }
+
+    /**
+     * @description
+     *   Rules for the contracts collection.
+     *   The contractId is the same as the vehicleId.
+     * @path
+     *   /contracts/{contractId}
+     */
+    match /contracts/{contractId} {
+      // An Admin can do anything.
+      allow read, write: if isAdmin();
+      
+      // A Seller can create a contract, ensuring they set themselves as the creator.
+      allow create: if isSeller() && request.resource.data.creatorId == request.auth.uid;
+      
+      // A Seller can read or update a contract they created.
+      allow get, update: if isSeller() && resource.data.creatorId == request.auth.uid;
+      
+      // No one can list all contracts except admins (covered by first rule).
+      allow list: if isAdmin();
+      allow delete: if isAdmin();
+    }
   }
 }
+
+    

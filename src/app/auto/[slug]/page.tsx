@@ -5,16 +5,17 @@ import { notFound, useParams } from 'next/navigation';
 import { VehicleDetailsClient } from './components/vehicle-details-client';
 import { Badge } from '@/components/ui/badge';
 import { useMemo, useRef, useState, useEffect } from 'react';
-import type { Vehicle, SellerRole as SellerRoleData } from '@/lib/types';
+import type { Vehicle, Contract, SellerRole as SellerRoleData } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useCollection } from '@/firebase/firestore/use-collection';
-import { collection, query, where, limit, doc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, limit, doc, serverTimestamp, getDoc } from 'firebase/firestore';
 import {
   useFirestore,
   useMemoFirebase,
   useUserRole,
   updateDocumentNonBlocking,
   useUser,
+  setDocumentNonBlocking
 } from '@/firebase';
 import { format } from 'date-fns';
 import { PrintableVehicleSheet } from './components/printable-vehicle-sheet';
@@ -184,6 +185,8 @@ export default function VehiclePage() {
   const [proformaCustomerData, setProformaCustomerData] = useState<ProformaFormValues | null>(null);
   const [isGeneratingProforma, setIsGeneratingProforma] = useState(false);
   const [isBooking, setIsBooking] = useState(false);
+  const [existingContract, setExistingContract] = useState<Contract | null>(null);
+
 
   const proformaForm = useForm<ProformaFormValues>({
     resolver: zodResolver(proformaSchema),
@@ -298,13 +301,49 @@ export default function VehiclePage() {
   };
 
   function onProformaSubmit(values: ProformaFormValues) {
+    if (!vehicle || !user) return;
+  
+    const contractRef = doc(firestore, 'contracts', vehicle.id);
+  
+    const dataToSave = {
+      ...values,
+      id: vehicle.id,
+      vehicleId: vehicle.id,
+      creatorId: user.uid,
+      updatedAt: serverTimestamp(),
+      ...(existingContract ? {} : { createdAt: serverTimestamp() }),
+    };
+  
+    setDocumentNonBlocking(contractRef, dataToSave, { merge: true })
+      .then(() => {
+        toast({
+          title: `Contratto ${existingContract ? 'aggiornato' : 'creato'}!`,
+          description: "L'anteprima è pronta per la stampa.",
+        });
+      });
+  
     setProformaCustomerData(values);
     setIsProformaFormOpen(false);
   }
 
-  const showProformaForm = () => {
+  const showProformaForm = async () => {
     if (!vehicle || !firestore || !user) return;
+
+    const contractRef = doc(firestore, 'contracts', vehicle.id);
+    const contractSnap = await getDoc(contractRef);
+
+    if (contractSnap.exists()) {
+      setExistingContract(contractSnap.data() as Contract);
+      proformaForm.reset(contractSnap.data() as ProformaFormValues);
+      setIsProformaFormOpen(true);
+      toast({
+        title: 'Contratto caricato',
+        description: 'Modifica i dati del contratto esistente.',
+      });
+      return;
+    }
   
+    setExistingContract(null);
     const openTheForm = () => {
       proformaForm.reset({
         name: '',
@@ -964,3 +1003,5 @@ export default function VehiclePage() {
     </>
   );
 }
+
+    
