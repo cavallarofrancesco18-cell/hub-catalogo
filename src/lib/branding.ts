@@ -16,7 +16,7 @@ export const brandingProfiles: Record<SellerType | 'default' | 'guest', Branding
     logoUrl: HUB_LOGO_URL,
     companyName: 'Hub Mobility',
     companyAddress: 'Via Pietro Ferrero 1/bis (TO)',
-    companyContact: 'mail:___________ cell:___________',
+    companyContact: 'mail:amministrazione@hubmobility.it cell:0110252664',
   },
   OSPITE_SELLER: {
     logoUrl: 'https://firebasestorage.googleapis.com/v0/b/studio-3074982188-44660.firebasestorage.app/o/LOGHI%2Flogo%20hub_catalogo_ospite.png?alt=media&token=05c9d924-b8d8-40ef-b13e-eb238e2130cf',
@@ -32,7 +32,7 @@ export const brandingProfiles: Record<SellerType | 'default' | 'guest', Branding
   },
   RESTART_SELLER: {
     logoUrl: 'https://firebasestorage.googleapis.com/v0/b/studio-3074982188-44660.firebasestorage.app/o/logo-restart-mobility-white-300x154.png?alt=media&token=11fec594-dc64-4905-ac4c-fd09504683a7',
-    companyName: 'RESTART',
+    companyName: 'RESTART MOBILITY',
     companyAddress: 'Corso Francia, 4 10098 - Rivoli (TO)',
     companyContact: 'info@restartmobility.com',
   },
