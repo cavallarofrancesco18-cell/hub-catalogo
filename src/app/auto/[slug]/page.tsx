@@ -339,7 +339,7 @@ export default function VehiclePage() {
           disabled={isLoadingRole || role === null}
           editPath={editPath}
           isBooking={isBooking}
-          isProformaButtonDisabled={!hasSheetBeenPreviewed}
+          isProformaButtonDisabled={false}
         />
 
         <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-8">
