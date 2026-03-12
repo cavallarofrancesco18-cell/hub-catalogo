@@ -1,8 +1,8 @@
 'use server';
 /**
- * @fileOverview A Genkit flow for generating compelling commercial descriptions for vehicles.
+ * @fileOverview A Genkit flow for identifying a vehicle's options and features from images.
  *
- * - generateVehicleDescription - A function that generates a commercial description for a vehicle.
+ * - generateVehicleDescription - A function that generates a description of a vehicle's visible options.
  * - GenerateVehicleDescriptionInput - The input type for the generateVehicleDescription function.
  * - GenerateVehicleDescriptionOutput - The return type for the generateVehicleDescription function.
  */
@@ -27,7 +27,7 @@ export type GenerateVehicleDescriptionInput = z.infer<typeof GenerateVehicleDesc
 
 const GenerateVehicleDescriptionOutputSchema = z
   .string()
-  .describe('A compelling commercial description for the vehicle, highlighting its key selling points.');
+  .describe("A description of the vehicle's visible options, trims, and special features based on image analysis.");
 export type GenerateVehicleDescriptionOutput = z.infer<typeof GenerateVehicleDescriptionOutputSchema>;
 
 
@@ -35,13 +35,13 @@ const prompt = ai.definePrompt({
     name: 'generateVehicleDescriptionPrompt',
     input: { schema: GenerateVehicleDescriptionInputSchema },
     output: { format: 'text' },
-    prompt: `Sei un esperto di marketing per una concessionaria di auto di lusso e moderne.
+    prompt: `Sei un esperto di automobili. Il tuo compito è analizzare le immagini fornite di un veicolo e scrivere un testo che elenchi gli optional, gli allestimenti e le caratteristiche speciali che sono chiaramente visibili nelle foto.
 
-Genera una descrizione commerciale accattivante e persuasiva per il seguente veicolo, analizzando sia i dati tecnici che le immagini fornite per evidenziare i punti di forza, le caratteristiche uniche e l'estetica che attireranno un acquirente sofisticato. Concentrati sull'esperienza di guida, sul design, sugli optional visibili e sul valore del veicolo.
+Focalizzati esclusivamente su ciò che puoi osservare. Non fare supposizioni o aggiungere informazioni non visibili.
 
-Non includere il prezzo finale nella descrizione, ma enfatizza il valore e la qualità.
+Usa i dati del veicolo solo come riferimento per il contesto, ma basa la tua descrizione principalmente sull'analisi visiva delle immagini.
 
-Informazioni sul veicolo:
+Dati del veicolo per contesto:
 Marca: {{{marca}}}
 Modello: {{{modello}}}
 Versione: {{{versione}}}
@@ -53,11 +53,13 @@ Potenza: {{{potenza}}} CV
 Colore Esterno: {{{colore_esterno}}}
 
 {{#if immagini}}
-Analizza anche queste immagini caricate per dettagli aggiuntivi su design, interni e condizioni:
+Immagini da analizzare:
 {{#each immagini}}
 {{media url=this}}
 {{/each}}
 {{/if}}
+
+Il risultato deve essere una descrizione concisa che mette in evidenza solo gli optional e le dotazioni visibili. Esempio: "Dotata di tetto panoramico apribile, cerchi in lega da 19 pollici, interni in pelle nera, sistema di infotainment con schermo touchscreen e fari Full LED."
 `,
 });
 
