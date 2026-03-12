@@ -50,8 +50,8 @@ const proformaSchema = z.object({
   docNumber: z.string().optional(),
   birthDate: z.string().optional(),
   birthPlace: z.string().optional(),
-  phone: z.string().min(1, 'Numero di cellulare obbligatorio.'),
-  email: z.string().email('Email non valida.'),
+  phone: z.string().optional(),
+  email: z.string().email({ message: "Email non valida." }).optional().or(z.literal('')),
   price: z.coerce.number().positive('Il prezzo deve essere un numero positivo.'),
   costoVultura: z.coerce.number().nonnegative("Il costo non può essere negativo.").optional().or(z.literal('')),
   customerType: z.enum(['privato', 'commerciante'], {
@@ -64,16 +64,44 @@ const proformaSchema = z.object({
   insurance: z.string().optional(),
   wearAndTear: z.string().optional(),
   withdrawal: z.string().optional(),
-}).refine((data) => {
+}).superRefine((data, ctx) => {
   if (data.customerType === 'privato') {
-    return !!data.docNumber && data.docNumber.length > 0 &&
-           !!data.birthDate && data.birthDate.length > 0 &&
-           !!data.birthPlace && data.birthPlace.length > 0;
+    if (!data.docNumber || data.docNumber.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Questo campo è obbligatorio per i clienti privati.',
+        path: ['docNumber'],
+      });
+    }
+    if (!data.birthDate || data.birthDate.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Questo campo è obbligatorio per i clienti privati.',
+        path: ['birthDate'],
+      });
+    }
+    if (!data.birthPlace || data.birthPlace.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Questo campo è obbligatorio per i clienti privati.',
+        path: ['birthPlace'],
+      });
+    }
+    if (!data.phone || data.phone.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Numero di cellulare obbligatorio.',
+        path: ['phone'],
+      });
+    }
+    if (!data.email || data.email.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Email obbligatoria.',
+        path: ['email'],
+      });
+    }
   }
-  return true;
-}, {
-  message: 'Questo campo è obbligatorio per i clienti privati.',
-  path: ['birthDate'], // Generic path, specific messages will be on fields
 });
 
 
@@ -667,7 +695,7 @@ export default function VehiclePage() {
                   name="phone"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Cellulare *</FormLabel>
+                      <FormLabel>Cellulare {customerType === 'privato' && '*'}</FormLabel>
                       <FormControl><Input type="tel" {...field} value={field.value ?? ''} /></FormControl>
                       <FormMessage />
                     </FormItem>
@@ -678,7 +706,7 @@ export default function VehiclePage() {
                   name="email"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Email *</FormLabel>
+                      <FormLabel>Email {customerType === 'privato' && '*'}</FormLabel>
                       <FormControl><Input type="email" {...field} value={field.value ?? ''} /></FormControl>
                       <FormMessage />
                     </FormItem>

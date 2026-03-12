@@ -12,8 +12,8 @@ interface CustomerData {
   docNumber?: string;
   birthDate?: string;
   birthPlace?: string;
-  phone: string;
-  email: string;
+  phone?: string;
+  email?: string;
 }
 
 interface PrintableProformaProps {
@@ -85,9 +85,9 @@ export function PrintableProforma({ vehicle, customer, price, costoVultura, cust
           {customerType === 'privato' && customer.docNumber && (
             <>, documento n. <span className="font-semibold">{customer.docNumber}</span></>
           )}
-          , tel. <span className="font-semibold">{customer.phone}</span>,
-          email <span className="font-semibold">{customer.email}</span>,
-          in qualità di ACQUIRENTE
+          {customer.phone && <>, tel. <span className="font-semibold">{customer.phone}</span></>}
+          {customer.email && <>, email <span className="font-semibold">{customer.email}</span></>}
+          , in qualità di ACQUIRENTE
         </p>
       </section>
 
