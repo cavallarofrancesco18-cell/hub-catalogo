@@ -116,8 +116,8 @@ service cloud.firestore {
      *   /users/{userId}
      */
     match /users/{userId} {
-      // A user can create their own profile document upon registration.
-      allow create: if request.auth.uid == userId;
+      // A user can create their own profile, and an admin can create any user profile.
+      allow create: if request.auth.uid == userId || isAdmin();
       
       // Admins can see all user profiles, users can only see their own.
       allow get: if isAdmin() || request.auth.uid == userId;
@@ -150,5 +150,3 @@ service cloud.firestore {
     }
   }
 }
-
-    
