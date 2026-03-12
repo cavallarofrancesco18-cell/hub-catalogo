@@ -44,15 +44,16 @@ import { getBranding, brandingProfiles } from '@/lib/branding';
 import { useToast } from '@/hooks/use-toast';
 
 const proformaSchema = z.object({
-  name: z.string().min(1, 'Nome e cognome sono obbligatori.'),
+  name: z.string().min(1, 'Nome e cognome o Ragione Sociale sono obbligatori.'),
   address: z.string().min(1, 'Indirizzo obbligatorio.'),
   cf: z.string().min(1, 'Codice Fiscale o P.IVA sono obbligatori.'),
-  docNumber: z.string().min(1, 'Numero documento obbligatorio.'),
-  birthDate: z.string().min(1, 'Data di nascita obbligatoria.'),
-  birthPlace: z.string().min(1, 'Luogo di nascita obbligatorio.'),
+  docNumber: z.string().optional(),
+  birthDate: z.string().optional(),
+  birthPlace: z.string().optional(),
   phone: z.string().min(1, 'Numero di cellulare obbligatorio.'),
   email: z.string().email('Email non valida.'),
   price: z.coerce.number().positive('Il prezzo deve essere un numero positivo.'),
+  costoVultura: z.coerce.number().nonnegative("Il costo non può essere negativo.").optional().or(z.literal('')),
   customerType: z.enum(['privato', 'commerciante'], {
     required_error: 'Selezionare il tipo di cliente.',
   }),
@@ -63,7 +64,18 @@ const proformaSchema = z.object({
   insurance: z.string().optional(),
   wearAndTear: z.string().optional(),
   withdrawal: z.string().optional(),
+}).refine((data) => {
+  if (data.customerType === 'privato') {
+    return !!data.docNumber && data.docNumber.length > 0 &&
+           !!data.birthDate && data.birthDate.length > 0 &&
+           !!data.birthPlace && data.birthPlace.length > 0;
+  }
+  return true;
+}, {
+  message: 'Questo campo è obbligatorio per i clienti privati.',
+  path: ['birthDate'], // Generic path, specific messages will be on fields
 });
+
 
 const priceSheetSchema = z.object({
   price: z.coerce.number().positive('Il prezzo deve essere un numero positivo.'),
@@ -128,6 +140,7 @@ export default function VehiclePage() {
       price: 0,
       customerType: 'privato',
       paymentMethod: 'bonifico',
+      costoVultura: '',
       warranty: 'Il veicolo viene venduto con garanzia legale di conformità per 12 mesi come da D.Lgs. 206/2005 (Codice del Consumo).',
       insurance: 'L\'acquirente si impegna a stipulare una polizza assicurativa RC auto prima del ritiro del veicolo.',
       wearAndTear: 'L\'acquirente dichiara di aver preso visione dello stato d\'uso del veicolo e di accettarlo nelle condizioni in cui si trova, tenuto conto della normale usura pregressa in base all\'anno di immatricolazione e al chilometraggio.',
@@ -233,6 +246,7 @@ export default function VehiclePage() {
         email: '',
         customerType: 'privato',
         paymentMethod: 'bonifico',
+        costoVultura: '',
         warranty:
           'Il veicolo viene venduto con garanzia legale di conformità per 12 mesi come da D.Lgs. 206/2005 (Codice del Consumo).',
         insurance:
@@ -560,31 +574,39 @@ export default function VehiclePage() {
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <FormField
-                  control={proformaForm.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Nome e Cognome / Ragione Sociale *</FormLabel>
-                      <FormControl><Input placeholder="Es. Mario Rossi" {...field} value={field.value ?? ''} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                  <FormField
-                  control={proformaForm.control}
-                  name="price"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Prezzo di Vendita (€) *</FormLabel>
-                      <FormControl><Input type="number" {...field} value={field.value ?? ''} disabled={role !== 'admin'} /></FormControl>
-                      {role !== 'admin' && <FormDescription>Solo gli amministratori possono modificare il prezzo.</FormDescription>}
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+                    control={proformaForm.control}
+                    name="name"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>{customerType === 'privato' ? 'Nome e Cognome *' : 'Ragione Sociale *'}</FormLabel>
+                        <FormControl>
+                            <Input
+                            placeholder={customerType === 'privato' ? 'Es. Mario Rossi' : 'Es. Auto S.R.L.'}
+                            {...field}
+                            value={field.value ?? ''}
+                            />
+                        </FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                <FormField
+                    control={proformaForm.control}
+                    name="cf"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>{customerType === 'privato' ? 'Codice Fiscale *' : 'Partita IVA *'}</FormLabel>
+                        <FormControl>
+                            <Input {...field} value={field.value ?? ''} />
+                        </FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+               </div>
+
 
                <FormField
                 control={proformaForm.control}
@@ -598,55 +620,46 @@ export default function VehiclePage() {
                 )}
               />
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                 <FormField
-                  control={proformaForm.control}
-                  name="birthDate"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Data di Nascita *</FormLabel>
-                      <FormControl><Input type="date" {...field} value={field.value ?? ''} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                 <FormField
-                  control={proformaForm.control}
-                  name="birthPlace"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Luogo di Nascita *</FormLabel>
-                      <FormControl><Input placeholder="Es. Torino" {...field} value={field.value ?? ''} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+              {customerType === 'privato' && (
+                <>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <FormField
+                        control={proformaForm.control}
+                        name="birthDate"
+                        render={({ field }) => (
+                            <FormItem>
+                            <FormLabel>Data di Nascita *</FormLabel>
+                            <FormControl><Input type="date" {...field} value={field.value ?? ''} /></FormControl>
+                            <FormMessage />
+                            </FormItem>
+                        )}
+                        />
+                        <FormField
+                        control={proformaForm.control}
+                        name="birthPlace"
+                        render={({ field }) => (
+                            <FormItem>
+                            <FormLabel>Luogo di Nascita *</FormLabel>
+                            <FormControl><Input placeholder="Es. Torino" {...field} value={field.value ?? ''} /></FormControl>
+                            <FormMessage />
+                            </FormItem>
+                        )}
+                        />
+                    </div>
+                    <FormField
+                    control={proformaForm.control}
+                    name="docNumber"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Numero Documento (C.I.) *</FormLabel>
+                        <FormControl><Input {...field} value={field.value ?? ''} /></FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                </>
+              )}
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <FormField
-                  control={proformaForm.control}
-                  name="cf"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Codice Fiscale / P.IVA *</FormLabel>
-                      <FormControl><Input {...field} value={field.value ?? ''} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={proformaForm.control}
-                  name="docNumber"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Numero Documento (C.I.) *</FormLabel>
-                      <FormControl><Input {...field} value={field.value ?? ''} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
 
                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <FormField
@@ -671,6 +684,35 @@ export default function VehiclePage() {
                     </FormItem>
                   )}
                 />
+              </div>
+
+               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t pt-4">
+                 <FormField
+                  control={proformaForm.control}
+                  name="price"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Prezzo Veicolo (€) *</FormLabel>
+                      <FormControl><Input type="number" {...field} value={field.value ?? ''} disabled={role !== 'admin'} /></FormControl>
+                      {role !== 'admin' && <FormDescription>Solo gli amministratori possono modificare il prezzo.</FormDescription>}
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                    control={proformaForm.control}
+                    name="costoVultura"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Costo Voltura (€)</FormLabel>
+                        <FormControl>
+                            <Input type="number" placeholder="Es. 600" {...field} value={field.value ?? ''} />
+                        </FormControl>
+                        <FormDescription>Verrà sommato al prezzo del veicolo.</FormDescription>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
               </div>
               
               {customerType === 'privato' && (
@@ -749,6 +791,7 @@ export default function VehiclePage() {
                   vehicle={vehicle}
                   customer={proformaCustomerData}
                   price={proformaCustomerData.price}
+                  costoVultura={Number(proformaCustomerData.costoVultura) || 0}
                   customerType={proformaCustomerData.customerType}
                   paymentMethod={proformaCustomerData.paymentMethod}
                   warranty={proformaCustomerData.warranty || ''}

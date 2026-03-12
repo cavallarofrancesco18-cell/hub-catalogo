@@ -9,9 +9,9 @@ interface CustomerData {
   name: string;
   address: string;
   cf: string;
-  docNumber: string;
-  birthDate: string;
-  birthPlace: string;
+  docNumber?: string;
+  birthDate?: string;
+  birthPlace?: string;
   phone: string;
   email: string;
 }
@@ -20,6 +20,7 @@ interface PrintableProformaProps {
   vehicle: Vehicle;
   customer: CustomerData;
   price: number;
+  costoVultura: number;
   customerType: 'privato' | 'commerciante';
   paymentMethod: string;
   warranty: string;
@@ -30,9 +31,10 @@ interface PrintableProformaProps {
   branding: BrandingProfile;
 }
 
-export function PrintableProforma({ vehicle, customer, price, customerType, paymentMethod, warranty, insurance, wearAndTear, withdrawal, date, branding }: PrintableProformaProps) {
+export function PrintableProforma({ vehicle, customer, price, costoVultura, customerType, paymentMethod, warranty, insurance, wearAndTear, withdrawal, date, branding }: PrintableProformaProps) {
   
   const { logoUrl, companyName, companyAddress, companyContact } = branding;
+  const totalPrice = price + costoVultura;
 
   const DetailRow = ({ label, value }: { label: string, value: React.ReactNode }) => (
     <tr className="border-b border-gray-200">
@@ -75,11 +77,15 @@ export function PrintableProforma({ vehicle, customer, price, customerType, paym
         <h2 className="font-bold text-base mt-4 mb-2 pb-1 border-b">E</h2>
         <p>
           <span className="font-semibold">{customer.name}</span>
-          , nato/a a <span className="font-semibold">{customer.birthPlace}</span> il <span className="font-semibold">{new Date(customer.birthDate).toLocaleDateString('it-IT')}</span>,
-          residente in <span className="font-semibold">{customer.address}</span>,
-          C.F. <span className="font-semibold">{customer.cf}</span>,
-          documento n. <span className="font-semibold">{customer.docNumber}</span>,
-          tel. <span className="font-semibold">{customer.phone}</span>,
+          {customerType === 'privato' && customer.birthPlace && customer.birthDate && (
+             <>, nato/a a <span className="font-semibold">{customer.birthPlace}</span> il <span className="font-semibold">{new Date(customer.birthDate).toLocaleDateString('it-IT')}</span></>
+          )}
+          , residente in <span className="font-semibold">{customer.address}</span>,
+          {customerType === 'privato' ? ' C.F. ' : ' P.IVA '}<span className="font-semibold">{customer.cf}</span>
+          {customerType === 'privato' && customer.docNumber && (
+            <>, documento n. <span className="font-semibold">{customer.docNumber}</span></>
+          )}
+          , tel. <span className="font-semibold">{customer.phone}</span>,
           email <span className="font-semibold">{customer.email}</span>,
           in qualità di ACQUIRENTE
         </p>
@@ -106,7 +112,23 @@ export function PrintableProforma({ vehicle, customer, price, customerType, paym
 
       <section className="mb-6">
         <h2 className="font-bold text-base mb-2 pb-1 border-b">Art. 2 - Prezzo e Pagamento</h2>
-        <p>Il prezzo di vendita è convenuto in <span className="font-bold">{formatCurrency(price)}</span> (IVA inclusa).</p>
+        <p>Il prezzo di vendita è convenuto come segue:</p>
+         <table className="w-2/3 text-left my-3 text-base">
+            <tbody>
+                <tr className="border-b">
+                    <td className="py-2 pr-4">Prezzo veicolo</td>
+                    <td className="py-2 font-semibold text-right">{formatCurrency(price)}</td>
+                </tr>
+                <tr className="border-b">
+                    <td className="py-2 pr-4">Costo Voltura</td>
+                    <td className="py-2 font-semibold text-right">{formatCurrency(costoVultura)}</td>
+                </tr>
+                <tr className="">
+                    <td className="pt-3 pr-4 font-bold text-lg">PREZZO TOTALE</td>
+                    <td className="pt-3 font-bold text-right text-lg">{formatCurrency(totalPrice)}</td>
+                </tr>
+            </tbody>
+        </table>
         <p className="mt-2">Modalità di pagamento: <span className="font-bold capitalize">{paymentMethod}</span>.</p>
       </section>
 
