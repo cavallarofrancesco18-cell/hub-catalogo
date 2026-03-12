@@ -1,6 +1,9 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
 import { useCollection } from '@/firebase/firestore/use-collection';
 import { collection, doc, serverTimestamp } from 'firebase/firestore';
 import type { SellerRole as SellerRoleData } from '@/lib/types';
@@ -35,8 +38,30 @@ import { useFirestore, useMemoFirebase, useUser } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { setDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Shield, User as UserIcon, X, Trash2 } from 'lucide-react';
+import { Loader2, Shield, User as UserIcon, X, Trash2, PlusCircle } from 'lucide-react';
 import { format } from 'date-fns';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { initializeApp, deleteApp } from 'firebase/app';
+import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
+import { firebaseConfig } from '@/firebase/config';
 
 type UserProfile = {
   id: string;
@@ -49,6 +74,18 @@ type SellerDoc = RoleDoc & SellerRoleData;
 
 const sellerTypes = ['OSPITE_SELLER', 'HUB_SELLER', 'RESTART_SELLER', 'EXPRESS_SELLER', 'MGV_SELLER'];
 
+const newUserSchema = z.object({
+  email: z.string().email('Email non valida.'),
+  password: z.string().min(6, 'La password deve contenere almeno 6 caratteri.'),
+  role: z.enum(['Admin', 'Seller'], { required_error: 'Il ruolo è obbligatorio.' }),
+  sellerType: z.string().optional(),
+}).refine(data => data.role !== 'Seller' || (data.role === 'Seller' && data.sellerType && data.sellerType !== 'none'), {
+  message: 'Selezionare un tipo di venditore.',
+  path: ['sellerType'],
+});
+
+type NewUserFormValues = z.infer<typeof newUserSchema>;
+
 export default function UsersPage() {
   const firestore = useFirestore();
   const { user: currentUser } = useUser();
@@ -57,6 +94,7 @@ export default function UsersPage() {
   const [actionState, setActionState] = useState<{ type: 'confirm' | null; user: any | null; newRole?: any; }>({ type: null, user: null });
   const [userToDelete, setUserToDelete] = useState<UserProfile | null>(null);
   const [isProcessing, setIsProcessing] = useState<string | null>(null);
+  const [isCreateUserOpen, setIsCreateUserOpen] = useState(false);
 
   const usersRef = useMemoFirebase(() => collection(firestore, 'users'), [firestore]);
   const { data: users, isLoading: isLoadingUsers } = useCollection<UserProfile>(usersRef);
@@ -66,6 +104,17 @@ export default function UsersPage() {
 
   const sellersRef = useMemoFirebase(() => collection(firestore, 'sellertype'), [firestore]);
   const { data: sellers, isLoading: isLoadingSellers } = useCollection<SellerDoc>(sellersRef);
+
+  const newUserForm = useForm<NewUserFormValues>({
+    resolver: zodResolver(newUserSchema),
+    defaultValues: {
+      email: '',
+      password: '',
+      role: 'Seller',
+      sellerType: sellerTypes[0],
+    },
+  });
+  const selectedRole = newUserForm.watch('role');
 
   const processedUsers = useMemo(() => {
     if (!users || !admins || !sellers) return [];
@@ -87,6 +136,70 @@ export default function UsersPage() {
       return { ...user, role, sellerType };
     }).sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0));
   }, [users, admins, sellers]);
+
+  async function handleCreateUser(values: NewUserFormValues) {
+    if (!firestore) return;
+
+    setIsProcessing('new-user');
+    let tempApp;
+    try {
+      const tempAppName = `temp-user-creation-${Date.now()}`;
+      tempApp = initializeApp(firebaseConfig, tempAppName);
+      const tempAuth = getAuth(tempApp);
+
+      const userCredential = await createUserWithEmailAndPassword(tempAuth, values.email, values.password);
+      const newUser = userCredential.user;
+
+      const userDocRef = doc(firestore, 'users', newUser.uid);
+      const roleDocRef = doc(firestore, values.role === 'Admin' ? 'Admin' : 'sellertype', newUser.uid);
+
+      const userDocPromise = setDocumentNonBlocking(userDocRef, {
+        email: newUser.email,
+        createdAt: serverTimestamp(),
+      }, {});
+
+      let roleDocPromise;
+      if (values.role === 'Admin') {
+        const otherSellerRoleRef = doc(firestore, 'sellertype', newUser.uid);
+        await deleteDocumentNonBlocking(otherSellerRoleRef); // Ensure no seller role exists
+        roleDocPromise = setDocumentNonBlocking(roleDocRef, { assignedAt: serverTimestamp() }, {});
+      } else { // Role is Seller
+        const otherAdminRoleRef = doc(firestore, 'Admin', newUser.uid);
+        await deleteDocumentNonBlocking(otherAdminRoleRef); // Ensure no admin role exists
+        roleDocPromise = setDocumentNonBlocking(roleDocRef, { sellerType: values.sellerType, assignedAt: serverTimestamp() }, {});
+      }
+
+      await Promise.all([userDocPromise, roleDocPromise]);
+
+      toast({ title: 'Utente creato!', description: `L'utente ${values.email} è stato creato con successo.` });
+      setIsCreateUserOpen(false);
+      newUserForm.reset();
+
+    } catch (error: any) {
+      let description = 'Si è verificato un errore imprevisto.';
+      if (error.code) {
+        switch (error.code) {
+          case 'auth/email-already-in-use':
+            description = 'Questo indirizzo email è già in uso.';
+            break;
+          case 'auth/invalid-email':
+            description = 'L\'indirizzo email non è valido.';
+            break;
+          case 'auth/weak-password':
+            description = 'La password è troppo debole. Deve essere di almeno 6 caratteri.';
+            break;
+          default:
+            description = error.message;
+        }
+      }
+      toast({ variant: 'destructive', title: 'Creazione fallita', description });
+    } finally {
+      if (tempApp) {
+        await deleteApp(tempApp);
+      }
+      setIsProcessing(null);
+    }
+  }
 
   const handleRoleChange = () => {
     if (!actionState.user || !actionState.type || !actionState.newRole || !firestore) return;
@@ -170,7 +283,112 @@ export default function UsersPage() {
   return (
     <>
       <div className="container mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold font-headline mb-8">Gestione Utenti</h1>
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-3xl font-bold font-headline">Gestione Utenti</h1>
+          <Dialog open={isCreateUserOpen} onOpenChange={setIsCreateUserOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Crea Utente
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Crea Nuovo Utente</DialogTitle>
+                <DialogDescription>
+                  Inserisci i dettagli per creare un nuovo account e assegnare un ruolo.
+                </DialogDescription>
+              </DialogHeader>
+              <Form {...newUserForm}>
+                <form onSubmit={newUserForm.handleSubmit(handleCreateUser)} className="space-y-4 pt-4">
+                  <FormField
+                    control={newUserForm.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Email</FormLabel>
+                        <FormControl>
+                          <Input type="email" placeholder="nuovoutente@email.com" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={newUserForm.control}
+                    name="password"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Password</FormLabel>
+                        <FormControl>
+                          <Input type="password" placeholder="••••••••" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={newUserForm.control}
+                    name="role"
+                    render={({ field }) => (
+                      <FormItem className="space-y-3">
+                        <FormLabel>Ruolo</FormLabel>
+                        <FormControl>
+                          <RadioGroup
+                            onValueChange={field.onChange}
+                            defaultValue={field.value}
+                            className="flex items-center space-x-4"
+                          >
+                            <FormItem className="flex items-center space-x-2 space-y-0">
+                              <FormControl><RadioGroupItem value="Seller" /></FormControl>
+                              <FormLabel className="font-normal">Venditore</FormLabel>
+                            </FormItem>
+                            <FormItem className="flex items-center space-x-2 space-y-0">
+                              <FormControl><RadioGroupItem value="Admin" /></FormControl>
+                              <FormLabel className="font-normal">Admin</FormLabel>
+                            </FormItem>
+                          </RadioGroup>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  {selectedRole === 'Seller' && (
+                     <FormField
+                        control={newUserForm.control}
+                        name="sellerType"
+                        render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Tipo di Venditore</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Seleziona tipo" />
+                                </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                                {sellerTypes.map(type => (
+                                    <SelectItem key={type} value={type}>{type}</SelectItem>
+                                ))}
+                            </SelectContent>
+                            </Select>
+                            <FormMessage />
+                        </FormItem>
+                        )}
+                    />
+                  )}
+
+                  <DialogFooter className="pt-4">
+                    <Button type="button" variant="outline" onClick={() => setIsCreateUserOpen(false)}>Annulla</Button>
+                    <Button type="submit" disabled={isProcessing === 'new-user'}>
+                      {isProcessing === 'new-user' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Crea Utente'}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
+        </div>
         
         <div className="rounded-lg border">
           <Table>
