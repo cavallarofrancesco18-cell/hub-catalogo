@@ -1,4 +1,4 @@
-import type { Role, SellerRole } from "./types";
+import type { Role } from "./types";
 
 export type BrandingProfile = {
   logoUrl: string;

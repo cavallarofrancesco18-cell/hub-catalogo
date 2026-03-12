@@ -34,7 +34,7 @@ import { getDirectImageUrl } from '@/lib/utils';
 import Link from 'next/link';
 import { Printer, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import type { Vehicle, SellerRole as SellerRoleData } from '@/lib/types';
+import type { Vehicle, User as UserData } from '@/lib/types';
 import {
   Dialog,
   DialogContent,
@@ -96,7 +96,7 @@ export default function SellerEditVehiclePage() {
   const { role, roleData } = useUserRole();
 
   const branding = useMemo(() => {
-    return getBranding(role, (roleData as SellerRoleData)?.sellerType);
+    return getBranding(role, (roleData as UserData)?.sellerType);
   }, [role, roleData]);
 
   const priceSheetForm = useForm<PriceSheetFormValues>({

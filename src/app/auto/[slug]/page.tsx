@@ -5,7 +5,7 @@ import { notFound, useParams } from 'next/navigation';
 import { VehicleDetailsClient } from './components/vehicle-details-client';
 import { Badge } from '@/components/ui/badge';
 import { useMemo, useRef, useState, useEffect } from 'react';
-import type { Vehicle, Contract, SellerRole as SellerRoleData } from '@/lib/types';
+import type { Vehicle, Contract, User as UserData } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useCollection } from '@/firebase/firestore/use-collection';
 import { collection, query, where, limit, doc, serverTimestamp, getDoc } from 'firebase/firestore';
@@ -150,7 +150,7 @@ export default function VehiclePage() {
   const { role, roleData, isLoading: isLoadingRole } = useUserRole();
 
   const branding = useMemo(() => {
-    return getBranding(role, (roleData as SellerRoleData)?.sellerType);
+    return getBranding(role, (roleData as UserData)?.sellerType);
   }, [role, roleData]);
 
   const vehicleQuery = useMemoFirebase(() => {
@@ -229,7 +229,7 @@ export default function VehiclePage() {
   }, [numberOfInstallments, installmentAmount, paymentMethod, proformaForm]);
 
   useEffect(() => {
-    const sellerInfo = roleData as SellerRoleData;
+    const sellerInfo = roleData as UserData;
     if (
       role === 'seller' &&
       sellerInfo?.sellerType === 'MGV_SELLER' &&

@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useRouter } from 'next/navigation';
-import { createUserWithEmailAndPassword, signOut } from 'firebase/auth';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { useAuth, useFirestore } from '@/firebase';
 import Link from 'next/link';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
@@ -48,7 +48,6 @@ export default function RegisterPage() {
   const firestore = useFirestore();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [registrationSuccess, setRegistrationSuccess] = useState(false);
 
   const form = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
@@ -74,17 +73,18 @@ export default function RegisterPage() {
       const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
       const user = userCredential.user;
 
-      // Create a document in the 'users' collection for admin management
+      // Create a document in the 'users' collection with a default seller role
       const userDocRef = doc(firestore, 'users', user.uid);
       await setDoc(userDocRef, {
           email: user.email,
           createdAt: serverTimestamp(),
+          role: 'seller',
+          sellerType: 'OSPITE_SELLER',
       });
       
-      // Sign out the user immediately after creation. They need to be approved.
-      await signOut(auth);
+      toast({ title: 'Registrazione completata!', description: 'Verrai reindirizzato al catalogo.' });
+      router.push('/auto');
 
-      setRegistrationSuccess(true);
     } catch (error: any) {
       let description = 'Si è verificato un errore imprevisto.';
       if (error.code) {
@@ -108,28 +108,6 @@ export default function RegisterPage() {
     } finally {
       setIsSubmitting(false);
     }
-  }
-  
-  if (registrationSuccess) {
-    return (
-      <div className="container flex h-[calc(100vh-4rem)] items-center justify-center">
-        <Card className="w-full max-w-lg">
-          <CardHeader className="items-center text-center">
-            <CardTitle>Registrazione completata!</CardTitle>
-            <CardDescription>Quasi finito...</CardDescription>
-          </CardHeader>
-          <CardContent className="text-center">
-            <p>La tua registrazione è stata completata con successo.</p>
-            <p className="mt-4 font-semibold">Un amministratore dovrà approvare il tuo account prima che tu possa accedere.</p>
-          </CardContent>
-          <CardFooter>
-            <Button asChild className="w-full">
-              <Link href="/login">Torna alla pagina di Login</Link>
-            </Button>
-          </CardFooter>
-        </Card>
-      </div>
-    );
   }
 
   return (

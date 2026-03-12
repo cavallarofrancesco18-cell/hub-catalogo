@@ -67,9 +67,10 @@ export type Contract = {
   updatedAt: any;
 };
 
-export type SellerRole = {
-  assignedAt?: any;
+export type User = {
+  id: string;
+  email: string;
+  createdAt: any;
+  role?: 'seller';
   sellerType?: 'OSPITE_SELLER' | 'HUB_SELLER' | 'RESTART_SELLER' | 'EXPRESS_SELLER' | 'MGV_SELLER';
 };
-
-    

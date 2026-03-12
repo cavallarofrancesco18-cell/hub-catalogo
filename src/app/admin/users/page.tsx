@@ -5,8 +5,8 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useCollection } from '@/firebase/firestore/use-collection';
-import { collection, doc, serverTimestamp } from 'firebase/firestore';
-import type { SellerRole as SellerRoleData } from '@/lib/types';
+import { collection, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import type { User as UserProfile } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import {
   Table,
@@ -63,15 +63,6 @@ import { initializeApp, deleteApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import { firebaseConfig } from '@/firebase/config';
 
-type UserProfile = {
-  id: string;
-  email: string;
-  createdAt: { seconds: number; nanoseconds: number; };
-};
-
-type RoleDoc = { id: string; };
-type SellerDoc = RoleDoc & SellerRoleData;
-
 const sellerTypes = ['OSPITE_SELLER', 'HUB_SELLER', 'RESTART_SELLER', 'EXPRESS_SELLER', 'MGV_SELLER'];
 
 const newUserSchema = z.object({
@@ -100,10 +91,7 @@ export default function UsersPage() {
   const { data: users, isLoading: isLoadingUsers } = useCollection<UserProfile>(usersRef);
 
   const adminsRef = useMemoFirebase(() => collection(firestore, 'Admin'), [firestore]);
-  const { data: admins, isLoading: isLoadingAdmins } = useCollection<RoleDoc>(adminsRef);
-
-  const sellersRef = useMemoFirebase(() => collection(firestore, 'sellertype'), [firestore]);
-  const { data: sellers, isLoading: isLoadingSellers } = useCollection<SellerDoc>(sellersRef);
+  const { data: admins, isLoading: isLoadingAdmins } = useCollection<{id: string}>(adminsRef);
 
   const newUserForm = useForm<NewUserFormValues>({
     resolver: zodResolver(newUserSchema),
@@ -117,25 +105,18 @@ export default function UsersPage() {
   const selectedRole = newUserForm.watch('role');
 
   const processedUsers = useMemo(() => {
-    if (!users || !admins || !sellers) return [];
+    if (!users || !admins) return [];
     
     const adminIds = new Set(admins.map(a => a.id));
-    const sellerMap = new Map(sellers.map(s => [s.id, s.sellerType]));
 
     return users.map(user => {
-      let role: 'Admin' | 'Seller' | 'Pending' = 'Pending';
-      let sellerType: string | undefined = undefined;
-
-      if (adminIds.has(user.id)) {
-        role = 'Admin';
-      } else if (sellerMap.has(user.id)) {
-        role = 'Seller';
-        sellerType = sellerMap.get(user.id);
-      }
-      
-      return { ...user, role, sellerType };
+      const isAdmin = adminIds.has(user.id);
+      return { 
+        ...user, 
+        role: isAdmin ? 'admin' : user.role, // Prioritize admin role from Admin collection
+      };
     }).sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0));
-  }, [users, admins, sellers]);
+  }, [users, admins]);
 
   async function handleCreateUser(values: NewUserFormValues) {
     if (!firestore) return;
@@ -151,25 +132,24 @@ export default function UsersPage() {
       const newUser = userCredential.user;
 
       const userDocRef = doc(firestore, 'users', newUser.uid);
-      const roleDocRef = doc(firestore, values.role === 'Admin' ? 'Admin' : 'sellertype', newUser.uid);
-
-      const userDocPromise = setDocumentNonBlocking(userDocRef, {
+      const userDocData: any = {
         email: newUser.email,
         createdAt: serverTimestamp(),
-      }, {});
+      };
+      
+      const rolePromises: Promise<any>[] = [];
 
-      let roleDocPromise;
       if (values.role === 'Admin') {
-        const otherSellerRoleRef = doc(firestore, 'sellertype', newUser.uid);
-        await deleteDocumentNonBlocking(otherSellerRoleRef); // Ensure no seller role exists
-        roleDocPromise = setDocumentNonBlocking(roleDocRef, { assignedAt: serverTimestamp() }, {});
+        const adminDocRef = doc(firestore, 'Admin', newUser.uid);
+        rolePromises.push(setDocumentNonBlocking(adminDocRef, { assignedAt: serverTimestamp() }, {}));
       } else { // Role is Seller
-        const otherAdminRoleRef = doc(firestore, 'Admin', newUser.uid);
-        await deleteDocumentNonBlocking(otherAdminRoleRef); // Ensure no admin role exists
-        roleDocPromise = setDocumentNonBlocking(roleDocRef, { sellerType: values.sellerType, assignedAt: serverTimestamp() }, {});
+        userDocData.role = 'seller';
+        userDocData.sellerType = values.sellerType;
       }
+      
+      rolePromises.push(setDocumentNonBlocking(userDocRef, userDocData, { merge: true }));
 
-      await Promise.all([userDocPromise, roleDocPromise]);
+      await Promise.all(rolePromises);
 
       toast({ title: 'Utente creato!', description: `L'utente ${values.email} è stato creato con successo.` });
       setIsCreateUserOpen(false);
@@ -210,30 +190,22 @@ export default function UsersPage() {
     setIsProcessing(userId);
 
     const adminRef = doc(firestore, 'Admin', userId);
-    const sellerRef = doc(firestore, 'sellertype', userId);
+    const userRef = doc(firestore, 'users', userId);
 
-    let roleChangePromise: Promise<any>;
+    const promises = [];
 
     if (newRole.role === 'Admin') {
-      roleChangePromise = Promise.all([
-        deleteDocumentNonBlocking(sellerRef),
-        setDocumentNonBlocking(adminRef, { assignedAt: serverTimestamp() }, {})
-      ]);
+        promises.push(setDocumentNonBlocking(adminRef, { assignedAt: serverTimestamp() }, {}));
+        promises.push(updateDoc(userRef, { role: null, sellerType: null }));
     } else if (newRole.role === 'Seller') {
-      roleChangePromise = Promise.all([
-        deleteDocumentNonBlocking(adminRef),
-        setDocumentNonBlocking(sellerRef, { sellerType: newRole.sellerType, assignedAt: serverTimestamp() }, {})
-      ]);
+        promises.push(deleteDocumentNonBlocking(adminRef));
+        promises.push(updateDoc(userRef, { role: 'seller', sellerType: newRole.sellerType }));
     } else if (newRole.role === 'Remove') {
-      roleChangePromise = Promise.all([
-        deleteDocumentNonBlocking(adminRef),
-        deleteDocumentNonBlocking(sellerRef)
-      ]);
-    } else {
-        roleChangePromise = Promise.resolve();
+        promises.push(deleteDocumentNonBlocking(adminRef));
+        promises.push(updateDoc(userRef, { role: null, sellerType: null }));
     }
 
-    roleChangePromise.then(() => {
+    Promise.all(promises).then(() => {
         let description = '';
         if (newRole.role === 'Admin') {
             description = `${user.email} è ora un Amministratore.`;
@@ -244,8 +216,6 @@ export default function UsersPage() {
         }
         toast({ title: 'Successo', description });
     }).catch((e) => {
-        // The error is already emitted by non-blocking functions.
-        // The developer will see a detailed error overlay from the FirebaseErrorListener.
         toast({ variant: 'destructive', title: 'Errore', description: 'Impossibile modificare il ruolo. Controlla la console per i dettagli.' });
     }).finally(() => {
         setIsProcessing(null);
@@ -257,19 +227,16 @@ export default function UsersPage() {
     if (!userToDelete || !firestore) return;
 
     const { id: userId, email } = userToDelete;
-
     setIsProcessing(userId);
 
     const userDocRef = doc(firestore, 'users', userId);
     const adminRef = doc(firestore, 'Admin', userId);
-    const sellerRef = doc(firestore, 'sellertype', userId);
 
     Promise.all([
         deleteDocumentNonBlocking(userDocRef),
         deleteDocumentNonBlocking(adminRef),
-        deleteDocumentNonBlocking(sellerRef)
     ]).then(() => {
-        toast({ title: 'Successo', description: `L'utente ${email} è stato eliminato con successo.` });
+        toast({ title: 'Successo', description: `L'utente ${email} è stato eliminato con successo. (La rimozione dell'autenticazione deve essere fatta manualmente dalla Console Firebase).` });
     }).catch((e) => {
         toast({ variant: 'destructive', title: 'Errore', description: "Impossibile eliminare l'utente. Controlla la console per i dettagli." });
     }).finally(() => {
@@ -278,7 +245,7 @@ export default function UsersPage() {
     });
   };
   
-  const isLoading = isLoadingUsers || isLoadingAdmins || isLoadingSellers;
+  const isLoading = isLoadingUsers || isLoadingAdmins;
 
   return (
     <>
@@ -420,9 +387,9 @@ export default function UsersPage() {
                     {user.createdAt ? format(new Date(user.createdAt.seconds * 1000), 'dd/MM/yyyy HH:mm') : '-'}
                   </TableCell>
                   <TableCell>
-                    {user.role === 'Admin' && <Badge variant="default"><Shield className="mr-2 h-3 w-3" />Admin</Badge>}
-                    {user.role === 'Seller' && <Badge variant="secondary"><UserIcon className="mr-2 h-3 w-3" />Venditore ({user.sellerType})</Badge>}
-                    {user.role === 'Pending' && <Badge variant="outline">In attesa</Badge>}
+                    {user.role === 'admin' && <Badge variant="default"><Shield className="mr-2 h-3 w-3" />Admin</Badge>}
+                    {user.role === 'seller' && <Badge variant="secondary"><UserIcon className="mr-2 h-3 w-3" />Venditore ({user.sellerType})</Badge>}
+                    {user.role !== 'admin' && user.role !== 'seller' && <Badge variant="outline">In attesa</Badge>}
                   </TableCell>
                   <TableCell className="text-right">
                     {isProcessing === user.id ? (
@@ -448,13 +415,13 @@ export default function UsersPage() {
                             </SelectContent>
                         </Select>
                         
-                        {(user.role !== 'Pending') && (
+                        {(user.role) && (
                             <Button 
                                 variant="ghost" 
                                 size="icon" 
                                 title="Rimuovi Ruolo"
                                 onClick={() => setActionState({ type: 'confirm', user, newRole: { role: 'Remove' } })}
-                                disabled={currentUser?.uid === user.id}
+                                disabled={currentUser?.uid === user.id && user.role === 'admin'}
                             >
                                 <X className="h-4 w-4 text-destructive" />
                             </Button>
@@ -486,7 +453,7 @@ export default function UsersPage() {
                   <AlertDialogDescription>
                       {actionState.user && actionState.newRole && (
                           actionState.newRole.role === 'Remove' ?
-                          `Stai per rimuovere tutti i ruoli per l'utente ${actionState.user.email}. L'utente non potrà più accedere. Continuare?` :
+                          `Stai per rimuovere tutti i ruoli per l'utente ${actionState.user.email}. L'utente non potrà più accedere alle sezioni protette. Continuare?` :
                           `Stai per assegnare il ruolo di ${actionState.newRole.role} ${actionState.newRole.sellerType ? `(${actionState.newRole.sellerType})` : ''} a ${actionState.user.email}. Eventuali ruoli esistenti verranno sovrascritti. Continuare?`
                       )}
                   </AlertDialogDescription>
@@ -503,7 +470,7 @@ export default function UsersPage() {
             <AlertDialogHeader>
                 <AlertDialogTitle>Sei sicuro di voler eliminare questo utente?</AlertDialogTitle>
                 <AlertDialogDescription>
-                    Questa azione non può essere annullata. Questo eliminerà permanentemente l'utente <span className="font-medium">{userToDelete?.email}</span> e tutti i suoi ruoli di accesso dal sistema.
+                    Questa azione eliminerà il profilo utente dal database. Per completare la rimozione, dovrai eliminare l'utente anche dalla sezione Autenticazione della Console Firebase.
                 </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

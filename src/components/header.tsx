@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { getBranding } from '@/lib/branding';
 import { useUser, useAuth, useUserRole } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
-import type { SellerRole as SellerRoleData } from '@/lib/types';
+import type { User as UserData } from '@/lib/types';
 import { Skeleton } from './ui/skeleton';
 
 export function Header() {
@@ -22,7 +22,7 @@ export function Header() {
   const { toast } = useToast();
 
   const branding = useMemo(() => {
-    return getBranding(role, (roleData as SellerRoleData)?.sellerType);
+    return getBranding(role, (roleData as UserData)?.sellerType);
   }, [role, roleData]);
 
   const { logoUrl, companyName } = branding;

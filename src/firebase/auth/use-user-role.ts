@@ -3,13 +3,13 @@
 import { useState, useEffect } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
 import { useUser, useFirestore } from '@/firebase';
-import type { SellerRole as SellerRoleData } from '@/lib/types';
+import type { User as UserData } from '@/lib/types';
 
 export type Role = 'admin' | 'seller' | null;
 
 export interface UserRoleState {
   role: Role;
-  roleData: SellerRoleData | { assignedAt: any } | null;
+  roleData: UserData | { assignedAt: any } | null;
   isLoading: boolean;
 }
 
@@ -25,7 +25,7 @@ export function useUserRole(): UserRoleState {
   useEffect(() => {
     // If auth is still loading or Firestore isn't ready, just wait.
     if (isUserLoading || !firestore) {
-      setRoleState({ role: null, roleData: null, isLoading: isUserLoading || !firestore });
+      setRoleState({ role: null, roleData: null, isLoading: true });
       return;
     }
     
@@ -47,11 +47,11 @@ export function useUserRole(): UserRoleState {
           return; // Role found, no need to check further.
         }
 
-        // If not admin, check for seller role.
-        const sellerRef = doc(firestore, 'sellertype', user.uid);
-        const sellerDoc = await getDoc(sellerRef);
-        if (sellerDoc.exists()) {
-          setRoleState({ role: 'seller', roleData: sellerDoc.data() as SellerRoleData, isLoading: false });
+        // If not admin, check for seller role from the user document.
+        const userRef = doc(firestore, 'users', user.uid);
+        const userDoc = await getDoc(userRef);
+        if (userDoc.exists() && userDoc.data().role === 'seller') {
+          setRoleState({ role: 'seller', roleData: {id: userDoc.id, ...userDoc.data()} as UserData, isLoading: false });
           return; // Role found.
         }
 
