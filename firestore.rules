@@ -73,26 +73,25 @@ service cloud.firestore {
 
     /**
      * @description
-     *   Admin roles collection. Reading is allowed for any signed-in user to enable
-     *   cross-service security rules (e.g., from Storage).
+     *   Admin roles collection. Reading is allowed for admins and for a user reading their own role.
      *   Writes are restricted to other admins.
      * @path
      *   /Admin/{userId}
      */
     match /Admin/{userId} {
-      allow get: if isSignedIn();
+      allow get: if isAdmin() || (isSignedIn() && request.auth.uid == userId);
       allow list, create, update, delete: if isAdmin();
     }
 
     /**
      * @description
-     *   Seller roles collection. Reading is allowed for any signed-in user.
+     *   Seller roles collection. Reading is allowed for admins and for a user reading their own role.
      *   Writes are restricted to admins.
      * @path
      *   /sellertype/{userId}
      */
     match /sellertype/{userId} {
-      allow get: if isSignedIn();
+      allow get: if isAdmin() || (isSignedIn() && request.auth.uid == userId);
       allow list, create, update, delete: if isAdmin();
     }
 
