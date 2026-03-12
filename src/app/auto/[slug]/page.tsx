@@ -228,6 +228,19 @@ export default function VehiclePage() {
     }
   }, [numberOfInstallments, installmentAmount, paymentMethod, proformaForm]);
 
+  useEffect(() => {
+    const sellerInfo = roleData as SellerRoleData;
+    if (
+      role === 'seller' &&
+      sellerInfo?.sellerType === 'MGV_SELLER' &&
+      customerType === 'commerciante'
+    ) {
+      proformaForm.setValue('name', 'AUTO MGV S.R.L.');
+      proformaForm.setValue('address', 'VIA F. BARACCA 1, 10040 - LA LOGGIA (TO)');
+      proformaForm.setValue('cf', '12416720014');
+    }
+  }, [customerType, role, roleData, proformaForm]);
+
   const handleGeneratePdf = async (ref: React.RefObject<HTMLDivElement>, fileName: string) => {
     if (!ref.current) return;
 
@@ -1003,5 +1016,3 @@ export default function VehiclePage() {
     </>
   );
 }
-
-    

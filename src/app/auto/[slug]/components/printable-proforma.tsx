@@ -71,7 +71,7 @@ export function PrintableProforma({ vehicle, customer, price, costoVultura, cust
       </header>
 
       <div className="text-center mb-8" style={{ breakInside: 'avoid' }}>
-        <h1 className="text-xl font-bold uppercase">Contratto di Compravendita di Autoveicolo Usato</h1>
+        <h1 className="text-xl font-bold">CONTRATTO DI COMPRAVENDITA DI AUTOVEICOLO USATO</h1>
         <p className="text-base">redatto in duplice copia originale</p>
       </div>
 

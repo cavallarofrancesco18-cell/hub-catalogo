@@ -5,7 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useCollection } from '@/firebase/firestore/use-collection';
 import { collection, doc, serverTimestamp, getDoc } from 'firebase/firestore';
-import type { Vehicle, Contract } from '@/lib/types';
+import type { Vehicle, Contract, SellerRole as SellerRoleData } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import {
   Table,
@@ -180,7 +180,7 @@ export default function AdminPage() {
   );
   const { toast } = useToast();
   const { user: currentUser } = useUser();
-  const { role } = useUserRole(); // Get role for price edit check
+  const { role, roleData } = useUserRole();
   const vehiclesRef = useMemoFirebase(
     () => collection(firestore, 'vehicles'),
     [firestore]
@@ -240,6 +240,19 @@ export default function AdminPage() {
       }
     }
   }, [numberOfInstallments, installmentAmount, paymentMethod, proformaForm]);
+
+  useEffect(() => {
+    const sellerInfo = roleData as SellerRoleData;
+    if (
+      role === 'seller' &&
+      sellerInfo?.sellerType === 'MGV_SELLER' &&
+      customerType === 'commerciante'
+    ) {
+      proformaForm.setValue('name', 'AUTO MGV S.R.L.');
+      proformaForm.setValue('address', 'VIA F. BARACCA 1, 10040 - LA LOGGIA (TO)');
+      proformaForm.setValue('cf', '12416720014');
+    }
+  }, [customerType, role, roleData, proformaForm]);
 
 
   const handleStatusChange = (
@@ -1206,5 +1219,3 @@ export default function AdminPage() {
     </>
   );
 }
-
-    
