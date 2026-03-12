@@ -8,12 +8,14 @@ import { FirebaseClientProvider } from '@/firebase';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
 
+const hubLogoUrl = 'https://firebasestorage.googleapis.com/v0/b/studio-3074982188-44660.firebasestorage.app/o/HUB%20-%20logo%20tutti%20formati_Tavola%20disegno%201%20copia%204%20(4).png?alt=media&token=a2c0e07e-e514-4d75-bc9c-a27e5b4e69d3';
+
 export const metadata: Metadata = {
   title: 'Hub Catalogo',
   description: 'Esplora il nostro catalogo.',
   icons: {
-    icon: 'https://firebasestorage.googleapis.com/v0/b/studio-3074982188-44660.firebasestorage.app/o/LOGHI%2Flogo%20hub_catalogo.png?alt=media&token=de48c8a8-7841-4f92-82f7-af057c4b42bb',
-    apple: 'https://firebasestorage.googleapis.com/v0/b/studio-3074982188-44660.firebasestorage.app/o/LOGHI%2Flogo%20hub_catalogo.png?alt=media&token=de48c8a8-7841-4f92-82f7-af057c4b42bb',
+    icon: hubLogoUrl,
+    apple: hubLogoUrl,
   }
 };
 
