@@ -115,15 +115,14 @@ service cloud.firestore {
      *   /users/{userId}
      */
     match /users/{userId} {
-      // A user can create their own profile, and an admin can create any user profile.
-      allow create: if request.auth.uid == userId || isAdmin();
+      // An admin can perform any write operation (create, update, delete).
+      allow write: if isAdmin();
+      // A user can create their own profile document (e.g., during registration).
+      allow create: if request.auth.uid == userId;
       
       // Admins can see all user profiles, users can only see their own.
       allow get: if isAdmin() || request.auth.uid == userId;
       allow list: if isAdmin();
-      
-      // Only admins can update or delete user profile documents.
-      allow update, delete: if isAdmin();
     }
 
     /**
