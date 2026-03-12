@@ -65,7 +65,7 @@ service cloud.firestore {
       
       // Sellers can also change the status from 'In vendita' to 'Prenotato'.
       allow update: if isSeller()
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stato', 'updatedAt'])
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stato', 'updatedAt', 'statusChangedBy'])
                     && resource.data.stato == 'In vendita'
                     && request.resource.data.stato == 'Prenotato'
                     && request.resource.data.updatedAt == request.time;
