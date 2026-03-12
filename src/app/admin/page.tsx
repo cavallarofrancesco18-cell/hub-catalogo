@@ -28,7 +28,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatCurrency, getDirectImageUrl, cn } from '@/lib/utils';
 import { Pencil, Trash2, Loader2 } from 'lucide-react';
-import { useFirestore, useFirebaseApp, useMemoFirebase } from '@/firebase';
+import { useFirestore, useFirebaseApp, useMemoFirebase, useUser } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import {
   deleteDocumentNonBlocking,
@@ -52,6 +52,7 @@ export default function AdminPage() {
     [app]
   );
   const { toast } = useToast();
+  const { user: currentUser } = useUser();
   const vehiclesRef = useMemoFirebase(
     () => collection(firestore, 'vehicles'),
     [firestore]
@@ -66,12 +67,13 @@ export default function AdminPage() {
     vehicleId: string,
     newStatus: 'In vendita' | 'Venduto' | 'Prenotato'
   ) => {
-    if (!firestore) return;
+    if (!firestore || !currentUser) return;
     setIsUpdatingStatus(vehicleId);
     const vehicleRef = doc(firestore, 'vehicles', vehicleId);
     const dataToUpdate = {
       stato: newStatus,
       updatedAt: serverTimestamp(),
+      statusChangedBy: currentUser.uid,
     };
 
     updateDocumentNonBlocking(vehicleRef, dataToUpdate)

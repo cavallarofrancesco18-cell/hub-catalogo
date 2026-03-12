@@ -81,6 +81,10 @@
           "description": "The current sales status of the vehicle (e.g., 'Pubblicato', 'Opzionato', 'Venduto').",
           "enum": ["In vendita", "Venduto", "Prenotato"]
         },
+        "statusChangedBy": {
+          "type": "string",
+          "description": "The UID of the user who last changed the vehicle's status (sold or reserved)."
+        },
         "consultantName": {
           "type": "string",
           "description": "The full name of the sales consultant assigned to this vehicle."

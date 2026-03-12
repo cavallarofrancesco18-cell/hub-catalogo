@@ -27,6 +27,7 @@ export type Vehicle = {
   anno?: number; // For legacy data
   createdAt?: any;
   updatedAt?: any;
+  statusChangedBy?: string;
 };
 
 export type Form = {

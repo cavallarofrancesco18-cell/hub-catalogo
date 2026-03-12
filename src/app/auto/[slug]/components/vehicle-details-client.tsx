@@ -19,9 +19,10 @@ interface VehicleDetailsClientProps {
   editPath: string | null;
   isBooking: boolean;
   isProformaButtonDisabled?: boolean;
+  currentUserUid?: string;
 }
 
-export function VehicleDetailsClient({ vehicle, onPrintClick, onProformaClick, disabled, editPath, isBooking, isProformaButtonDisabled }: VehicleDetailsClientProps) {
+export function VehicleDetailsClient({ vehicle, onPrintClick, onProformaClick, disabled, editPath, isBooking, isProformaButtonDisabled, currentUserUid }: VehicleDetailsClientProps) {
   const validImageUrls = useMemo(
     () => (vehicle.immagini || []).map(getDirectImageUrl).filter(Boolean),
     [vehicle.immagini]
@@ -42,6 +43,16 @@ export function VehicleDetailsClient({ vehicle, onPrintClick, onProformaClick, d
 
   // Find the index of the currently displayed main image
   const currentMainImageIndex = hasImages ? validImageUrls.findIndex(url => url === mainImage) : 0;
+
+  const canCreateContract = useMemo(() => {
+    if (vehicle.stato === 'In vendita') {
+      return true;
+    }
+    if ((vehicle.stato === 'Venduto' || vehicle.stato === 'Prenotato') && vehicle.statusChangedBy === currentUserUid) {
+      return true;
+    }
+    return false;
+  }, [vehicle, currentUserUid]);
 
   return (
     <>
@@ -131,7 +142,7 @@ export function VehicleDetailsClient({ vehicle, onPrintClick, onProformaClick, d
                     <Printer className="mr-2 h-5 w-5" />
                     Anteprima Scheda
                 </Button>
-                 <Button onClick={onProformaClick} className="w-full" size="lg" variant="default" disabled={isProformaButtonDisabled || disabled || isBooking || vehicle.stato !== 'In vendita'}>
+                 <Button onClick={onProformaClick} className="w-full" size="lg" variant="default" disabled={isProformaButtonDisabled || disabled || isBooking || !canCreateContract}>
                     {isBooking ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <FileSignature className="mr-2 h-5 w-5" />}
                     {isBooking ? 'Prenotazione...' : 'Crea Contratto'}
                 </Button>

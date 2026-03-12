@@ -14,6 +14,7 @@ import {
   useMemoFirebase,
   useUserRole,
   updateDocumentNonBlocking,
+  useUser,
 } from '@/firebase';
 import { format } from 'date-fns';
 import { PrintableVehicleSheet } from './components/printable-vehicle-sheet';
@@ -77,6 +78,7 @@ export default function VehiclePage() {
   const { toast } = useToast();
 
   const firestore = useFirestore();
+  const { user } = useUser();
   const { role, roleData, isLoading: isLoadingRole } = useUserRole();
 
   const branding = useMemo(() => {
@@ -108,7 +110,6 @@ export default function VehiclePage() {
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [isPriceSheetEditorOpen, setIsPriceSheetEditorOpen] = useState(false);
   const [finalSheetPrice, setFinalSheetPrice] = useState<number | null>(null);
-  const [hasSheetBeenPreviewed, setHasSheetBeenPreviewed] = useState(false);
 
   // State for proforma contract
   const proformaSheetRef = useRef<HTMLDivElement>(null);
@@ -208,7 +209,6 @@ export default function VehiclePage() {
   const handleConfirmPrint = async () => {
     if (vehicle) {
         await handleGeneratePdf(printableSheetRef, `scheda-veicolo-${vehicle.slug}.pdf`);
-        setHasSheetBeenPreviewed(true);
     }
     hidePreview();
   };
@@ -219,65 +219,73 @@ export default function VehiclePage() {
   }
 
   const showProformaForm = () => {
-    if (!vehicle || !firestore) return;
-
-    if (vehicle.stato !== 'In vendita') {
+    if (!vehicle || !firestore || !user) return;
+  
+    const openTheForm = () => {
+      proformaForm.reset({
+        name: '',
+        address: '',
+        cf: '',
+        docNumber: '',
+        birthDate: '',
+        birthPlace: '',
+        phone: '',
+        email: '',
+        customerType: 'privato',
+        paymentMethod: 'bonifico',
+        warranty:
+          'Il veicolo viene venduto con garanzia legale di conformità per 12 mesi come da D.Lgs. 206/2005 (Codice del Consumo).',
+        insurance:
+          'L\'acquirente si impegna a stipulare una polizza assicurativa RC auto prima del ritiro del veicolo.',
+        wearAndTear:
+          'L\'acquirente dichiara di aver preso visione dello stato d\'uso del veicolo e di accettarlo nelle condizioni in cui si trova, tenuto conto della normale usura pregressa in base all\'anno di immatricolazione e al chilometraggio.',
+        withdrawal:
+          'Per i contratti conclusi a distanza, l\'acquirente consumatore ha diritto di recedere dal contratto, senza alcuna penalità e senza specificarne il motivo, entro il termine di 14 giorni dalla presa in consegna del veicolo.',
+        price: finalSheetPrice ?? ((vehicle.prezzo ?? 0) + (vehicle.garanzia_legale_prezzo ?? 0)),
+      });
+      setIsProformaFormOpen(true);
+    };
+  
+    // If it's for sale, book it and open form
+    if (vehicle.stato === 'In vendita') {
+      setIsBooking(true);
+      const vehicleRef = doc(firestore, 'vehicles', vehicle.id);
+  
+      updateDocumentNonBlocking(vehicleRef, {
+        stato: 'Prenotato',
+        updatedAt: serverTimestamp(),
+        statusChangedBy: user.uid,
+      })
+        .then(() => {
+          toast({
+            title: 'Veicolo Prenotato!',
+            description: 'Il veicolo è stato prenotato con successo. Compila i dati per il contratto.',
+          });
+          openTheForm();
+        })
+        .catch(error => {
+          toast({
+            variant: 'destructive',
+            title: 'Prenotazione Fallita',
+            description: 'Impossibile prenotare il veicolo. Controlla la console per i dettagli.',
+          });
+        })
+        .finally(() => {
+          setIsBooking(false);
+        });
+    }
+    // If it's already booked or sold BY THE CURRENT USER, just open the form.
+    else if ((vehicle.stato === 'Prenotato' || vehicle.stato === 'Venduto') && vehicle.statusChangedBy === user.uid) {
+      openTheForm();
+    }
+    // Otherwise, it's not available.
+    else {
       toast({
         variant: 'destructive',
-        title: 'Veicolo non disponibile',
-        description: `Questo veicolo è già "${vehicle.stato}" e non può essere prenotato.`,
+        title: 'Azione non consentita',
+        description: `Lo stato attuale del veicolo (${vehicle.stato}) non permette di creare un nuovo contratto.`,
       });
-      return;
     }
-
-    setIsBooking(true);
-    const vehicleRef = doc(firestore, 'vehicles', vehicle.id);
-
-    updateDocumentNonBlocking(vehicleRef, {
-      stato: 'Prenotato',
-      updatedAt: serverTimestamp(),
-    })
-      .then(() => {
-        toast({
-          title: 'Veicolo Prenotato!',
-          description:
-            'Il veicolo è stato prenotato con successo. Compila i dati per il contratto.',
-        });
-
-        proformaForm.reset({
-          name: '',
-          address: '',
-          cf: '',
-          docNumber: '',
-          birthDate: '',
-          birthPlace: '',
-          phone: '',
-          email: '',
-          customerType: 'privato',
-          paymentMethod: 'bonifico',
-          warranty:
-            'Il veicolo viene venduto con garanzia legale di conformità per 12 mesi come da D.Lgs. 206/2005 (Codice del Consumo).',
-          insurance:
-            'L\'acquirente si impegna a stipulare una polizza assicurativa RC auto prima del ritiro del veicolo.',
-          wearAndTear:
-            'L\'acquirente dichiara di aver preso visione dello stato d\'uso del veicolo e di accettarlo nelle condizioni in cui si trova, tenuto conto della normale usura pregressa in base all\'anno di immatricolazione e al chilometraggio.',
-          withdrawal:
-            'Per i contratti conclusi a distanza, l\'acquirente consumatore ha diritto di recedere dal contratto, senza alcuna penalità e senza specificarne il motivo, entro il termine di 14 giorni dalla presa in consegna del veicolo.',
-          price: finalSheetPrice ?? ((vehicle.prezzo ?? 0) + (vehicle.garanzia_legale_prezzo ?? 0)),
-        });
-        setIsProformaFormOpen(true);
-      })
-      .catch(error => {
-        toast({
-          variant: 'destructive',
-          title: 'Prenotazione Fallita',
-          description:
-            'Impossibile prenotare il veicolo. Controlla la console per i dettagli.',
-        });
-      })
-      .finally(() => {
-        setIsBooking(false);
-      });
   };
   
   const hideProformaPreview = () => setProformaCustomerData(null);
@@ -340,6 +348,7 @@ export default function VehiclePage() {
           editPath={editPath}
           isBooking={isBooking}
           isProformaButtonDisabled={false}
+          currentUserUid={user?.uid}
         />
 
         <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-8">
