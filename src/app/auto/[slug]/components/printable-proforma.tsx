@@ -29,9 +29,13 @@ interface PrintableProformaProps {
   withdrawal: string;
   date: string;
   branding: BrandingProfile;
+  financingCompany?: string;
+  numberOfInstallments?: number;
+  installmentAmount?: number;
+  totalFinancedAmount?: number;
 }
 
-export function PrintableProforma({ vehicle, customer, price, costoVultura, customerType, paymentMethod, warranty, insurance, wearAndTear, withdrawal, date, branding }: PrintableProformaProps) {
+export function PrintableProforma({ vehicle, customer, price, costoVultura, customerType, paymentMethod, warranty, insurance, wearAndTear, withdrawal, date, branding, financingCompany, numberOfInstallments, installmentAmount, totalFinancedAmount }: PrintableProformaProps) {
   
   const { logoUrl, companyName, companyAddress, companyContact } = branding;
   const totalPrice = price + costoVultura;
@@ -130,6 +134,32 @@ export function PrintableProforma({ vehicle, customer, price, costoVultura, cust
             </tbody>
         </table>
         <p className="mt-2">Modalità di pagamento: <span className="font-bold capitalize">{paymentMethod}</span>.</p>
+        
+        {paymentMethod === 'finanziamento' && financingCompany && (
+            <div className="mt-4 border-t pt-4">
+                <h3 className="font-semibold text-base mb-2">Dettagli del Finanziamento</h3>
+                <table className="w-full text-left text-sm">
+                    <tbody>
+                        <tr className="border-b border-gray-200">
+                            <td className="py-2 pr-4 font-medium text-gray-600 w-1/3">Finanziaria</td>
+                            <td className="py-2 font-semibold">{financingCompany}</td>
+                        </tr>
+                        {numberOfInstallments && installmentAmount && (
+                             <tr className="border-b border-gray-200">
+                                <td className="py-2 pr-4 font-medium text-gray-600">Rate</td>
+                                <td className="py-2 font-semibold">{numberOfInstallments} da {formatCurrency(installmentAmount)}</td>
+                            </tr>
+                        )}
+                        {totalFinancedAmount && (
+                             <tr className="border-b border-gray-200">
+                                <td className="py-2 pr-4 font-medium text-gray-600">Importo Totale Finanziato</td>
+                                <td className="py-2 font-semibold">{formatCurrency(totalFinancedAmount)}</td>
+                            </tr>
+                        )}
+                    </tbody>
+                </table>
+            </div>
+        )}
       </section>
 
       <section className="mb-6">

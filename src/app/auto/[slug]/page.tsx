@@ -64,6 +64,10 @@ const proformaSchema = z.object({
   insurance: z.string().optional(),
   wearAndTear: z.string().optional(),
   withdrawal: z.string().optional(),
+  financingCompany: z.string().optional(),
+  numberOfInstallments: z.coerce.number().positive('Il numero di rate deve essere positivo.').optional().or(z.literal('')),
+  installmentAmount: z.coerce.number().positive("L'importo della rata deve essere positivo.").optional().or(z.literal('')),
+  totalFinancedAmount: z.coerce.number().positive("L'importo totale deve essere positivo.").optional().or(z.literal('')),
 }).superRefine((data, ctx) => {
   if (data.customerType === 'privato') {
     if (!data.docNumber || data.docNumber.length === 0) {
@@ -99,6 +103,29 @@ const proformaSchema = z.object({
         code: z.ZodIssueCode.custom,
         message: 'Email obbligatoria.',
         path: ['email'],
+      });
+    }
+  }
+  if (data.paymentMethod === 'finanziamento') {
+    if (!data.financingCompany || data.financingCompany.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Il nome della finanziaria è obbligatorio.',
+        path: ['financingCompany'],
+      });
+    }
+    if (!data.numberOfInstallments) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Il numero di rate è obbligatorio.',
+        path: ['numberOfInstallments'],
+      });
+    }
+    if (!data.installmentAmount) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "L'importo della rata è obbligatorio.",
+        path: ['installmentAmount'],
       });
     }
   }
@@ -173,6 +200,10 @@ export default function VehiclePage() {
       insurance: 'L\'acquirente si impegna a stipulare una polizza assicurativa RC auto prima del ritiro del veicolo.',
       wearAndTear: 'L\'acquirente dichiara di aver preso visione dello stato d\'uso del veicolo e di accettarlo nelle condizioni in cui si trova, tenuto conto della normale usura pregressa in base all\'anno di immatricolazione e al chilometraggio.',
       withdrawal: 'Per i contratti conclusi a distanza, l\'acquirente consumatore ha diritto di recedere dal contratto, senza alcuna penalità e senza specificarne il motivo, entro il termine di 14 giorni dalla presa in consegna del veicolo.',
+      financingCompany: '',
+      numberOfInstallments: '',
+      installmentAmount: '',
+      totalFinancedAmount: '',
     },
   });
 
@@ -181,6 +212,18 @@ export default function VehiclePage() {
   });
 
   const customerType = proformaForm.watch('customerType');
+  const paymentMethod = proformaForm.watch('paymentMethod');
+  const numberOfInstallments = proformaForm.watch('numberOfInstallments');
+  const installmentAmount = proformaForm.watch('installmentAmount');
+
+  useEffect(() => {
+    if (paymentMethod === 'finanziamento' && numberOfInstallments && installmentAmount) {
+      const total = Number(numberOfInstallments) * Number(installmentAmount);
+      if (!isNaN(total)) {
+        proformaForm.setValue('totalFinancedAmount', total, { shouldValidate: true });
+      }
+    }
+  }, [numberOfInstallments, installmentAmount, paymentMethod, proformaForm]);
 
   const handleGeneratePdf = async (ref: React.RefObject<HTMLDivElement>, fileName: string) => {
     if (!ref.current) return;
@@ -283,7 +326,11 @@ export default function VehiclePage() {
           'L\'acquirente dichiara di aver preso visione dello stato d\'uso del veicolo e di accettarlo nelle condizioni in cui si trova, tenuto conto della normale usura pregressa in base all\'anno di immatricolazione e al chilometraggio.',
         withdrawal:
           'Per i contratti conclusi a distanza, l\'acquirente consumatore ha diritto di recedere dal contratto, senza alcuna penalità e senza specificarne il motivo, entro il termine di 14 giorni dalla presa in consegna del veicolo.',
-        price: finalSheetPrice ?? ((vehicle.prezzo ?? 0) + (vehicle.garanzia_legale_prezzo ?? 0)),
+        price: (vehicle.prezzo ?? 0) + (vehicle.garanzia_legale_prezzo ?? 0),
+        financingCompany: '',
+        numberOfInstallments: '',
+        installmentAmount: '',
+        totalFinancedAmount: '',
       });
       setIsProformaFormOpen(true);
     };
@@ -602,6 +649,67 @@ export default function VehiclePage() {
                 />
               </div>
 
+              {paymentMethod === 'finanziamento' && (
+                <div className="space-y-4 rounded-md border p-4">
+                  <h4 className="font-medium">Dettagli Finanziamento</h4>
+                  <FormField
+                    control={proformaForm.control}
+                    name="financingCompany"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Finanziaria *</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Es. Santander" {...field} value={field.value ?? ''} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <FormField
+                      control={proformaForm.control}
+                      name="numberOfInstallments"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Numero Rate *</FormLabel>
+                          <FormControl>
+                            <Input type="number" placeholder="Es. 48" {...field} value={field.value ?? ''} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={proformaForm.control}
+                      name="installmentAmount"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Importo Rata (€) *</FormLabel>
+                          <FormControl>
+                            <Input type="number" placeholder="Es. 250" {...field} value={field.value ?? ''} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <FormField
+                    control={proformaForm.control}
+                    name="totalFinancedAmount"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Importo Totale Finanziato (€)</FormLabel>
+                        <FormControl>
+                          <Input type="number" {...field} value={field.value ?? ''} />
+                        </FormControl>
+                        <FormDescription>Calcolato automaticamente, ma puoi modificarlo.</FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              )}
+
                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                  <FormField
                     control={proformaForm.control}
@@ -822,6 +930,10 @@ export default function VehiclePage() {
                   costoVultura={Number(proformaCustomerData.costoVultura) || 0}
                   customerType={proformaCustomerData.customerType}
                   paymentMethod={proformaCustomerData.paymentMethod}
+                  financingCompany={proformaCustomerData.financingCompany}
+                  numberOfInstallments={Number(proformaCustomerData.numberOfInstallments) || undefined}
+                  installmentAmount={Number(proformaCustomerData.installmentAmount) || undefined}
+                  totalFinancedAmount={Number(proformaCustomerData.totalFinancedAmount) || undefined}
                   warranty={proformaCustomerData.warranty || ''}
                   insurance={proformaCustomerData.insurance || ''}
                   wearAndTear={proformaCustomerData.wearAndTear || ''}
