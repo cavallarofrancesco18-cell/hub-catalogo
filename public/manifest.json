@@ -1,0 +1,21 @@
+{
+  "name": "Hub Catalogo",
+  "short_name": "Hub Catalogo",
+  "description": "Esplora il nostro catalogo.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F9FAFC",
+  "theme_color": "#588AEC",
+  "icons": [
+    {
+      "src": "https://firebasestorage.googleapis.com/v0/b/studio-3074982188-44660.firebasestorage.app/o/LOGHI%2Flogo%20hub_catalogo.png?alt=media&token=de48c8a8-7841-4f92-82f7-af057c4b42bb",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://firebasestorage.googleapis.com/v0/b/studio-3074982188-44660.firebasestorage.app/o/LOGHI%2Flogo%20hub_catalogo.png?alt=media&token=de48c8a8-7841-4f92-82f7-af057c4b42bb",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
