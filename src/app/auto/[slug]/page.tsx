@@ -39,7 +39,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { PrintableProforma } from './components/printable-proforma';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { getBranding } from '@/lib/branding';
+import { getBranding, brandingProfiles } from '@/lib/branding';
 import { useToast } from '@/hooks/use-toast';
 
 const proformaSchema = z.object({
@@ -197,7 +197,6 @@ export default function VehiclePage() {
     setFinalSheetPrice(values.price);
     setIsPriceSheetEditorOpen(false);
     setIsPreviewing(true);
-    setHasSheetBeenPreviewed(true);
   }
 
   const hidePreview = () => {
@@ -209,6 +208,7 @@ export default function VehiclePage() {
   const handleConfirmPrint = async () => {
     if (vehicle) {
         await handleGeneratePdf(printableSheetRef, `scheda-veicolo-${vehicle.slug}.pdf`);
+        setHasSheetBeenPreviewed(true);
     }
     hidePreview();
   };
@@ -747,7 +747,7 @@ export default function VehiclePage() {
                   wearAndTear={proformaCustomerData.wearAndTear || ''}
                   withdrawal={proformaCustomerData.withdrawal || ''}
                   date={format(new Date(), 'dd/MM/yyyy')}
-                  branding={getBranding()}
+                  branding={brandingProfiles.default}
                 />
               )}
             </div>
