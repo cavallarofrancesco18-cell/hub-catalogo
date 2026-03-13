@@ -172,6 +172,10 @@
       "type": "object",
       "description": "Represents a registered user profile in the system, including their role and permissions.",
       "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the user, matching their Firebase Auth UID."
+        },
         "email": {
           "type": "string",
           "format": "email",
@@ -184,13 +188,15 @@
         },
         "role": {
           "type": ["string", "null"],
-          "description": "The user's role in the system. Can be 'admin'.",
+          "description": "The user's role in the system. Can be 'admin' or 'seller'.",
           "enum": [
-            "admin"
+            "admin",
+            "seller"
           ]
         }
       },
       "required": [
+        "id",
         "email",
         "createdAt"
       ]
@@ -219,8 +225,7 @@
   },
   "auth": {
     "providers": [
-      "password",
-      "anonymous"
+      "password"
     ]
   },
   "firestore": {

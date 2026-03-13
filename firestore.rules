@@ -9,9 +9,12 @@ service cloud.firestore {
       return request.auth != null;
     }
     
-    // Grants admin rights to the specified user UID.
     function isAdmin() {
-      return isSignedIn() && request.auth.uid == '4E6MSEuIXZeeo3j2taWIA7LbYcw2';
+      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    function isSeller() {
+        return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'seller';
     }
 
     match /vehicles/{vehicleId} {
@@ -41,7 +44,7 @@ service cloud.firestore {
     match /contracts/{contractId} {
       allow read, write: if isAdmin();
       
-      allow create: if isAdmin() && request.resource.data.creatorId == request.auth.uid;
+      allow create: if (isAdmin() || isSeller()) && request.resource.data.creatorId == request.auth.uid;
       
       allow get, update: if isSignedIn() && resource.data.creatorId == request.auth.uid;
       

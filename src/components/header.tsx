@@ -1,6 +1,6 @@
 'use client';
 
-import { FileText, Home, ClipboardList, LogOut, LogIn } from 'lucide-react';
+import { FileText, Home, ClipboardList, LogOut, LogIn, UserPlus, Users } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
@@ -50,12 +50,20 @@ export function Header() {
           </Button>
 
           {role === 'admin' && (
-            <Button asChild variant="ghost">
-                <Link href="/admin">
-                    <ClipboardList className="mr-2 h-4 w-4" />
-                    Gestione Veicoli
-                </Link>
-            </Button>
+            <>
+              <Button asChild variant="ghost">
+                  <Link href="/admin">
+                      <ClipboardList className="mr-2 h-4 w-4" />
+                      Gestione Veicoli
+                  </Link>
+              </Button>
+               <Button asChild variant="ghost">
+                  <Link href="/admin/users">
+                      <Users className="mr-2 h-4 w-4" />
+                      Gestione Utenti
+                  </Link>
+              </Button>
+            </>
           )}
 
           <Button asChild variant="ghost">
@@ -72,12 +80,20 @@ export function Header() {
                 Logout
               </Button>
             ) : (
-               <Button asChild variant="ghost">
-                  <Link href="/admin/login">
-                    <LogIn className="mr-2 h-4 w-4" />
-                    Login
-                  </Link>
-              </Button>
+              <>
+                <Button asChild variant="ghost">
+                    <Link href="/register">
+                        <UserPlus className="mr-2 h-4 w-4" />
+                        Registrati
+                    </Link>
+                </Button>
+                 <Button asChild variant="ghost">
+                    <Link href="/admin/login">
+                        <LogIn className="mr-2 h-4 w-4" />
+                        Login
+                    </Link>
+                </Button>
+              </>
             )
           )}
         </nav>
