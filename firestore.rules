@@ -64,20 +64,17 @@ service cloud.firestore {
                     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['descrizione', 'updatedAt'])
                     && request.resource.data.updatedAt == request.time;
 
-      // Any authenticated user can book a car that's for sale.
+      // Rule for updating vehicle status (booking or managing by the responsible seller)
       allow update: if isSignedIn()
-                    && resource.data.stato == 'In vendita' 
-                    && request.resource.data.stato == 'Prenotato'
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stato', 'statusChangedBy', 'updatedAt'])
+                    && request.resource.data.diff(resource.data).affectedKeys().isSubsetOf(['stato', 'statusChangedBy', 'updatedAt'])
                     && request.resource.data.statusChangedBy == request.auth.uid
-                    && request.resource.data.updatedAt == request.time;
-                    
-      // A Seller who booked/sold a car can manage its status further.
-      allow update: if isSeller()
-                    && resource.data.statusChangedBy == request.auth.uid
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stato', 'statusChangedBy', 'updatedAt'])
-                    && request.resource.data.statusChangedBy == request.auth.uid
-                    && request.resource.data.updatedAt == request.time;
+                    && request.resource.data.updatedAt == request.time
+                    && (
+                      // Scenario 1: Any signed-in user can book a vehicle that is for sale.
+                      (resource.data.stato == 'In vendita' && request.resource.data.stato == 'Prenotato') ||
+                      // Scenario 2: The seller who booked/sold the car can manage its status further.
+                      (isSeller() && resource.data.statusChangedBy == request.auth.uid)
+                    );
     }
 
     /**
