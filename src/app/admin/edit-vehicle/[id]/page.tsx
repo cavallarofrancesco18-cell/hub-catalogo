@@ -96,6 +96,7 @@ export default function EditVehiclePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [imagesToDelete, setImagesToDelete] = useState<string[]>([]);
   const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
   const vehicleId = params.id as string;
   
@@ -218,6 +219,11 @@ export default function EditVehiclePage() {
   
   const removeExistingImage = (urlToRemove: string) => {
     setExistingImages(prev => prev.filter(url => url !== urlToRemove));
+    setImagesToDelete(prev => [...prev, urlToRemove]);
+    toast({
+      description: "L'immagine verrà eliminata dopo aver salvato le modifiche.",
+      duration: 4000,
+    });
   };
 
   const setAsCoverImage = (urlToSet: string) => {
@@ -555,6 +561,30 @@ export default function EditVehiclePage() {
             title: 'Veicolo aggiornato!',
             description: `${data.marca} ${data.modello} è stato aggiornato.`,
         });
+
+        // Delete images that were removed from the gallery
+        const deletePromises = imagesToDelete.map(url => {
+          if (url.includes('firebasestorage.googleapis.com')) {
+            try {
+              const imageRef = ref(storage, url);
+              return deleteObject(imageRef).catch(err => {
+                // Log error but don't block the main flow
+                console.error(`Impossibile eliminare l'immagine dallo storage: ${url}`, err);
+              });
+            } catch (e) {
+              console.error(`URL immagine non valido per l'eliminazione: ${url}`, e);
+              return Promise.resolve(); // Continue even if a URL is bad
+            }
+          }
+          return Promise.resolve(); // Not a storage URL, so just resolve
+        });
+
+        Promise.all(deletePromises).then(() => {
+          if (imagesToDelete.length > 0) {
+            console.log(`${imagesToDelete.length} immagini eliminate dallo storage.`);
+          }
+        });
+        
         router.push('/admin');
     })
     .catch((error) => {
