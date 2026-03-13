@@ -54,14 +54,23 @@ service cloud.firestore {
     }
 
     match /contracts/{contractId} {
+      // Admins can do anything.
       allow read, write: if isAdmin();
       
-      allow create: if (isAdmin() || isSeller()) && request.resource.data.creatorId == request.auth.uid;
+      // Sellers can create a contract if they set themselves as creator.
+      allow create: if isSeller() && request.resource.data.creatorId == request.auth.uid;
       
-      allow get, update: if isSignedIn() && resource.data.creatorId == request.auth.uid;
+      // A seller can get a contract if they are the one who booked the corresponding vehicle.
+      // This also allows checking for existence (get on non-existent doc).
+      allow get: if isSeller() 
+                 && exists(/databases/$(database)/documents/vehicles/$(contractId))
+                 && get(/databases/$(database)/documents/vehicles/$(contractId)).data.statusChangedBy == request.auth.uid;
+
+      // A seller can update a contract if they are the creator of that contract.
+      allow update: if isSeller() && resource.data.creatorId == request.auth.uid;
       
-      allow list: if isAdmin();
-      allow delete: if isAdmin();
+      // Sellers cannot list all contracts or delete them.
+      allow list, delete: if isAdmin();
     }
   }
 }
