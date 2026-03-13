@@ -199,6 +199,7 @@ export default function AdminPage() {
   const [isGeneratingProforma, setIsGeneratingProforma] = useState(false);
   const [isBooking, setIsBooking] = useState<string | null>(null);
   const [existingContract, setExistingContract] = useState<Contract | null>(null);
+  const [showContractSuccess, setShowContractSuccess] = useState(false);
 
 
   const proformaForm = useForm<ProformaFormValues>({
@@ -414,21 +415,17 @@ export default function AdminPage() {
       ...(existingContract ? {} : { createdAt: serverTimestamp() }),
     };
 
-    setDocumentNonBlocking(contractRef, dataToSave, { merge: true })
-      .then(() => {
-        toast({
-          title: `Contratto ${existingContract ? 'aggiornato' : 'creato'}!`,
-          description: "L'anteprima è pronta per la stampa.",
-        });
-      });
+    setDocumentNonBlocking(contractRef, dataToSave, { merge: true });
 
     setProformaCustomerData(values);
+    setShowContractSuccess(true);
     setIsProformaFormOpen(false);
   }
 
   const hideProformaPreview = () => {
     setProformaCustomerData(null);
     setVehicleForContract(null);
+    setShowContractSuccess(false);
   };
 
   const handleConfirmProformaPrint = async () => {
@@ -1164,6 +1161,11 @@ export default function AdminPage() {
         <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Anteprima Contratto di Vendita</DialogTitle>
+            {showContractSuccess && (
+                <DialogDescription className="text-primary font-medium pt-2">
+                    Contratto {existingContract ? 'aggiornato' : 'creato'} con successo. L'anteprima è pronta per la stampa.
+                </DialogDescription>
+            )}
           </DialogHeader>
           <div className="flex-1 overflow-auto bg-gray-300 p-8">
             <div

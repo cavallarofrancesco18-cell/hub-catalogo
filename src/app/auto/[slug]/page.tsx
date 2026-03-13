@@ -186,6 +186,7 @@ export default function VehiclePage() {
   const [isGeneratingProforma, setIsGeneratingProforma] = useState(false);
   const [isBooking, setIsBooking] = useState(false);
   const [existingContract, setExistingContract] = useState<Contract | null>(null);
+  const [showContractSuccess, setShowContractSuccess] = useState(false);
 
 
   const proformaForm = useForm<ProformaFormValues>({
@@ -327,15 +328,10 @@ export default function VehiclePage() {
       ...(existingContract ? {} : { createdAt: serverTimestamp() }),
     };
   
-    setDocumentNonBlocking(contractRef, dataToSave, { merge: true })
-      .then(() => {
-        toast({
-          title: `Contratto ${existingContract ? 'aggiornato' : 'creato'}!`,
-          description: "L'anteprima è pronta per la stampa.",
-        });
-      });
+    setDocumentNonBlocking(contractRef, dataToSave, { merge: true });
   
     setProformaCustomerData(values);
+    setShowContractSuccess(true);
     setIsProformaFormOpen(false);
   }
 
@@ -429,7 +425,10 @@ export default function VehiclePage() {
     }
   };
   
-  const hideProformaPreview = () => setProformaCustomerData(null);
+  const hideProformaPreview = () => {
+    setProformaCustomerData(null);
+    setShowContractSuccess(false);
+  };
   
   const handleConfirmProformaPrint = async () => {
     if(vehicle) {
@@ -971,6 +970,11 @@ export default function VehiclePage() {
         <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Anteprima Contratto di Vendita</DialogTitle>
+            {showContractSuccess && (
+                <DialogDescription className="text-primary font-medium pt-2">
+                    Contratto {existingContract ? 'aggiornato' : 'creato'} con successo. L'anteprima è pronta per la stampa.
+                </DialogDescription>
+            )}
           </DialogHeader>
           <div className="flex-1 overflow-auto bg-gray-300 p-8">
             <div ref={proformaSheetRef} className="w-[800px] mx-auto my-8 shadow-2xl">
