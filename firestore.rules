@@ -9,21 +9,10 @@ service cloud.firestore {
       return request.auth != null;
     }
     
-    // DEVELOPMENT ONLY: Grants admin rights to any authenticated user (including anonymous).
-    // This is for development purposes while the login flow is being rebuilt.
-    // For PRODUCTION, comment this out and use the rule below.
+    // Grants admin rights to the specified user UID.
     function isAdmin() {
-      return isSignedIn();
+      return isSignedIn() && request.auth.uid == '4E6MSEuIXZeeo3j2taWIA7LbYcw2';
     }
-
-    /*
-    // PRODUCTION RULE:
-    function isAdmin() {
-      return isSignedIn() 
-             && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-             && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-    }
-    */
 
     match /vehicles/{vehicleId} {
       allow get: if true;

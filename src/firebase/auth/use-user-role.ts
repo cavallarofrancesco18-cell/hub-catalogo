@@ -1,6 +1,8 @@
 'use client';
 
+import { useUser } from '@/firebase/provider';
 import type { User as UserData, Role } from '@/lib/types';
+import { useMemo } from 'react';
 
 export type { Role };
 
@@ -10,25 +12,40 @@ export interface UserRoleState {
   isLoading: boolean;
 }
 
+const ADMIN_UID = '4E6MSEuIXZeeo3j2taWIA7LbYcw2';
+
 /**
- * MOCKED: This hook is currently mocked to always return an 'admin' role.
- * This is a temporary measure to allow development on protected routes
- * without a functional authentication flow.
- *
- * TODO: Re-implement this hook to use real authentication data when
- * the login/registration flow is rebuilt.
+ * Hook to get the current user's role.
+ * This implementation is specific to the admin user identified by a hardcoded UID.
  */
 export function useUserRole(): UserRoleState {
-  const mockAdminData: UserData = {
-    id: 'mock-admin-id',
-    email: 'admin@example.com',
-    role: 'admin',
-    createdAt: new Date(),
-  };
+  const { user, isUserLoading: isAuthLoading } = useUser();
 
-  return {
-    role: 'admin',
-    roleData: mockAdminData,
-    isLoading: false,
-  };
+  const roleState = useMemo((): UserRoleState => {
+    if (isAuthLoading) {
+      return { role: null, roleData: null, isLoading: true };
+    }
+
+    if (user && user.uid === ADMIN_UID) {
+      const adminData: UserData = {
+        id: user.uid,
+        email: user.email || 'admin@example.com',
+        role: 'admin',
+        createdAt: user.metadata.creationTime ? new Date(user.metadata.creationTime) : new Date(),
+      };
+      return { role: 'admin', roleData: adminData, isLoading: false };
+    }
+
+    // For any other user, they have no specific role.
+    const otherUserData: UserData | null = user ? {
+        id: user.uid,
+        email: user.email!,
+        role: null,
+        createdAt: user.metadata.creationTime ? new Date(user.metadata.creationTime) : new Date(),
+    } : null;
+
+    return { role: null, roleData: otherUserData, isLoading: false };
+  }, [isAuthLoading, user]);
+
+  return roleState;
 }

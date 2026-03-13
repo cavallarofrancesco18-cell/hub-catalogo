@@ -1,19 +1,26 @@
 'use client';
 
-import { FileText, Home, ClipboardList } from 'lucide-react';
+import { FileText, Home, ClipboardList, LogOut, LogIn } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
+import { getAuth, signOut } from 'firebase/auth';
 
 import { Button } from '@/components/ui/button';
 import { getBranding } from '@/lib/branding';
+import { useUser, useUserRole } from '@/firebase';
 
-/**
- * NOTE: This header is simplified for development.
- * The login/logout logic has been temporarily removed.
- */
 export function Header() {
-  // Mocking admin role for branding and navigation purposes
-  const { logoUrl, companyName } = getBranding('admin');
+  const { user, isUserLoading } = useUser();
+  const { role } = useUserRole();
+  const router = useRouter();
+  const { logoUrl, companyName } = getBranding(role);
+  
+  const handleLogout = async () => {
+    const auth = getAuth();
+    await signOut(auth);
+    router.push('/admin/login');
+  };
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background shadow-sm print:hidden">
@@ -42,19 +49,37 @@ export function Header() {
             </Link>
           </Button>
 
-          {/* Always show admin & seller links in this simplified version */}
-          <Button asChild variant="ghost">
-              <Link href="/admin">
-                  <ClipboardList className="mr-2 h-4 w-4" />
-                  Gestione Veicoli
-              </Link>
-          </Button>
+          {role === 'admin' && (
+            <Button asChild variant="ghost">
+                <Link href="/admin">
+                    <ClipboardList className="mr-2 h-4 w-4" />
+                    Gestione Veicoli
+                </Link>
+            </Button>
+          )}
+
           <Button asChild variant="ghost">
             <Link href="/modulistica">
               <FileText className="mr-2 h-4 w-4" />
               Modulistica
             </Link>
           </Button>
+          
+          {!isUserLoading && (
+            user ? (
+              <Button variant="ghost" onClick={handleLogout}>
+                <LogOut className="mr-2 h-4 w-4" />
+                Logout
+              </Button>
+            ) : (
+               <Button asChild variant="ghost">
+                  <Link href="/admin/login">
+                    <LogIn className="mr-2 h-4 w-4" />
+                    Login
+                  </Link>
+              </Button>
+            )
+          )}
         </nav>
       </div>
     </header>

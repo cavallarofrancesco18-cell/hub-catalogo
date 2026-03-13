@@ -3,7 +3,7 @@
 import React, { DependencyList, createContext, useContext, ReactNode, useMemo, useState, useEffect } from 'react';
 import { FirebaseApp } from 'firebase/app';
 import { Firestore } from 'firebase/firestore';
-import { Auth, User, onAuthStateChanged, signInAnonymously } from 'firebase/auth';
+import { Auth, User, onAuthStateChanged } from 'firebase/auth';
 import { FirebaseErrorListener } from '@/components/FirebaseErrorListener'
 
 interface FirebaseProviderProps {
@@ -71,17 +71,8 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
     const unsubscribe = onAuthStateChanged(
       auth,
       (user) => {
-        if (user) {
-          // If a user is found, update the state.
-          setUserAuthState({ user, isUserLoading: false, userError: null });
-        } else {
-          // For development: If no user is logged in, sign in anonymously.
-          // This provides a session for security rules, while UI can be built.
-          signInAnonymously(auth).catch((error) => {
-            // If anonymous sign-in fails, record the error.
-            setUserAuthState({ user: null, isUserLoading: false, userError: error });
-          });
-        }
+        // If a user is found (or not), update the state.
+        setUserAuthState({ user, isUserLoading: false, userError: null });
       },
       (error) => {
         // Handle critical errors in the auth state listener itself.
