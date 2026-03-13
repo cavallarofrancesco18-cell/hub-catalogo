@@ -123,6 +123,7 @@ export default function UsersPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead>ID</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Data Registrazione</TableHead>
                 <TableHead>Tipo Venditore</TableHead>
@@ -133,6 +134,9 @@ export default function UsersPage() {
               {isLoading &&
                 Array.from({ length: 3 }).map((_, i) => (
                   <TableRow key={i}>
+                    <TableCell>
+                      <Skeleton className="h-4 w-32" />
+                    </TableCell>
                     <TableCell>
                       <Skeleton className="h-4 w-48" />
                     </TableCell>
@@ -149,7 +153,7 @@ export default function UsersPage() {
                 ))}
               {!isLoading && error && (
                   <TableRow>
-                    <TableCell colSpan={4} className="h-24 text-center text-destructive">
+                    <TableCell colSpan={5} className="h-24 text-center text-destructive">
                       Si è verificato un errore nel caricamento dei venditori.
                     </TableCell>
                   </TableRow>
@@ -157,6 +161,7 @@ export default function UsersPage() {
               {!isLoading && !error && sellers && sellers.length > 0 ? (
                 sellers.map(seller => (
                   <TableRow key={seller.id}>
+                    <TableCell className="font-mono text-xs">{seller.id}</TableCell>
                     <TableCell className="font-medium">{seller.email || '(Email non specificata)'}</TableCell>
                     <TableCell>
                       {seller.createdAt?.toDate
@@ -198,7 +203,7 @@ export default function UsersPage() {
               ) : (
                 !isLoading && !error && (
                   <TableRow>
-                    <TableCell colSpan={4} className="h-24 text-center">
+                    <TableCell colSpan={5} className="h-24 text-center">
                       Nessun venditore trovato.
                     </TableCell>
                   </TableRow>
