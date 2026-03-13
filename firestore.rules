@@ -1,3 +1,4 @@
+
 /**
  * LuxDrive Catalog - Firestore Security Rules
  *
@@ -33,9 +34,10 @@ service cloud.firestore {
 
     /**
      * Checks if the user is a seller by reading their user document.
+     * Uses .get() with a default value for safety against missing fields.
      */
     function isSeller() {
-        return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'seller';
+        return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', null) == 'seller';
     }
 
     /**
