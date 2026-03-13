@@ -77,7 +77,7 @@ export default function AdminLoginPage() {
       }
       
       // If not admin, check if they are a seller
-      const sellerDocRef = doc(firestore, 'sellers', user.uid);
+      const sellerDocRef = doc(firestore, 'seller', user.uid);
       const sellerDocSnap = await getDoc(sellerDocRef);
 
       if (sellerDocSnap.exists()) {

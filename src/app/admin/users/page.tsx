@@ -46,7 +46,7 @@ export default function UsersPage() {
   const { toast } = useToast();
 
   const sellersRef = useMemoFirebase(
-    () => collection(firestore, 'sellers'),
+    () => collection(firestore, 'seller'),
     [firestore]
   );
   const { data: sellers, isLoading, error } = useCollection<UserData>(sellersRef);
@@ -68,7 +68,7 @@ export default function UsersPage() {
   const handleDeleteConfirm = async () => {
     if (!sellerToDelete) return;
     setIsDeleting(true);
-    const sellerDocRef = doc(firestore, 'sellers', sellerToDelete.id);
+    const sellerDocRef = doc(firestore, 'seller', sellerToDelete.id);
     deleteDocumentNonBlocking(sellerDocRef)
       .then(() => {
         toast({
@@ -93,7 +93,7 @@ export default function UsersPage() {
     if (!firestore) return;
     setIsUpdating(sellerId);
     
-    const sellerDocRef = doc(firestore, 'sellers', sellerId);
+    const sellerDocRef = doc(firestore, 'seller', sellerId);
     const typeToSave = newType === 'standard' ? null : newType;
 
     updateDocumentNonBlocking(sellerDocRef, { sellerType: typeToSave })
