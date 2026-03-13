@@ -87,7 +87,7 @@ export default function UsersPage() {
   const [isProcessing, setIsProcessing] = useState<string | null>(null);
   const [isCreateUserOpen, setIsCreateUserOpen] = useState(false);
 
-  const usersRef = useMemoFirebase(() => collection(firestore, 'users'), [firestore]);
+  const usersRef = useMemoFirebase(() => { if (!firestore || !currentUser) return null; return collection(firestore, 'users'); }, [firestore, currentUser]);
   const { data: users, isLoading } = useCollection<UserProfile>(usersRef);
 
   const newUserForm = useForm<NewUserFormValues>({
