@@ -113,6 +113,7 @@ export default function UsersPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Email</TableHead>
+                <TableHead>User ID</TableHead>
                 <TableHead>Data Registrazione</TableHead>
                 <TableHead>Tipo Venditore</TableHead>
                 <TableHead className="w-[100px] text-right">Azioni</TableHead>
@@ -124,6 +125,9 @@ export default function UsersPage() {
                   <TableRow key={i}>
                     <TableCell>
                       <Skeleton className="h-4 w-48" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-64" />
                     </TableCell>
                     <TableCell>
                       <Skeleton className="h-4 w-32" />
@@ -140,6 +144,7 @@ export default function UsersPage() {
                 sellers.map(seller => (
                   <TableRow key={seller.id}>
                     <TableCell className="font-medium">{seller.email}</TableCell>
+                    <TableCell className="font-mono text-xs text-muted-foreground">{seller.id}</TableCell>
                     <TableCell>
                       {seller.createdAt?.toDate
                         ? format(seller.createdAt.toDate(), 'dd/MM/yyyy')
@@ -180,7 +185,7 @@ export default function UsersPage() {
               ) : (
                 !isLoading && (
                   <TableRow>
-                    <TableCell colSpan={4} className="h-24 text-center">
+                    <TableCell colSpan={5} className="h-24 text-center">
                       Nessun venditore trovato.
                     </TableCell>
                   </TableRow>
