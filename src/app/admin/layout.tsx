@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { useUserRole } from '@/firebase';
 import { Loader2 } from 'lucide-react';
 
@@ -12,6 +12,12 @@ export default function AdminLayout({
 }) {
   const { role, isLoading } = useUserRole();
   const router = useRouter();
+  const pathname = usePathname();
+
+  // If we are on the login or register page, don't apply the auth guard.
+  if (pathname === '/admin/login' || pathname === '/register') {
+    return <>{children}</>;
+  }
 
   useEffect(() => {
     if (!isLoading && role !== 'admin') {
