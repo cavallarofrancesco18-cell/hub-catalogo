@@ -165,7 +165,7 @@ export function PrintableProforma({ vehicle, customer, price, costoVultura, cust
       <section className="mb-6" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
         <h2 className="font-bold text-base mb-2 pb-1 border-b">Art. 3 - Garanzia</h2>
         {customerType === 'privato' ? (
-          <p className="whitespace-pre-wrap" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>{warranty || 'Nessuna garanzia specificata.'}</p>
+          <p style={{ whiteSpace: 'pre-wrap', breakInside: 'avoid', pageBreakInside: 'avoid' }}>{warranty || 'Nessuna garanzia specificata.'}</p>
         ) : (
           <p style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>La vettura viene acquistata vista e piaciuta.</p>
         )}
@@ -173,18 +173,18 @@ export function PrintableProforma({ vehicle, customer, price, costoVultura, cust
 
       <section className="mb-6" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
         <h2 className="font-bold text-base mb-2 pb-1 border-b">Art. 4 - Stato d'Uso del Mezzo</h2>
-        <p className="whitespace-pre-wrap" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>{wearAndTear || 'Nessuna dichiarazione sullo stato d\'uso.'}</p>
+        <p style={{ whiteSpace: 'pre-wrap', breakInside: 'avoid', pageBreakInside: 'avoid' }}>{wearAndTear || 'Nessuna dichiarazione sullo stato d\'uso.'}</p>
       </section>
 
       <section className="mb-6" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
         <h2 className="font-bold text-base mb-2 pb-1 border-b">Art. 5 - Assicurazione</h2>
-        <p className="whitespace-pre-wrap" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>{insurance || 'Nessuna indicazione sull\'assicurazione.'}</p>
+        <p style={{ whiteSpace: 'pre-wrap', breakInside: 'avoid', pageBreakInside: 'avoid' }}>{insurance || 'Nessuna indicazione sull\'assicurazione.'}</p>
       </section>
       
       {customerType === 'privato' && (
         <section className="mb-6" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
           <h2 className="font-bold text-base mb-2 pb-1 border-b">Art. 6 - Diritto di Recesso</h2>
-          <p className="whitespace-pre-wrap" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>{withdrawal || 'Nessuna indicazione sul diritto di recesso.'}</p>
+          <p style={{ whiteSpace: 'pre-wrap', breakInside: 'avoid', pageBreakInside: 'avoid' }}>{withdrawal || 'Nessuna indicazione sul diritto di recesso.'}</p>
         </section>
       )}
       
