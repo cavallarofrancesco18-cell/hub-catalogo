@@ -170,7 +170,7 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "User",
       "type": "object",
-      "description": "Represents a registered user profile in the system, including their role and permissions.",
+      "description": "Represents a registered user profile in the system.",
       "properties": {
         "id": {
           "type": "string",
@@ -185,14 +185,6 @@
           "type": "string",
           "format": "date-time",
           "description": "Timestamp indicating when the user account was created."
-        },
-        "role": {
-          "type": ["string", "null"],
-          "description": "The user's role in the system. Can be 'admin' or 'seller'.",
-          "enum": [
-            "admin",
-            "seller"
-          ]
         }
       },
       "required": [
@@ -269,11 +261,27 @@
           "schema": {
             "$ref": "#/backend/entities/User"
           },
-          "description": "Collection storing all user profile information, including their role ('admin' or 'seller'). This single collection serves as the source of truth for user permissions.",
+          "description": "Collection storing administrator user profiles. Existence of a document in this collection grants admin privileges.",
           "params": [
             {
               "name": "userId",
               "description": "The unique identifier of the user, matching their Firebase Auth UID."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/sellers/{sellerId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Collection storing seller user profiles. New users are registered here by default. Existence of a document grants seller privileges.",
+          "params": [
+            {
+              "name": "sellerId",
+              "description": "The unique identifier of the seller, matching their Firebase Auth UID."
             }
           ]
         }
@@ -290,6 +298,6 @@
         }
       }
     ],
-    "reasoning": "The Firestore structure has been simplified to use a single source of truth for user roles. The `/Admin` collection has been removed. User roles ('admin', 'seller', or null) are now stored directly within the `/users/{userId}` document. This centralizes user management, eliminates potential data conflicts between two collections, and simplifies the security rules and application logic needed to check permissions."
+    "reasoning": "The Firestore structure has been refactored to use separate collections for different user roles. The `/users` collection is now exclusively for administrators. A new `/sellers` collection has been added to store profiles for seller-level users. New user registrations will create documents in the `/sellers` collection by default. This approach makes role management implicit based on collection membership, simplifying security rules and application logic for role checking."
   }
 }

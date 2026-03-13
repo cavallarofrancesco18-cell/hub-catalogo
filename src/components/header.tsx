@@ -14,7 +14,7 @@ export function Header() {
   const { user, isUserLoading } = useUser();
   const { role } = useUserRole();
   const router = useRouter();
-  const { logoUrl, companyName } = getBranding(role);
+  const { logoUrl, companyName } = getBranding(role || undefined);
   
   const handleLogout = async () => {
     const auth = getAuth();
@@ -60,7 +60,7 @@ export function Header() {
                <Button asChild variant="ghost">
                   <Link href="/admin/users">
                       <Users className="mr-2 h-4 w-4" />
-                      Gestione Utenti
+                      Gestione Venditori
                   </Link>
               </Button>
             </>

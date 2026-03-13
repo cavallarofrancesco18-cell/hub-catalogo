@@ -57,11 +57,10 @@ export default function RegisterPage() {
       const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
       const user = userCredential.user;
 
-      const userDocRef = doc(firestore, 'users', user.uid);
+      const userDocRef = doc(firestore, 'sellers', user.uid);
       
       setDocumentNonBlocking(userDocRef, {
         email: user.email,
-        role: null,
         createdAt: serverTimestamp(),
         id: user.uid,
       }, {});
@@ -96,7 +95,7 @@ export default function RegisterPage() {
         <CardHeader>
           <CardTitle className="text-2xl">Crea un Account</CardTitle>
           <CardDescription>
-            Inserisci i tuoi dati per registrarti.
+            Inserisci i tuoi dati per registrarti come venditore.
           </CardDescription>
         </CardHeader>
         <CardContent>

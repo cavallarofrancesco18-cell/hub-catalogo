@@ -67,11 +67,8 @@ export type Contract = {
   updatedAt: any;
 };
 
-export type Role = 'admin' | 'seller' | null;
-
 export type User = {
   id: string;
   email: string;
   createdAt: any;
-  role: Role;
 };

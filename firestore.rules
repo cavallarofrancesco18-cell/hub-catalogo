@@ -10,11 +10,11 @@ service cloud.firestore {
     }
     
     function isAdmin() {
-      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
     }
 
     function isSeller() {
-        return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'seller';
+        return isSignedIn() && exists(/databases/$(database)/documents/sellers/$(request.auth.uid));
     }
 
     match /vehicles/{vehicleId} {
@@ -28,16 +28,17 @@ service cloud.firestore {
     }
 
     match /forms/{formId} {
-      allow get, list: if isAdmin();
+      allow get, list: if isAdmin() || isSeller();
       allow create, update, delete: if isAdmin();
     }
 
     match /users/{userId} {
-      allow write: if isAdmin();
-      
-      allow create: if isSignedIn() && request.auth.uid == userId;
-      
-      allow get: if isAdmin() || (isSignedIn() && request.auth.uid == userId);
+      allow read, write: if isAdmin();
+    }
+    
+    match /sellers/{sellerId} {
+      allow create: if isSignedIn() && request.auth.uid == sellerId;
+      allow read, write: if isAdmin();
       allow list: if isAdmin();
     }
 
