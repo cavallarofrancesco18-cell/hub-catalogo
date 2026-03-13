@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 
 import { useAuth } from '@/firebase';
 import { initiateEmailSignIn } from '@/firebase/non-blocking-login';
@@ -38,7 +38,6 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 
 export default function AdminLoginPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const auth = useAuth();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -59,10 +58,9 @@ export default function AdminLoginPage() {
             // This listener will fire upon successful login
             toast({
                 title: 'Accesso effettuato',
-                description: 'Reindirizzamento all\'area admin...',
+                description: "Reindirizzamento all'area di gestione veicoli...",
             });
-            const from = searchParams.get('from') || '/admin';
-            router.replace(from);
+            router.replace('/admin');
             unsubscribe(); // Unsubscribe after handling the redirect
         } else if (error) {
             // This listener handles errors during the auth state change process
