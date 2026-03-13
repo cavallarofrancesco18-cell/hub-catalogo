@@ -243,10 +243,15 @@ export default function EditVehiclePage() {
     try {
       const deleteImagePromises = existingImages.map(url => {
         if (url.includes('firebasestorage.googleapis.com')) {
-          const imageRef = ref(storage, url);
-          return deleteObject(imageRef).catch(err => {
-              console.error(`Impossibile eliminare l'immagine ${url}:`, err);
-          });
+          try {
+            const imageRef = ref(storage, url);
+            return deleteObject(imageRef).catch(err => {
+                console.error(`Impossibile eliminare l'immagine ${url}:`, err);
+            });
+          } catch(e) {
+            console.error(`URL immagine non valido: ${url}`);
+            return Promise.resolve();
+          }
         }
         return Promise.resolve();
       });
