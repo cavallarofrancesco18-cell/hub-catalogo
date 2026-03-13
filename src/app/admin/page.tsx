@@ -562,20 +562,19 @@ export default function AdminPage() {
       return true;
     }
     
-    // Sellers can also create/edit contracts under certain conditions
-    if (role === 'seller') {
-        // Sellers can start a contract for a vehicle that is for sale.
-        if (vehicle.stato === 'In vendita') {
-          return true;
-        }
-        // The seller who last changed the status to booked/sold can edit the contract.
-        if (
-          (vehicle.stato === 'Venduto' || vehicle.stato === 'Prenotato') &&
-          vehicle.statusChangedBy === currentUser.uid
-        ) {
-          return true;
-        }
+    // Any user can create/edit contracts under certain conditions
+    // They can start a contract for a vehicle that is for sale.
+    if (vehicle.stato === 'In vendita') {
+      return true;
     }
+    // The user who last changed the status to booked/sold can edit the contract.
+    if (
+      (vehicle.stato === 'Venduto' || vehicle.stato === 'Prenotato') &&
+      vehicle.statusChangedBy === currentUser.uid
+    ) {
+      return true;
+    }
+
     return false;
   };
 

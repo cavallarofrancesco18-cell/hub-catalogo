@@ -46,17 +46,17 @@ export function VehicleDetailsClient({ vehicle, onPrintClick, onProformaClick, d
   const currentMainImageIndex = hasImages ? validImageUrls.findIndex(url => url === mainImage) : 0;
 
   const canCreateContract = useMemo(() => {
+    if (!currentUserUid) return false; // Must be logged in
+
     // Admin can always create/edit.
     if (role === 'admin') return true;
 
-    // Seller can create/edit under certain conditions.
-    if (role === 'seller') {
-      if (vehicle.stato === 'In vendita') {
-        return true;
-      }
-      if ((vehicle.stato === 'Venduto' || vehicle.stato === 'Prenotato') && vehicle.statusChangedBy === currentUserUid) {
-        return true;
-      }
+    // Any user can create/edit under these conditions
+    if (vehicle.stato === 'In vendita') {
+      return true;
+    }
+    if ((vehicle.stato === 'Venduto' || vehicle.stato === 'Prenotato') && vehicle.statusChangedBy === currentUserUid) {
+      return true;
     }
     
     return false;
