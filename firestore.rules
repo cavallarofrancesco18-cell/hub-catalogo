@@ -25,6 +25,13 @@ service cloud.firestore {
       allow delete: if isAdmin();
       
       allow update: if isAdmin();
+
+      // A seller can book a vehicle when creating a contract.
+      allow update: if isSeller()
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stato', 'updatedAt', 'statusChangedBy'])
+                    && resource.data.stato == 'In vendita'
+                    && request.resource.data.stato == 'Prenotato'
+                    && request.resource.data.statusChangedBy == request.auth.uid;
     }
 
     match /forms/{formId} {

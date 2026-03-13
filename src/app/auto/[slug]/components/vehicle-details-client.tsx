@@ -20,9 +20,10 @@ interface VehicleDetailsClientProps {
   isBooking: boolean;
   isProformaButtonDisabled?: boolean;
   currentUserUid?: string;
+  role?: 'admin' | 'seller' | null;
 }
 
-export function VehicleDetailsClient({ vehicle, onPrintClick, onProformaClick, disabled, editPath, isBooking, isProformaButtonDisabled, currentUserUid }: VehicleDetailsClientProps) {
+export function VehicleDetailsClient({ vehicle, onPrintClick, onProformaClick, disabled, editPath, isBooking, isProformaButtonDisabled, currentUserUid, role }: VehicleDetailsClientProps) {
   const validImageUrls = useMemo(
     () => (vehicle.immagini || []).map(getDirectImageUrl).filter(Boolean),
     [vehicle.immagini]
@@ -45,14 +46,21 @@ export function VehicleDetailsClient({ vehicle, onPrintClick, onProformaClick, d
   const currentMainImageIndex = hasImages ? validImageUrls.findIndex(url => url === mainImage) : 0;
 
   const canCreateContract = useMemo(() => {
-    if (vehicle.stato === 'In vendita') {
-      return true;
+    // Admin can always create/edit.
+    if (role === 'admin') return true;
+
+    // Seller can create/edit under certain conditions.
+    if (role === 'seller') {
+      if (vehicle.stato === 'In vendita') {
+        return true;
+      }
+      if ((vehicle.stato === 'Venduto' || vehicle.stato === 'Prenotato') && vehicle.statusChangedBy === currentUserUid) {
+        return true;
+      }
     }
-    if ((vehicle.stato === 'Venduto' || vehicle.stato === 'Prenotato') && vehicle.statusChangedBy === currentUserUid) {
-      return true;
-    }
+    
     return false;
-  }, [vehicle, currentUserUid]);
+  }, [vehicle, currentUserUid, role]);
 
   return (
     <>

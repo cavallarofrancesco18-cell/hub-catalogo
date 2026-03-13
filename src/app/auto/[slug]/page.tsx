@@ -573,6 +573,7 @@ export default function VehiclePage() {
           isBooking={isBooking}
           isProformaButtonDisabled={false}
           currentUserUid={user?.uid}
+          role={role}
         />
 
         <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-8">
