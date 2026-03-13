@@ -64,17 +64,20 @@ service cloud.firestore {
                     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['descrizione', 'updatedAt'])
                     && request.resource.data.updatedAt == request.time;
 
-      // Rule for updating vehicle status.
-      allow update: if isSignedIn() 
+      // Any authenticated user can book a car that's for sale.
+      allow update: if isSignedIn()
+                    && resource.data.stato == 'In vendita' 
+                    && request.resource.data.stato == 'Prenotato'
                     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stato', 'statusChangedBy', 'updatedAt'])
                     && request.resource.data.statusChangedBy == request.auth.uid
-                    && request.resource.data.updatedAt == request.time
-                    && (
-                      // Case 1: Any authenticated user can book a car that's for sale.
-                      (resource.data.stato == 'In vendita' && request.resource.data.stato == 'Prenotato') ||
-                      // Case 2: A Seller can change the status of a car they booked/sold.
-                      (isSeller() && resource.data.statusChangedBy == request.auth.uid)
-                    );
+                    && request.resource.data.updatedAt == request.time;
+                    
+      // A Seller who booked/sold a car can manage its status further.
+      allow update: if isSeller()
+                    && resource.data.statusChangedBy == request.auth.uid
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stato', 'statusChangedBy', 'updatedAt'])
+                    && request.resource.data.statusChangedBy == request.auth.uid
+                    && request.resource.data.updatedAt == request.time;
     }
 
     /**
