@@ -57,7 +57,7 @@ export default function RegisterPage() {
       const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
       const user = userCredential.user;
 
-      const userDocRef = doc(firestore, 'sellers', user.uid);
+      const userDocRef = doc(firestore, 'seller', user.uid);
       
       setDocumentNonBlocking(userDocRef, {
         email: user.email,

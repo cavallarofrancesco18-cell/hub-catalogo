@@ -268,7 +268,7 @@
         }
       },
       {
-        "path": "/sellers/{sellerId}",
+        "path": "/seller/{sellerId}",
         "definition": {
           "entityName": "User",
           "schema": {
@@ -295,6 +295,6 @@
         }
       }
     ],
-    "reasoning": "The Firestore structure has been simplified. The `/users` collection for administrators has been removed. Admin access is now determined by a hardcoded UID in the application logic and security rules, simplifying role management to a single administrator. The `/sellers` collection is used for all other registered users."
+    "reasoning": "The Firestore structure has been simplified. The `/users` collection for administrators has been removed. Admin access is now determined by a hardcoded UID in the application logic and security rules, simplifying role management to a single administrator. The `/seller` collection is used for all other registered users."
   }
 }

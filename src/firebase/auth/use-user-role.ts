@@ -20,7 +20,7 @@ const ADMIN_UID = '4E6MSEuIXZeeo3j2taWIA7LbYcw2';
 /**
  * Hook to get the current user's role.
  * Admin role is determined by a hardcoded UID.
- * Seller role is determined by document existence in the 'sellers' collection.
+ * Seller role is determined by document existence in the 'seller' collection.
  */
 export function useUserRole(): UserRoleState {
   const { user, isUserLoading: isAuthLoading } = useUser();
@@ -28,7 +28,7 @@ export function useUserRole(): UserRoleState {
 
   const sellerDocRef = useMemoFirebase(() => {
     if (!user || !firestore) return null;
-    return doc(firestore, 'sellers', user.uid);
+    return doc(firestore, 'seller', user.uid);
   }, [user, firestore]);
 
   const { data: sellerData, isLoading: isSellerDataLoading } = useDoc<UserData>(sellerDocRef);

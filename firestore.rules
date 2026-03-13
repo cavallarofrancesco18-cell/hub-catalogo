@@ -14,7 +14,7 @@ service cloud.firestore {
     }
 
     function isSeller() {
-        return isSignedIn() && exists(/databases/$(database)/documents/sellers/$(request.auth.uid));
+        return isSignedIn() && exists(/databases/$(database)/documents/seller/$(request.auth.uid));
     }
 
     match /vehicles/{vehicleId} {
@@ -32,7 +32,7 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
     
-    match /sellers/{sellerId} {
+    match /seller/{sellerId} {
       // Allow a user to be created in the sellers collection during registration.
       allow create: if isSignedIn() && request.auth.uid == sellerId;
 

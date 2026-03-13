@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { User as UserData } from '@/lib/types';
 import {
   useFirestore,
@@ -46,18 +46,29 @@ export default function UsersPage() {
   const { toast } = useToast();
 
   const sellersRef = useMemoFirebase(
-    () => collection(firestore, 'sellers'),
+    () => collection(firestore, 'seller'),
     [firestore]
   );
-  const { data: sellers, isLoading } = useCollection<UserData>(sellersRef);
+  const { data: sellers, isLoading, error } = useCollection<UserData>(sellersRef);
   const [sellerToDelete, setSellerToDelete] = useState<UserData | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isUpdating, setIsUpdating] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (error) {
+        toast({
+            variant: "destructive",
+            title: "Errore nel caricamento dei venditori",
+            description: "Impossibile recuperare la lista di venditori. Controlla i permessi o la console per i dettagli.",
+        });
+        console.error("Firestore Error:", error);
+    }
+  }, [error, toast]);
+
   const handleDeleteConfirm = async () => {
     if (!sellerToDelete) return;
     setIsDeleting(true);
-    const sellerDocRef = doc(firestore, 'sellers', sellerToDelete.id);
+    const sellerDocRef = doc(firestore, 'seller', sellerToDelete.id);
     deleteDocumentNonBlocking(sellerDocRef)
       .then(() => {
         toast({
@@ -82,7 +93,7 @@ export default function UsersPage() {
     if (!firestore) return;
     setIsUpdating(sellerId);
     
-    const sellerDocRef = doc(firestore, 'sellers', sellerId);
+    const sellerDocRef = doc(firestore, 'seller', sellerId);
     const typeToSave = newType === 'standard' ? null : newType;
 
     updateDocumentNonBlocking(sellerDocRef, { sellerType: typeToSave })
@@ -140,7 +151,14 @@ export default function UsersPage() {
                     </TableCell>
                   </TableRow>
                 ))}
-              {!isLoading && sellers && sellers.length > 0 ? (
+              {!isLoading && error && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="h-24 text-center text-destructive">
+                      Si è verificato un errore nel caricamento dei venditori.
+                    </TableCell>
+                  </TableRow>
+              )}
+              {!isLoading && !error && sellers && sellers.length > 0 ? (
                 sellers.map(seller => (
                   <TableRow key={seller.id}>
                     <TableCell className="font-medium">{seller.email}</TableCell>
@@ -183,7 +201,7 @@ export default function UsersPage() {
                   </TableRow>
                 ))
               ) : (
-                !isLoading && (
+                !isLoading && !error && (
                   <TableRow>
                     <TableCell colSpan={5} className="h-24 text-center">
                       Nessun venditore trovato.
