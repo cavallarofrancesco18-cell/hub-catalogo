@@ -124,7 +124,6 @@ export default function UsersPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Email</TableHead>
-                <TableHead>Nome</TableHead>
                 <TableHead>Data Registrazione</TableHead>
                 <TableHead>Tipo Venditore</TableHead>
                 <TableHead className="w-[100px] text-right">Azioni</TableHead>
@@ -141,9 +140,6 @@ export default function UsersPage() {
                       <Skeleton className="h-4 w-32" />
                     </TableCell>
                     <TableCell>
-                      <Skeleton className="h-4 w-32" />
-                    </TableCell>
-                    <TableCell>
                       <Skeleton className="h-10 w-28" />
                     </TableCell>
                     <TableCell>
@@ -153,7 +149,7 @@ export default function UsersPage() {
                 ))}
               {!isLoading && error && (
                   <TableRow>
-                    <TableCell colSpan={5} className="h-24 text-center text-destructive">
+                    <TableCell colSpan={4} className="h-24 text-center text-destructive">
                       Si è verificato un errore nel caricamento dei venditori.
                     </TableCell>
                   </TableRow>
@@ -162,7 +158,6 @@ export default function UsersPage() {
                 sellers.map(seller => (
                   <TableRow key={seller.id}>
                     <TableCell className="font-medium">{seller.email || '(Email non specificata)'}</TableCell>
-                    <TableCell className="font-medium">{seller.name || '(Non specificato)'}</TableCell>
                     <TableCell>
                       {seller.createdAt?.toDate
                         ? format(seller.createdAt.toDate(), 'dd/MM/yyyy')
@@ -203,7 +198,7 @@ export default function UsersPage() {
               ) : (
                 !isLoading && !error && (
                   <TableRow>
-                    <TableCell colSpan={5} className="h-24 text-center">
+                    <TableCell colSpan={4} className="h-24 text-center">
                       Nessun venditore trovato.
                     </TableCell>
                   </TableRow>
