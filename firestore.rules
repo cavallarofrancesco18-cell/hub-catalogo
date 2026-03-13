@@ -1,54 +1,26 @@
 
-/**
- * LuxDrive Catalog - Firestore Security Rules
- *
- * Core Philosophy:
- * This ruleset implements a role-based access control model. The primary goal is to provide a public, read-only vehicle catalog, while granting different levels of write permissions to 'Admins' and 'Sellers'.
- *
- * Data Structure:
- * - /vehicles/{vehicleId}: Public collection of all vehicle data.
- * - /users/{userId}: Contains user profiles including their role ('admin', 'seller', or null).
- * - /forms/{formId}: Collection for storing form/document metadata.
- * - /contracts/{contractId}: Data for sales contracts.
- */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     // Helper Functions
     
-    /**
-     * Checks if the user is authenticated.
-     */
     function isSignedIn() {
       return request.auth != null;
     }
     
-    /**
-     * Checks if the user is an administrator.
-     * An admin is a signed-in user with the 'admin' role in their user document.
-     */
     function isAdmin() {
       return isSignedIn() 
              && exists(/databases/$(database)/documents/users/$(request.auth.uid))
              && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    /**
-     * Checks if the user is a seller by reading their user document.
-     */
     function isSeller() {
         return isSignedIn()
                && exists(/databases/$(database)/documents/users/$(request.auth.uid))
                && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', null) == 'seller';
     }
 
-    /**
-     * @description
-     *   Rules for the primary collection of vehicle listings.
-     * @path
-     *   /vehicles/{vehicleId}
-     */
     match /vehicles/{vehicleId} {
       allow get: if true;
       allow list: if true;
@@ -56,75 +28,42 @@ service cloud.firestore {
       allow create: if isAdmin();
       allow delete: if isAdmin();
       
-      // Admins can update any field.
       allow update: if isAdmin();
       
-      // Sellers can update only the description.
       allow update: if isSeller()
                     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['descrizione', 'updatedAt'])
                     && request.resource.data.updatedAt == request.time;
 
-      // Rule for sellers or admins updating vehicle status (booking or managing)
-      allow update: if (isSeller() || isAdmin())
+      allow update: if (isSeller())
                     && request.resource.data.diff(resource.data).affectedKeys().isSubsetOf(['stato', 'statusChangedBy', 'updatedAt'])
                     && request.resource.data.updatedAt == request.time
                     && (
-                      // Scenario 1: A seller books a vehicle that is currently for sale.
                       (resource.data.stato == 'In vendita' && request.resource.data.stato == 'Prenotato' && request.resource.data.statusChangedBy == request.auth.uid) ||
-                      // Scenario 2: The user who previously booked/sold the car can manage its status further.
                       (resource.data.statusChangedBy == request.auth.uid)
                     );
     }
 
-    /**
-     * @description
-     *   Rules for the forms collection.
-     *   - Authenticated users can read/list forms.
-     *   - Only Admins can create, update, or delete forms.
-     * @path
-     *   /forms/{formId}
-     */
     match /forms/{formId} {
       allow get, list: if isSeller() || isAdmin();
       allow create, update, delete: if isAdmin();
     }
 
-    /**
-     * @description
-     *   Rules for the user profiles collection.
-     * @path
-     *   /users/{userId}
-     */
     match /users/{userId} {
-      // An admin can perform any write operation (create, update, delete).
       allow write: if isAdmin();
       
-      // A user can create their own profile document (e.g., during registration).
       allow create: if isSignedIn() && request.auth.uid == userId;
       
-      // Admins can see all user profiles, users can only see their own.
       allow get: if isAdmin() || (isSignedIn() && request.auth.uid == userId);
       allow list: if isAdmin();
     }
 
-    /**
-     * @description
-     *   Rules for the contracts collection.
-     *   The contractId is the same as the vehicleId.
-     * @path
-     *   /contracts/{contractId}
-     */
     match /contracts/{contractId} {
-      // An Admin can do anything.
       allow read, write: if isAdmin();
       
-      // Admins or Sellers can create a contract, ensuring they set themselves as the creator.
       allow create: if (isAdmin() || isSeller()) && request.resource.data.creatorId == request.auth.uid;
       
-      // A user can read or update a contract they created.
       allow get, update: if isSignedIn() && resource.data.creatorId == request.auth.uid;
       
-      // No one can list all contracts except admins (covered by first rule).
       allow list: if isAdmin();
       allow delete: if isAdmin();
     }

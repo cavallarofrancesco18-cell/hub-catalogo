@@ -1,10 +1,6 @@
 'use client';
 
 import type { User as UserData, Role } from '@/lib/types';
-import { useUser } from '@/firebase/provider';
-import { useDoc } from '@/firebase/firestore/use-doc';
-import { doc } from 'firebase/firestore';
-import { useFirestore, useMemoFirebase } from '@/firebase';
 
 export type { Role };
 
@@ -15,33 +11,25 @@ export interface UserRoleState {
 }
 
 /**
- * Hook to get the current user's role and profile data from Firestore.
- * It listens to auth state and fetches the corresponding document from the 'users' collection.
+ * MOCKED: This hook is currently mocked to always return an 'admin' role.
+ * This is a temporary measure to allow development on protected routes
+ * without a functional authentication flow.
+ *
+ * TODO: Re-implement this hook to use real authentication data when
+ * the login/registration flow is rebuilt.
  */
 export function useUserRole(): UserRoleState {
-  const { user, isUserLoading: isAuthLoading } = useUser();
-  const firestore = useFirestore();
-
-  const userDocRef = useMemoFirebase(
-    () => (user ? doc(firestore, 'users', user.uid) : null),
-    [user, firestore]
-  );
-
-  const { data: userData, isLoading: isDocLoading } = useDoc<UserData>(userDocRef);
-
-  const isLoading = isAuthLoading || (!!user && isDocLoading);
-
-  if (isLoading) {
-    return { role: null, roleData: null, isLoading: true };
-  }
-
-  if (!user || !userData) {
-    return { role: null, roleData: null, isLoading: false };
-  }
+  const mockAdminData: UserData = {
+    id: 'mock-admin-id',
+    email: 'admin@example.com',
+    role: 'admin',
+    sellerType: 'HUB_SELLER',
+    createdAt: new Date(),
+  };
 
   return {
-    role: userData.role || null,
-    roleData: userData,
+    role: 'admin',
+    roleData: mockAdminData,
     isLoading: false,
   };
 }
