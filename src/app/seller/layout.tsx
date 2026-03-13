@@ -1,10 +1,10 @@
 import React from 'react';
 
+// The seller area has been removed.
 export default function SellerLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  // Authentication check removed to allow for rebuilding the authentication flow.
-  return <>{children}</>;
+  return null;
 }

@@ -195,11 +195,11 @@ export default function VehiclePage() {
 
   const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
-  const { role, roleData, isLoading: isLoadingRole } = useUserRole();
+  const { role, isLoading: isLoadingRole } = useUserRole();
 
   const branding = useMemo(() => {
-    return getBranding(role, (roleData as UserData)?.sellerType);
-  }, [role, roleData]);
+    return getBranding(role);
+  }, [role]);
 
   const vehicleQuery = useMemoFirebase(() => {
     if (!slug || !firestore) return null;
@@ -219,12 +219,8 @@ export default function VehiclePage() {
     : vehicle?.anno;
 
   let editPath: string | null = null;
-  if (!isLoadingRole && role && vehicle) {
-    if (role === 'admin') {
-      editPath = `/admin/edit-vehicle/${vehicle.id}`;
-    } else if (role === 'seller') {
-      editPath = `/seller/edit-vehicle/${vehicle.id}`;
-    }
+  if (!isLoadingRole && role === 'admin' && vehicle) {
+    editPath = `/admin/edit-vehicle/${vehicle.id}`;
   }
 
   // State for vehicle sheet printing
@@ -276,7 +272,6 @@ export default function VehiclePage() {
     resolver: zodResolver(priceSheetSchema),
   });
 
-  const customerType = proformaForm.watch('customerType');
   const paymentMethod = proformaForm.watch('paymentMethod');
   const numberOfInstallments = proformaForm.watch('numberOfInstallments');
   const installmentAmount = proformaForm.watch('installmentAmount');
@@ -295,22 +290,6 @@ export default function VehiclePage() {
       }
     }
   }, [numberOfInstallments, installmentAmount, paymentMethod, proformaForm]);
-
-  useEffect(() => {
-    const sellerInfo = roleData as UserData;
-    if (
-      role === 'seller' &&
-      sellerInfo?.sellerType === 'MGV_SELLER' &&
-      customerType === 'commerciante'
-    ) {
-      proformaForm.setValue('name', 'AUTO MGV S.R.L.');
-      proformaForm.setValue(
-        'address',
-        'VIA F. BARACCA 1, 10040 - LA LOGGIA (TO)'
-      );
-      proformaForm.setValue('cf', '12416720014');
-    }
-  }, [customerType, role, roleData, proformaForm]);
 
   const handleGeneratePdf = async (
     ref: React.RefObject<HTMLDivElement>,
@@ -971,14 +950,14 @@ export default function VehiclePage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>
-                        {customerType === 'privato'
+                        {proformaForm.watch('customerType') === 'privato'
                           ? 'Nome e Cognome *'
                           : 'Ragione Sociale *'}
                       </FormLabel>
                       <FormControl>
                         <Input
                           placeholder={
-                            customerType === 'privato'
+                            proformaForm.watch('customerType') === 'privato'
                               ? 'Es. Mario Rossi'
                               : 'Es. Auto S.R.L.'
                           }
@@ -996,7 +975,7 @@ export default function VehiclePage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>
-                        {customerType === 'privato'
+                        {proformaForm.watch('customerType') === 'privato'
                           ? 'Codice Fiscale *'
                           : 'Partita IVA *'}
                       </FormLabel>
@@ -1029,7 +1008,7 @@ export default function VehiclePage() {
                 )}
               />
 
-              {customerType === 'privato' && (
+              {proformaForm.watch('customerType') === 'privato' && (
                 <>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <FormField
@@ -1090,7 +1069,7 @@ export default function VehiclePage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>
-                        Cellulare {customerType === 'privato' && '*'}
+                        Cellulare {proformaForm.watch('customerType') === 'privato' && '*'}
                       </FormLabel>
                       <FormControl>
                         <Input
@@ -1109,7 +1088,7 @@ export default function VehiclePage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>
-                        Email {customerType === 'privato' && '*'}
+                        Email {proformaForm.watch('customerType') === 'privato' && '*'}
                       </FormLabel>
                       <FormControl>
                         <Input
@@ -1171,7 +1150,7 @@ export default function VehiclePage() {
                 />
               </div>
 
-              {customerType === 'privato' && (
+              {proformaForm.watch('customerType') === 'privato' && (
                 <FormField
                   control={proformaForm.control}
                   name="warranty"
@@ -1239,7 +1218,7 @@ export default function VehiclePage() {
                 )}
               />
 
-              {customerType === 'privato' && (
+              {proformaForm.watch('customerType') === 'privato' && (
                 <FormField
                   control={proformaForm.control}
                   name="withdrawal"

@@ -25,12 +25,6 @@ service cloud.firestore {
     }
     */
 
-    function isSeller() {
-        return isSignedIn()
-               && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-               && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', null) == 'seller';
-    }
-
     match /vehicles/{vehicleId} {
       allow get: if true;
       allow list: if true;
@@ -39,22 +33,10 @@ service cloud.firestore {
       allow delete: if isAdmin();
       
       allow update: if isAdmin();
-      
-      allow update: if isSeller()
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['descrizione', 'updatedAt'])
-                    && request.resource.data.updatedAt == request.time;
-
-      allow update: if (isSeller())
-                    && request.resource.data.diff(resource.data).affectedKeys().isSubsetOf(['stato', 'statusChangedBy', 'updatedAt'])
-                    && request.resource.data.updatedAt == request.time
-                    && (
-                      (resource.data.stato == 'In vendita' && request.resource.data.stato == 'Prenotato' && request.resource.data.statusChangedBy == request.auth.uid) ||
-                      (resource.data.statusChangedBy == request.auth.uid)
-                    );
     }
 
     match /forms/{formId} {
-      allow get, list: if isSeller() || isAdmin();
+      allow get, list: if isAdmin();
       allow create, update, delete: if isAdmin();
     }
 
@@ -70,7 +52,7 @@ service cloud.firestore {
     match /contracts/{contractId} {
       allow read, write: if isAdmin();
       
-      allow create: if (isAdmin() || isSeller()) && request.resource.data.creatorId == request.auth.uid;
+      allow create: if isAdmin() && request.resource.data.creatorId == request.auth.uid;
       
       allow get, update: if isSignedIn() && resource.data.creatorId == request.auth.uid;
       

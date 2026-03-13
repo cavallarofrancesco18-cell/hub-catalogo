@@ -184,21 +184,9 @@
         },
         "role": {
           "type": ["string", "null"],
-          "description": "The user's role in the system. Can be 'admin' or 'seller'.",
+          "description": "The user's role in the system. Can be 'admin'.",
           "enum": [
-            "admin",
-            "seller"
-          ]
-        },
-        "sellerType": {
-          "type": "string",
-          "description": "The branding profile type for this user, if their role is 'seller'.",
-          "enum": [
-            "OSPITE_SELLER",
-            "HUB_SELLER",
-            "RESTART_SELLER",
-            "EXPRESS_SELLER",
-            "MGV_SELLER"
+            "admin"
           ]
         }
       },

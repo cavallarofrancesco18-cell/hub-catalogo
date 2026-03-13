@@ -67,12 +67,11 @@ export type Contract = {
   updatedAt: any;
 };
 
-export type Role = 'admin' | 'seller' | null;
+export type Role = 'admin' | null;
 
 export type User = {
   id: string;
   email: string;
   createdAt: any;
   role: Role;
-  sellerType?: 'OSPITE_SELLER' | 'HUB_SELLER' | 'RESTART_SELLER' | 'EXPRESS_SELLER' | 'MGV_SELLER';
 };

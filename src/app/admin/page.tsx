@@ -5,7 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useCollection } from '@/firebase/firestore/use-collection';
 import { collection, doc, serverTimestamp, getDoc } from 'firebase/firestore';
-import type { Vehicle, Contract, User as SellerRoleData } from '@/lib/types';
+import type { Vehicle, Contract, User as UserData } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import {
   Table,
@@ -204,7 +204,7 @@ export default function AdminPage() {
   );
   const { toast } = useToast();
   const { user: currentUser } = useUser();
-  const { role, roleData } = useUserRole();
+  const { role } = useUserRole();
   const vehiclesRef = useMemoFirebase(
     () => collection(firestore, 'vehicles'),
     [firestore]
@@ -257,7 +257,6 @@ export default function AdminPage() {
     },
   });
 
-  const customerType = proformaForm.watch('customerType');
   const paymentMethod = proformaForm.watch('paymentMethod');
   const numberOfInstallments = proformaForm.watch('numberOfInstallments');
   const installmentAmount = proformaForm.watch('installmentAmount');
@@ -276,22 +275,6 @@ export default function AdminPage() {
       }
     }
   }, [numberOfInstallments, installmentAmount, paymentMethod, proformaForm]);
-
-  useEffect(() => {
-    const sellerInfo = roleData as SellerRoleData;
-    if (
-      role === 'seller' &&
-      sellerInfo?.sellerType === 'MGV_SELLER' &&
-      customerType === 'commerciante'
-    ) {
-      proformaForm.setValue('name', 'AUTO MGV S.R.L.');
-      proformaForm.setValue(
-        'address',
-        'VIA F. BARACCA 1, 10040 - LA LOGGIA (TO)'
-      );
-      proformaForm.setValue('cf', '12416720014');
-    }
-  }, [customerType, role, roleData, proformaForm]);
 
   const handleStatusChange = (
     vehicleId: string,
@@ -964,14 +947,14 @@ export default function AdminPage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>
-                        {customerType === 'privato'
+                        {proformaForm.watch('customerType') === 'privato'
                           ? 'Nome e Cognome *'
                           : 'Ragione Sociale *'}
                       </FormLabel>
                       <FormControl>
                         <Input
                           placeholder={
-                            customerType === 'privato'
+                            proformaForm.watch('customerType') === 'privato'
                               ? 'Es. Mario Rossi'
                               : 'Es. Auto S.R.L.'
                           }
@@ -989,7 +972,7 @@ export default function AdminPage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>
-                        {customerType === 'privato'
+                        {proformaForm.watch('customerType') === 'privato'
                           ? 'Codice Fiscale *'
                           : 'Partita IVA *'}
                       </FormLabel>
@@ -1022,7 +1005,7 @@ export default function AdminPage() {
                 )}
               />
 
-              {customerType === 'privato' && (
+              {proformaForm.watch('customerType') === 'privato' && (
                 <>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <FormField
@@ -1083,7 +1066,7 @@ export default function AdminPage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>
-                        Cellulare {customerType === 'privato' && '*'}
+                        Cellulare {proformaForm.watch('customerType') === 'privato' && '*'}
                       </FormLabel>
                       <FormControl>
                         <Input
@@ -1102,7 +1085,7 @@ export default function AdminPage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>
-                        Email {customerType === 'privato' && '*'}
+                        Email {proformaForm.watch('customerType') === 'privato' && '*'}
                       </FormLabel>
                       <FormControl>
                         <Input
@@ -1164,7 +1147,7 @@ export default function AdminPage() {
                 />
               </div>
 
-              {customerType === 'privato' && (
+              {proformaForm.watch('customerType') === 'privato' && (
                 <FormField
                   control={proformaForm.control}
                   name="warranty"
@@ -1232,7 +1215,7 @@ export default function AdminPage() {
                 )}
               />
 
-              {customerType === 'privato' && (
+              {proformaForm.watch('customerType') === 'privato' && (
                 <FormField
                   control={proformaForm.control}
                   name="withdrawal"

@@ -23,7 +23,6 @@ export function useUserRole(): UserRoleState {
     id: 'mock-admin-id',
     email: 'admin@example.com',
     role: 'admin',
-    sellerType: 'HUB_SELLER',
     createdAt: new Date(),
   };
 

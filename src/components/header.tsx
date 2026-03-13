@@ -13,7 +13,7 @@ import { getBranding } from '@/lib/branding';
  */
 export function Header() {
   // Mocking admin role for branding and navigation purposes
-  const { logoUrl, companyName } = getBranding('admin', 'HUB_SELLER');
+  const { logoUrl, companyName } = getBranding('admin');
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background shadow-sm print:hidden">
@@ -55,12 +55,6 @@ export function Header() {
               Modulistica
             </Link>
           </Button>
-           <Button asChild variant="ghost">
-              <Link href="/seller">
-                  <ClipboardList className="mr-2 h-4 w-4" />
-                  Area Venditore
-              </Link>
-           </Button>
         </nav>
       </div>
     </header>
