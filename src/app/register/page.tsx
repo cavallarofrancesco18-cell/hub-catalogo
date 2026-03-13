@@ -30,6 +30,7 @@ import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
 
 const registerSchema = z.object({
+  name: z.string().min(1, 'Il nome è obbligatorio.'),
   email: z.string().email('Inserisci un indirizzo email valido.'),
   password: z.string().min(6, 'La password deve contenere almeno 6 caratteri.'),
 });
@@ -46,6 +47,7 @@ export default function RegisterPage() {
   const form = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
+      name: '',
       email: '',
       password: '',
     },
@@ -60,6 +62,7 @@ export default function RegisterPage() {
       const userDocRef = doc(firestore, 'seller', user.uid);
       
       setDocumentNonBlocking(userDocRef, {
+        name: data.name,
         email: user.email,
         createdAt: serverTimestamp(),
         id: user.uid,
@@ -101,6 +104,19 @@ export default function RegisterPage() {
         <CardContent>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nome Completo</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Mario Rossi" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <FormField
                 control={form.control}
                 name="email"

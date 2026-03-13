@@ -50,6 +50,7 @@ export function useUserRole(): UserRoleState {
       const adminUserData: UserData = {
           id: user.uid,
           email: user.email!,
+          name: 'Amministratore',
           createdAt: user.metadata.creationTime ? new Date(user.metadata.creationTime) : new Date(),
           sellerType: 'HUB',
       };
@@ -64,6 +65,7 @@ export function useUserRole(): UserRoleState {
     const basicUserData: UserData = {
         id: user.uid,
         email: user.email!,
+        name: user.displayName || user.email!,
         createdAt: user.metadata.creationTime ? new Date(user.metadata.creationTime) : new Date(),
     };
     return { role: null, roleData: basicUserData, isLoading: false };

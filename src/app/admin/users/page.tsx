@@ -124,7 +124,7 @@ export default function UsersPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Email</TableHead>
-                <TableHead>User ID</TableHead>
+                <TableHead>Nome</TableHead>
                 <TableHead>Data Registrazione</TableHead>
                 <TableHead>Tipo Venditore</TableHead>
                 <TableHead className="w-[100px] text-right">Azioni</TableHead>
@@ -138,7 +138,7 @@ export default function UsersPage() {
                       <Skeleton className="h-4 w-48" />
                     </TableCell>
                     <TableCell>
-                      <Skeleton className="h-4 w-64" />
+                      <Skeleton className="h-4 w-32" />
                     </TableCell>
                     <TableCell>
                       <Skeleton className="h-4 w-32" />
@@ -162,7 +162,7 @@ export default function UsersPage() {
                 sellers.map(seller => (
                   <TableRow key={seller.id}>
                     <TableCell className="font-medium">{seller.email}</TableCell>
-                    <TableCell className="font-mono text-xs text-muted-foreground">{seller.id}</TableCell>
+                    <TableCell className="font-medium">{seller.name || '(Non specificato)'}</TableCell>
                     <TableCell>
                       {seller.createdAt?.toDate
                         ? format(seller.createdAt.toDate(), 'dd/MM/yyyy')

@@ -70,6 +70,7 @@ export type Contract = {
 export type User = {
   id: string;
   email: string;
+  name?: string;
   createdAt: any;
   sellerType?: 'HUB' | 'EXPRESS' | 'MGV' | null;
 };

@@ -176,6 +176,10 @@
           "type": "string",
           "description": "Unique identifier for the user, matching their Firebase Auth UID."
         },
+        "name": {
+          "type": "string",
+          "description": "The user's full name."
+        },
         "email": {
           "type": "string",
           "format": "email",
