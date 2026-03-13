@@ -1,6 +1,6 @@
 'use client';
 
-import { FileText, Home, ClipboardList, Users } from 'lucide-react';
+import { FileText, Home, ClipboardList } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 
@@ -46,12 +46,6 @@ export function Header() {
                   Gestione Veicoli
               </Link>
           </Button>
-          <Button asChild variant="ghost">
-                <Link href="/admin/users">
-                    <Users className="mr-2 h-4 w-4" />
-                    Gestione Utenti
-                </Link>
-            </Button>
           <Button asChild variant="ghost">
             <Link href="/modulistica">
               <FileText className="mr-2 h-4 w-4" />
