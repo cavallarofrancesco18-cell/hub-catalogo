@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, onSnapshot } from 'firebase/firestore';
 import { useUser, useFirestore } from '@/firebase';
 import type { User as UserData, Role } from '@/lib/types';
 
@@ -35,29 +35,28 @@ export function useUserRole(): UserRoleState {
       return;
     }
 
-    const checkRole = async () => {
-      // We have a user, so we will check their role.
-      try {
-        const userRef = doc(firestore, 'users', user.uid);
-        const userDoc = await getDoc(userRef);
-        
-        if (userDoc.exists()) {
-          const userData = {id: userDoc.id, ...userDoc.data()} as UserData;
+    const userRef = doc(firestore, 'users', user.uid);
+    // Subscribe to the user document to get real-time role updates
+    const unsubscribe = onSnapshot(userRef, 
+      (docSnap) => {
+        if (docSnap.exists()) {
+          const userData = {id: docSnap.id, ...docSnap.data()} as UserData;
           setRoleState({ role: userData.role, roleData: userData, isLoading: false });
         } else {
           // This case handles users who are authenticated with Firebase Auth
           // but do not have a corresponding document in the 'users' collection.
           setRoleState({ role: null, roleData: null, isLoading: false });
         }
-
-      } catch (error) {
-        console.error("Error checking user role:", error);
-        // In case of an error, reset to a clean, non-privileged state.
+      },
+      (error) => {
+        console.error("Error subscribing to user role:", error);
+        // In case of an error (like permissions), reset to a non-privileged state.
         setRoleState({ role: null, roleData: null, isLoading: false });
       }
-    };
+    );
 
-    checkRole();
+    // Cleanup subscription on component unmount
+    return () => unsubscribe();
   }, [user, isUserLoading, firestore]);
 
   return roleState;
