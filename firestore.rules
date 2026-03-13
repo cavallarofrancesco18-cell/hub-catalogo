@@ -46,9 +46,6 @@ service cloud.firestore {
     /**
      * @description
      *   Rules for the primary collection of vehicle listings.
-     *   - Public read access for all.
-     *   - Full write access for Admins.
-     *   - Limited update access for Sellers (description and status).
      * @path
      *   /vehicles/{vehicleId}
      */
@@ -62,25 +59,22 @@ service cloud.firestore {
       // Admins can update any field.
       allow update: if isAdmin();
       
-      // Sellers can update the description OR the status.
-      allow update: if isSeller() && (
-        // Case 1: Only updating description
-        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['descrizione', 'updatedAt']) &&
-         request.resource.data.updatedAt == request.time)
-        ||
-        // Case 2: Updating status
-        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stato', 'statusChangedBy', 'updatedAt']) &&
-         request.resource.data.updatedAt == request.time &&
-         request.resource.data.statusChangedBy == request.auth.uid)
-      );
-      
-      // Any signed-in user (including those without a 'seller' role) can change the status from 'In vendita' to 'Prenotato'.
-      allow update: if isSignedIn()
-                    && resource.data.stato == 'In vendita'
-                    && request.resource.data.stato == 'Prenotato'
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stato', 'updatedAt', 'statusChangedBy'])
+      // Sellers can update only the description.
+      allow update: if isSeller()
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['descrizione', 'updatedAt'])
+                    && request.resource.data.updatedAt == request.time;
+
+      // Rule for updating vehicle status.
+      allow update: if isSignedIn() 
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stato', 'statusChangedBy', 'updatedAt'])
+                    && request.resource.data.statusChangedBy == request.auth.uid
                     && request.resource.data.updatedAt == request.time
-                    && request.resource.data.statusChangedBy == request.auth.uid;
+                    && (
+                      // Case 1: Any authenticated user can book a car that's for sale.
+                      (resource.data.stato == 'In vendita' && request.resource.data.stato == 'Prenotato') ||
+                      // Case 2: A Seller can change the status of a car they booked/sold.
+                      (isSeller() && resource.data.statusChangedBy == request.auth.uid)
+                    );
     }
 
     /**
