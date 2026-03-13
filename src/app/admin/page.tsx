@@ -1075,6 +1075,7 @@ export default function AdminPage() {
                           value={field.value ?? ''}
                         />
                       </FormControl>
+                      <FormDescription>Questo testo è modificabile e verrà incluso nel contratto finale.</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -1094,6 +1095,7 @@ export default function AdminPage() {
                         value={field.value ?? ''}
                       />
                     </FormControl>
+                    <FormDescription>Questo testo è modificabile e verrà incluso nel contratto finale.</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -1112,6 +1114,7 @@ export default function AdminPage() {
                         value={field.value ?? ''}
                       />
                     </FormControl>
+                    <FormDescription>Questo testo è modificabile e verrà incluso nel contratto finale.</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -1131,6 +1134,7 @@ export default function AdminPage() {
                           value={field.value ?? ''}
                         />
                       </FormControl>
+                      <FormDescription>Questo testo è modificabile e verrà incluso nel contratto finale.</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
