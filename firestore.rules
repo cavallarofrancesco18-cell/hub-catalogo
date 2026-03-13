@@ -36,11 +36,13 @@ service cloud.firestore {
       // Allow a user to be created in the sellers collection during registration.
       allow create: if isSignedIn() && request.auth.uid == sellerId;
 
-      // Only admins can manage sellers.
-      allow list, update, delete: if isAdmin();
+      // Admins can list and delete sellers.
+      allow list, delete: if isAdmin();
+      
+      // A user can update their own document (e.g. during registration), and an admin can update any document.
+      allow update: if (isSignedIn() && request.auth.uid == sellerId) || isAdmin();
 
       // A seller can read their own document, and an admin can read any seller document.
-      // This is required for the useUserRole hook.
       allow get: if (isSignedIn() && request.auth.uid == sellerId) || isAdmin();
     }
 
