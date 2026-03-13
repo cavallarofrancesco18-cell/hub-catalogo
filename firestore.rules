@@ -24,14 +24,13 @@ service cloud.firestore {
       allow create: if isAdmin();
       allow delete: if isAdmin();
       
-      allow update: if isAdmin();
-
-      // Any signed-in user can book a vehicle when creating a contract.
-      allow update: if isSignedIn()
+      // Any signed in user can book a vehicle. Admins can update anything.
+      allow update: if isAdmin() || 
+                    (isSignedIn()
                     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stato', 'updatedAt', 'statusChangedBy'])
                     && resource.data.stato == 'In vendita'
                     && request.resource.data.stato == 'Prenotato'
-                    && request.resource.data.statusChangedBy == request.auth.uid;
+                    && request.resource.data.statusChangedBy == request.auth.uid);
     }
 
     match /forms/{formId} {
@@ -54,17 +53,8 @@ service cloud.firestore {
     }
 
     match /contracts/{contractId} {
-      // Admins can do anything.
-      allow read, write: if isAdmin();
-      
-      // Any signed-in user can create a contract if they set themselves as creator.
-      allow create: if isSignedIn() && request.resource.data.creatorId == request.auth.uid;
-      
-      // A user can read/update a contract they created.
-      allow get, update: if isSignedIn() && resource.data.creatorId == request.auth.uid;
-      
-      // Only admins can list all contracts or delete them.
-      allow list, delete: if isAdmin();
+      // Any authenticated user can read or write to any contract.
+      allow read, write: if request.auth != null;
     }
   }
 }
