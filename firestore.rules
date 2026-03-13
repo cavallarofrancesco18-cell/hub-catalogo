@@ -73,14 +73,16 @@ service cloud.firestore {
 
     /**
      * @description
-     *   Admin roles collection. Reading is allowed for admins and for a user reading their own role.
-     *   Writes are restricted to other admins.
+     *   Admin roles collection. Reading is allowed for any signed in user to allow role checks.
+     *   Writes are restricted to other admins to prevent self-promotion.
      * @path
      *   /Admin/{userId}
      */
     match /Admin/{userId} {
-      allow get: if isAdmin() || (isSignedIn() && request.auth.uid == userId);
-      allow list, create, update, delete: if isAdmin();
+      // Allow any authenticated user to read admin roles. This is needed to break recursive checks.
+      allow get, list: if isSignedIn();
+      // Only existing admins can add/remove other admins.
+      allow write: if isAdmin();
     }
 
     /**
@@ -106,10 +108,10 @@ service cloud.firestore {
       // An admin can perform any write operation (create, update, delete).
       allow write: if isAdmin();
       // A user can create their own profile document (e.g., during registration).
-      allow create: if request.auth.uid == userId;
+      allow create: if isSignedIn() && request.auth.uid == userId;
       
       // Admins can see all user profiles, users can only see their own.
-      allow get: if isAdmin() || request.auth.uid == userId;
+      allow get: if isAdmin() || (isSignedIn() && request.auth.uid == userId);
       allow list: if isAdmin();
     }
 
