@@ -7,10 +7,9 @@
  *
  * Data Structure:
  * - /vehicles/{vehicleId}: Public collection of all vehicle data.
- * - /Admin/{userId}: A list of admin UIDs. Document existence grants admin role.
- * - /users/{userId}: Contains user profiles. If a user is a seller, their document contains `role: 'seller'`.
+ * - /users/{userId}: Contains user profiles including their role ('admin', 'seller', or null).
  * - /forms/{formId}: Collection for storing form/document metadata.
- * - /users/{userId}: Basic profile data for all registered users.
+ * - /contracts/{contractId}: Data for sales contracts.
  */
 rules_version = '2';
 service cloud.firestore {
@@ -26,15 +25,17 @@ service cloud.firestore {
     }
     
     /**
-     * Checks if the user is an administrator by checking for their UID in the 'Admin' collection.
+     * Checks if the user is an administrator by reading their user document.
+     * This requires that the rules for /users/{userId} allow the user to read their own document.
      */
     function isAdmin() {
-      return isSignedIn() && exists(/databases/$(database)/documents/Admin/$(request.auth.uid));
+      return isSignedIn() 
+             && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+             && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
     /**
      * Checks if the user is a seller by reading their user document.
-     * Uses .get() with a default value for safety against missing fields.
      */
     function isSeller() {
         return isSignedIn()
@@ -67,26 +68,13 @@ service cloud.firestore {
                     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['descrizione', 'updatedAt'])
                     && request.resource.data.updatedAt == request.time;
       
-      // Any signed in user can also change the status from 'In vendita' to 'Prenotato'.
+      // Any signed-in user can change the status from 'In vendita' to 'Prenotato'.
       allow update: if isSignedIn()
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stato', 'updatedAt', 'statusChangedBy'])
                     && resource.data.stato == 'In vendita'
                     && request.resource.data.stato == 'Prenotato'
-                    && request.resource.data.updatedAt == request.time;
-    }
-
-    /**
-     * @description
-     *   Admin roles collection. Reading is allowed for any signed in user to allow role checks.
-     *   Writes are restricted to other admins to prevent self-promotion.
-     * @path
-     *   /Admin/{userId}
-     */
-    match /Admin/{userId} {
-      // Allow any authenticated user to read admin roles. This is needed to break recursive checks.
-      allow get, list: if isSignedIn();
-      // Only existing admins can add/remove other admins.
-      allow write: if isAdmin();
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stato', 'updatedAt', 'statusChangedBy'])
+                    && request.resource.data.updatedAt == request.time
+                    && request.resource.data.statusChangedBy == request.auth.uid;
     }
 
     /**
@@ -111,6 +99,7 @@ service cloud.firestore {
     match /users/{userId} {
       // An admin can perform any write operation (create, update, delete).
       allow write: if isAdmin();
+      
       // A user can create their own profile document (e.g., during registration).
       allow create: if isSignedIn() && request.auth.uid == userId;
       

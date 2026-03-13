@@ -3,13 +3,13 @@
 import { useState, useEffect } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
 import { useUser, useFirestore } from '@/firebase';
-import type { User as UserData } from '@/lib/types';
+import type { User as UserData, Role } from '@/lib/types';
 
-export type Role = 'admin' | 'seller' | null;
+export type { Role };
 
 export interface UserRoleState {
   role: Role;
-  roleData: UserData | { assignedAt: any } | null;
+  roleData: UserData | null;
   isLoading: boolean;
 }
 
@@ -35,37 +35,29 @@ export function useUserRole(): UserRoleState {
       return;
     }
 
-    const checkRoles = async () => {
-      // We have a user, so we will check their role. isLoading remains true
-      // from the initial state until we determine the role.
+    const checkRole = async () => {
+      // We have a user, so we will check their role.
       try {
-        // Check for admin role first.
-        const adminRef = doc(firestore, 'Admin', user.uid);
-        const adminDoc = await getDoc(adminRef);
-        if (adminDoc.exists()) {
-          setRoleState({ role: 'admin', roleData: adminDoc.data(), isLoading: false });
-          return; // Role found, no need to check further.
-        }
-
-        // If not admin, check for seller role from the user document.
         const userRef = doc(firestore, 'users', user.uid);
         const userDoc = await getDoc(userRef);
-        if (userDoc.exists() && userDoc.data().role === 'seller') {
-          setRoleState({ role: 'seller', roleData: {id: userDoc.id, ...userDoc.data()} as UserData, isLoading: false });
-          return; // Role found.
+        
+        if (userDoc.exists()) {
+          const userData = {id: userDoc.id, ...userDoc.data()} as UserData;
+          setRoleState({ role: userData.role, roleData: userData, isLoading: false });
+        } else {
+          // This case handles users who are authenticated with Firebase Auth
+          // but do not have a corresponding document in the 'users' collection.
+          setRoleState({ role: null, roleData: null, isLoading: false });
         }
 
-        // If neither admin nor seller, the user has no specific role.
-        setRoleState({ role: null, roleData: null, isLoading: false });
-
       } catch (error) {
-        console.error("Error checking user roles:", error);
+        console.error("Error checking user role:", error);
         // In case of an error, reset to a clean, non-privileged state.
         setRoleState({ role: null, roleData: null, isLoading: false });
       }
     };
 
-    checkRoles();
+    checkRole();
   }, [user, isUserLoading, firestore]);
 
   return roleState;

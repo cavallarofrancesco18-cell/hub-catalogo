@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useCollection } from '@/firebase/firestore/use-collection';
-import { collection, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { collection, doc, serverTimestamp } from 'firebase/firestore';
 import type { User as UserProfile } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import {
@@ -36,7 +36,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { useFirestore, useMemoFirebase, useUser } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
-import { setDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, Shield, User as UserIcon, X, Trash2, PlusCircle } from 'lucide-react';
 import { format } from 'date-fns';
@@ -68,9 +68,9 @@ const sellerTypes = ['OSPITE_SELLER', 'HUB_SELLER', 'RESTART_SELLER', 'EXPRESS_S
 const newUserSchema = z.object({
   email: z.string().email('Email non valida.'),
   password: z.string().min(6, 'La password deve contenere almeno 6 caratteri.'),
-  role: z.enum(['Admin', 'Seller'], { required_error: 'Il ruolo è obbligatorio.' }),
+  role: z.enum(['admin', 'seller'], { required_error: 'Il ruolo è obbligatorio.' }),
   sellerType: z.string().optional(),
-}).refine(data => data.role !== 'Seller' || (data.role === 'Seller' && data.sellerType && data.sellerType !== 'none'), {
+}).refine(data => data.role !== 'seller' || (data.role === 'seller' && data.sellerType && data.sellerType !== 'none'), {
   message: 'Selezionare un tipo di venditore.',
   path: ['sellerType'],
 });
@@ -82,41 +82,29 @@ export default function UsersPage() {
   const { user: currentUser } = useUser();
   const { toast } = useToast();
 
-  const [actionState, setActionState] = useState<{ type: 'confirm' | null; user: any | null; newRole?: any; }>({ type: null, user: null });
+  const [userToModify, setUserToModify] = useState<UserProfile | null>(null);
   const [userToDelete, setUserToDelete] = useState<UserProfile | null>(null);
   const [isProcessing, setIsProcessing] = useState<string | null>(null);
   const [isCreateUserOpen, setIsCreateUserOpen] = useState(false);
 
   const usersRef = useMemoFirebase(() => collection(firestore, 'users'), [firestore]);
-  const { data: users, isLoading: isLoadingUsers } = useCollection<UserProfile>(usersRef);
-
-  const adminsRef = useMemoFirebase(() => collection(firestore, 'Admin'), [firestore]);
-  const { data: admins, isLoading: isLoadingAdmins } = useCollection<{id: string}>(adminsRef);
+  const { data: users, isLoading } = useCollection<UserProfile>(usersRef);
 
   const newUserForm = useForm<NewUserFormValues>({
     resolver: zodResolver(newUserSchema),
     defaultValues: {
       email: '',
       password: '',
-      role: 'Seller',
+      role: 'seller',
       sellerType: sellerTypes[0],
     },
   });
   const selectedRole = newUserForm.watch('role');
 
   const processedUsers = useMemo(() => {
-    if (!users || !admins) return [];
-    
-    const adminIds = new Set(admins.map(a => a.id));
-
-    return users.map(user => {
-      const isAdmin = adminIds.has(user.id);
-      return { 
-        ...user, 
-        role: isAdmin ? 'admin' : user.role, // Prioritize admin role from Admin collection
-      };
-    }).sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0));
-  }, [users, admins]);
+    if (!users) return [];
+    return [...users].sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0));
+  }, [users]);
 
   async function handleCreateUser(values: NewUserFormValues) {
     if (!firestore) return;
@@ -132,24 +120,14 @@ export default function UsersPage() {
       const newUser = userCredential.user;
 
       const userDocRef = doc(firestore, 'users', newUser.uid);
-      const userDocData: any = {
+      const userDocData: Partial<UserProfile> = {
         email: newUser.email,
         createdAt: serverTimestamp(),
+        role: values.role as 'admin' | 'seller',
+        sellerType: values.role === 'seller' ? (values.sellerType as UserProfile['sellerType']) : undefined,
       };
       
-      const rolePromises: Promise<any>[] = [];
-
-      if (values.role === 'Admin') {
-        const adminDocRef = doc(firestore, 'Admin', newUser.uid);
-        rolePromises.push(setDocumentNonBlocking(adminDocRef, { assignedAt: serverTimestamp() }, {}));
-      } else { // Role is Seller
-        userDocData.role = 'seller';
-        userDocData.sellerType = values.sellerType;
-      }
-      
-      rolePromises.push(setDocumentNonBlocking(userDocRef, userDocData, { merge: true }));
-
-      await Promise.all(rolePromises);
+      await setDocumentNonBlocking(userDocRef, userDocData, { merge: true });
 
       toast({ title: 'Utente creato!', description: `L'utente ${values.email} è stato creato con successo.` });
       setIsCreateUserOpen(false);
@@ -181,71 +159,67 @@ export default function UsersPage() {
     }
   }
 
-  const handleRoleChange = () => {
-    if (!actionState.user || !actionState.type || !actionState.newRole || !firestore) return;
+  const handleRoleChange = async (user: UserProfile, newRole: 'admin' | 'seller', newSellerType?: UserProfile['sellerType']) => {
+    if (!firestore) return;
 
-    const { user, newRole } = actionState;
     const userId = user.id;
-
     setIsProcessing(userId);
 
-    const adminRef = doc(firestore, 'Admin', userId);
     const userRef = doc(firestore, 'users', userId);
 
-    const promises = [];
+    const dataToUpdate: Partial<UserProfile> = {
+      role: newRole,
+      sellerType: newRole === 'seller' ? newSellerType : undefined,
+    };
 
-    if (newRole.role === 'Admin') {
-        promises.push(setDocumentNonBlocking(adminRef, { assignedAt: serverTimestamp() }, {}));
-        promises.push(updateDoc(userRef, { role: null, sellerType: null }));
-    } else if (newRole.role === 'Seller') {
-        promises.push(deleteDocumentNonBlocking(adminRef));
-        promises.push(updateDoc(userRef, { role: 'seller', sellerType: newRole.sellerType }));
-    } else if (newRole.role === 'Remove') {
-        promises.push(deleteDocumentNonBlocking(adminRef));
-        promises.push(updateDoc(userRef, { role: null, sellerType: null }));
+    try {
+      await updateDocumentNonBlocking(userRef, dataToUpdate);
+      toast({ title: 'Successo', description: `Il ruolo di ${user.email} è stato aggiornato.` });
+    } catch (e) {
+      toast({ variant: 'destructive', title: 'Errore', description: 'Impossibile modificare il ruolo.' });
+    } finally {
+      setIsProcessing(null);
+      setUserToModify(null);
     }
-
-    Promise.all(promises).then(() => {
-        let description = '';
-        if (newRole.role === 'Admin') {
-            description = `${user.email} è ora un Amministratore.`;
-        } else if (newRole.role === 'Seller') {
-            description = `${user.email} è ora un Venditore (${newRole.sellerType}).`;
-        } else if (newRole.role === 'Remove') {
-            description = `I ruoli per ${user.email} sono stati rimossi.`;
-        }
-        toast({ title: 'Successo', description });
-    }).catch((e) => {
-        toast({ variant: 'destructive', title: 'Errore', description: 'Impossibile modificare il ruolo. Controlla la console per i dettagli.' });
-    }).finally(() => {
-        setIsProcessing(null);
-        setActionState({ type: null, user: null });
-    });
+  };
+  
+  const handleRemoveRole = async () => {
+    if (!userToModify || !firestore) return;
+  
+    const userId = userToModify.id;
+    setIsProcessing(userId);
+  
+    const userRef = doc(firestore, 'users', userId);
+  
+    try {
+      await updateDocumentNonBlocking(userRef, { role: null, sellerType: null });
+      toast({ title: 'Successo', description: `I ruoli per ${userToModify.email} sono stati rimossi.` });
+    } catch (e) {
+      toast({ variant: 'destructive', title: 'Errore', description: 'Impossibile rimuovere il ruolo.' });
+    } finally {
+      setIsProcessing(null);
+      setUserToModify(null);
+    }
   };
 
-  const handleDeleteUser = () => {
+  const handleDeleteUser = async () => {
     if (!userToDelete || !firestore) return;
 
     const { id: userId, email } = userToDelete;
     setIsProcessing(userId);
 
     const userDocRef = doc(firestore, 'users', userId);
-    const adminRef = doc(firestore, 'Admin', userId);
 
-    Promise.all([
-        deleteDocumentNonBlocking(userDocRef),
-        deleteDocumentNonBlocking(adminRef),
-    ]).then(() => {
-        toast({ title: 'Successo', description: `L'utente ${email} è stato eliminato con successo. (La rimozione dell'autenticazione deve essere fatta manualmente dalla Console Firebase).` });
-    }).catch((e) => {
-        toast({ variant: 'destructive', title: 'Errore', description: "Impossibile eliminare l'utente. Controlla la console per i dettagli." });
-    }).finally(() => {
+    try {
+      await deleteDocumentNonBlocking(userDocRef);
+      toast({ title: 'Successo', description: `L'utente ${email} è stato eliminato. (L'autenticazione va rimossa dalla Console Firebase).` });
+    } catch(e) {
+        toast({ variant: 'destructive', title: 'Errore', description: "Impossibile eliminare l'utente." });
+    } finally {
         setIsProcessing(null);
         setUserToDelete(null);
-    });
+    }
   };
-  
-  const isLoading = isLoadingUsers || isLoadingAdmins;
 
   return (
     <>
@@ -307,11 +281,11 @@ export default function UsersPage() {
                             className="flex items-center space-x-4"
                           >
                             <FormItem className="flex items-center space-x-2 space-y-0">
-                              <FormControl><RadioGroupItem value="Seller" /></FormControl>
+                              <FormControl><RadioGroupItem value="seller" /></FormControl>
                               <FormLabel className="font-normal">Venditore</FormLabel>
                             </FormItem>
                             <FormItem className="flex items-center space-x-2 space-y-0">
-                              <FormControl><RadioGroupItem value="Admin" /></FormControl>
+                              <FormControl><RadioGroupItem value="admin" /></FormControl>
                               <FormLabel className="font-normal">Admin</FormLabel>
                             </FormItem>
                           </RadioGroup>
@@ -320,7 +294,7 @@ export default function UsersPage() {
                       </FormItem>
                     )}
                   />
-                  {selectedRole === 'Seller' && (
+                  {selectedRole === 'seller' && (
                      <FormField
                         control={newUserForm.control}
                         name="sellerType"
@@ -389,7 +363,7 @@ export default function UsersPage() {
                   <TableCell>
                     {user.role === 'admin' && <Badge variant="default"><Shield className="mr-2 h-3 w-3" />Admin</Badge>}
                     {user.role === 'seller' && <Badge variant="secondary"><UserIcon className="mr-2 h-3 w-3" />Venditore ({user.sellerType})</Badge>}
-                    {user.role !== 'admin' && user.role !== 'seller' && <Badge variant="outline">In attesa</Badge>}
+                    {!user.role && <Badge variant="outline">Nessun ruolo</Badge>}
                   </TableCell>
                   <TableCell className="text-right">
                     {isProcessing === user.id ? (
@@ -397,17 +371,19 @@ export default function UsersPage() {
                     ) : (
                       <div className="flex items-center justify-end gap-2">
                          <Select onValueChange={(value) => {
-                            if(value === 'Admin') {
-                                setActionState({ type: 'confirm', user, newRole: { role: 'Admin' } });
-                            } else if (value !== 'none') {
-                                setActionState({ type: 'confirm', user, newRole: { role: 'Seller', sellerType: value } });
+                            if(value === 'admin') {
+                                setUserToModify(user);
+                                handleRoleChange(user, 'admin');
+                            } else if (sellerTypes.includes(value)) {
+                                setUserToModify(user);
+                                handleRoleChange(user, 'seller', value as UserProfile['sellerType']);
                             }
                          }} value="none">
                             <SelectTrigger className="w-[200px]">
                                 <SelectValue placeholder="Assegna/Modifica Ruolo" />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="Admin">Amministratore</SelectItem>
+                                <SelectItem value="admin">Amministratore</SelectItem>
                                 {sellerTypes.map(type => (
                                     <SelectItem key={type} value={type}>Venditore ({type})</SelectItem>
                                 ))}
@@ -420,7 +396,7 @@ export default function UsersPage() {
                                 variant="ghost" 
                                 size="icon" 
                                 title="Rimuovi Ruolo"
-                                onClick={() => setActionState({ type: 'confirm', user, newRole: { role: 'Remove' } })}
+                                onClick={() => setUserToModify(user)}
                                 disabled={currentUser?.uid === user.id && user.role === 'admin'}
                             >
                                 <X className="h-4 w-4 text-destructive" />
@@ -446,21 +422,17 @@ export default function UsersPage() {
         </div>
       </div>
 
-      <AlertDialog open={actionState.type === 'confirm'} onOpenChange={(open) => !open && setActionState({ type: null, user: null })}>
+      <AlertDialog open={!!userToModify && !isProcessing} onOpenChange={(open) => !open && setUserToModify(null)}>
           <AlertDialogContent>
               <AlertDialogHeader>
-                  <AlertDialogTitle>Conferma modifica ruolo</AlertDialogTitle>
+                  <AlertDialogTitle>Conferma rimozione ruolo</AlertDialogTitle>
                   <AlertDialogDescription>
-                      {actionState.user && actionState.newRole && (
-                          actionState.newRole.role === 'Remove' ?
-                          `Stai per rimuovere tutti i ruoli per l'utente ${actionState.user.email}. L'utente non potrà più accedere alle sezioni protette. Continuare?` :
-                          `Stai per assegnare il ruolo di ${actionState.newRole.role} ${actionState.newRole.sellerType ? `(${actionState.newRole.sellerType})` : ''} a ${actionState.user.email}. Eventuali ruoli esistenti verranno sovrascritti. Continuare?`
-                      )}
+                    Stai per rimuovere tutti i ruoli per l'utente {userToModify?.email}. L'utente non potrà più accedere alle sezioni protette. Continuare?
                   </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                  <AlertDialogCancel onClick={() => setActionState({ type: null, user: null })}>Annulla</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleRoleChange}>Conferma</AlertDialogAction>
+                  <AlertDialogCancel onClick={() => setUserToModify(null)}>Annulla</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleRemoveRole}>Conferma</AlertDialogAction>
               </AlertDialogFooter>
           </AlertDialogContent>
       </AlertDialog>

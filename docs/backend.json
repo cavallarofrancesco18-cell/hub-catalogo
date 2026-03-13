@@ -130,19 +130,6 @@
         "updatedAt"
       ]
     },
-    "AdminRole": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "AdminRole",
-      "type": "object",
-      "description": "Represents an admin role. The existence of a document for a user in the Admin collection grants them full administrative privileges.",
-      "properties": {
-        "assignedAt": {
-          "type": "string",
-          "format": "date-time",
-          "description": "Timestamp indicating when the admin role was assigned."
-        }
-      }
-    },
     "Form": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Form",
@@ -196,9 +183,10 @@
           "description": "Timestamp indicating when the user account was created."
         },
         "role": {
-          "type": "string",
-          "description": "The user's role. Can be 'seller'. Admin role is determined by existence in the 'Admin' collection.",
+          "type": ["string", "null"],
+          "description": "The user's role in the system. Can be 'admin' or 'seller'.",
           "enum": [
+            "admin",
             "seller"
           ]
         },
@@ -266,22 +254,6 @@
         }
       },
       {
-        "path": "/Admin/{userId}",
-        "definition": {
-          "entityName": "AdminRole",
-          "schema": {
-            "$ref": "#/backend/entities/AdminRole"
-          },
-          "description": "Dedicated collection for administrative roles. The existence of a document at this path signifies that the user (identified by '{userId}') has administrative privileges to create, update, and delete vehicle listings. Documents are typically empty or contain minimal metadata.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier of the user who is assigned the administrative role."
-            }
-          ]
-        }
-      },
-      {
         "path": "/forms/{formId}",
         "definition": {
           "entityName": "Form",
@@ -304,7 +276,7 @@
           "schema": {
             "$ref": "#/backend/entities/User"
           },
-          "description": "Collection storing all user profile information. It includes basic data like email and creation date. For sellers, it also contains their 'role' and 'sellerType'. Admin roles are managed in the separate '/Admin' collection for security reasons.",
+          "description": "Collection storing all user profile information, including their role ('admin' or 'seller'). This single collection serves as the source of truth for user permissions.",
           "params": [
             {
               "name": "userId",
@@ -325,6 +297,6 @@
         }
       }
     ],
-    "reasoning": "The Firestore structure has been updated to centralize seller role management within the `/users` collection. Previously, a separate `/sellertype` collection was used. This refactoring simplifies the data model: the `User` entity now contains optional `role` and `sellerType` fields. The `/Admin` collection is kept separate to prevent circular dependencies in security rules, ensuring that `isAdmin()` checks remain efficient and don't require a `get()` call on the collection they are trying to secure. This adheres to security best practices while making the overall user data model more intuitive."
+    "reasoning": "The Firestore structure has been simplified to use a single source of truth for user roles. The `/Admin` collection has been removed. User roles ('admin', 'seller', or null) are now stored directly within the `/users/{userId}` document. This centralizes user management, eliminates potential data conflicts between two collections, and simplifies the security rules and application logic needed to check permissions."
   }
 }
