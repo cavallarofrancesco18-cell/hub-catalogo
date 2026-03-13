@@ -40,5 +40,8 @@ service firebase.storage {
      match /Logo-1 trasparente.png {
         allow get: if true;
     }
+    match /MGV_logo.png {
+      allow get: if true;
+    }
   }
 }
