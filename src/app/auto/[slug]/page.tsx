@@ -194,7 +194,7 @@ export default function VehiclePage() {
   const { toast } = useToast();
 
   const firestore = useFirestore();
-  const { user } = useUser();
+  const { user, isUserLoading } = useUser();
   const { role, roleData, isLoading: isLoadingRole } = useUserRole();
 
   const branding = useMemo(() => {
@@ -589,7 +589,7 @@ export default function VehiclePage() {
           vehicle={vehicle}
           onPrintClick={showPriceSheetEditor}
           onProformaClick={showProformaForm}
-          disabled={isLoadingRole || role === null}
+          disabled={isLoadingRole || !user}
           editPath={editPath}
           isBooking={isBooking}
           isProformaButtonDisabled={false}
