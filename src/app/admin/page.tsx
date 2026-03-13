@@ -569,9 +569,14 @@ export default function AdminPage() {
 
   const canCreateContract = (vehicle: Vehicle) => {
     if (!currentUser) return false;
+    // Admins can always create/edit contracts
+    if (role === 'admin') return true;
+
+    // Logged-in users can start a contract for a vehicle that is for sale.
     if (vehicle.stato === 'In vendita') {
       return true;
     }
+    // The user who last changed the status to booked/sold can edit the contract.
     if (
       (vehicle.stato === 'Venduto' || vehicle.stato === 'Prenotato') &&
       vehicle.statusChangedBy === currentUser.uid

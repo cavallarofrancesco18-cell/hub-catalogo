@@ -4,9 +4,9 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { useUser, useFirestore, useFirebaseApp, useMemoFirebase } from '@/firebase';
+import { useFirestore, useFirebaseApp, useMemoFirebase, useUserRole } from '@/firebase';
 import { useCollection } from '@/firebase/firestore/use-collection';
-import { collection, doc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { collection, doc, serverTimestamp } from 'firebase/firestore';
 import { getStorage, ref, deleteObject } from 'firebase/storage';
 import {
   Card,
@@ -110,14 +110,12 @@ function FormList({ forms, isAdmin, onDelete }: { forms: FormType[], isAdmin: bo
 
 
 export default function ModulisticaPage() {
-  const { user } = useUser();
   const firestore = useFirestore();
   const app = useFirebaseApp();
+  const { role, isLoading: isLoadingRole } = useUserRole();
   const storage = useMemo(() => getStorage(app, 'gs://studio-3074982188-44660.appspot.com'), [app]);
   const { toast } = useToast();
 
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [isLoadingRole, setIsLoadingRole] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   const formsRef = useMemoFirebase(() => collection(firestore, 'forms'), [firestore]);
@@ -132,21 +130,7 @@ export default function ModulisticaPage() {
     }
   });
 
-  useEffect(() => {
-    if (user && firestore) {
-      setIsLoadingRole(true);
-      const checkAdmin = async () => {
-        const adminRef = doc(firestore, 'Admin', user.uid);
-        const adminDoc = await getDoc(adminRef);
-        setIsAdmin(adminDoc.exists());
-        setIsLoadingRole(false);
-      };
-      checkAdmin();
-    } else {
-      setIsAdmin(false);
-      setIsLoadingRole(false);
-    }
-  }, [user, firestore]);
+  const isAdmin = role === 'admin';
 
   const { clientForms, merchantForms } = useMemo(() => {
     const clientForms: FormType[] = [];

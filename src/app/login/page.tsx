@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Role } from '@/lib/types';
 
 const loginSchema = z.object({
   email: z.string().email('Indirizzo email non valido.'),
@@ -55,38 +56,51 @@ export default function LoginPage() {
     },
   });
 
+  const checkRoleAndRedirect = async (userId: string) => {
+    if (!firestore) return;
+
+    try {
+        const userRef = doc(firestore, 'users', userId);
+        const userDoc = await getDoc(userRef);
+
+        if (userDoc.exists()) {
+            const role = userDoc.data()?.role as Role;
+            if (role === 'admin') {
+                router.replace('/admin');
+                return;
+            }
+            if (role === 'seller') {
+                router.replace('/auto');
+                return;
+            }
+        }
+        // If user document doesn't exist or has no valid role, sign them out.
+        if (auth) {
+            await signOut(auth);
+        }
+        setIsCheckingRole(false);
+    } catch (error) {
+        console.error("Error checking role:", error);
+        if (auth) {
+            await signOut(auth);
+        }
+        setIsCheckingRole(false);
+    }
+  };
+
+
   // If user is already logged in, check their role and redirect
   useEffect(() => {
     if (isUserLoading) {
       return;
     }
-    if (!user || !firestore) {
+    if (!user) {
       setIsCheckingRole(false);
       return;
     }
-
-    const checkRoleAndRedirect = async () => {
-      const adminRef = doc(firestore, 'Admin', user.uid);
-      const adminDoc = await getDoc(adminRef);
-      if (adminDoc.exists()) {
-        router.replace('/admin');
-        return;
-      }
-
-      const userRef = doc(firestore, 'users', user.uid);
-      const userDoc = await getDoc(userRef);
-      if (userDoc.exists() && userDoc.data().role === 'seller') {
-        router.replace('/auto');
-        return;
-      }
-
-      // If user is logged in but has no role, sign them out and stay on login page
-      await signOut(auth);
-      setIsCheckingRole(false);
-    };
-
-    checkRoleAndRedirect();
-  }, [user, isUserLoading, firestore, router, auth]);
+    checkRoleAndRedirect(user.uid);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, isUserLoading]);
 
 
   async function onSubmit(data: LoginFormValues) {
@@ -100,57 +114,63 @@ export default function LoginPage() {
     }
     setIsSubmitting(true);
     
-    signInWithEmailAndPassword(auth, data.email, data.password)
-        .then(async (userCredential) => {
-            const loggedInUser = userCredential.user;
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, data.email, data.password);
+      const loggedInUser = userCredential.user;
 
-            const adminRef = doc(firestore, 'Admin', loggedInUser.uid);
-            const adminDoc = await getDoc(adminRef);
-            if (adminDoc.exists()) {
-                toast({ title: 'Accesso Admin effettuato!', description: 'Verrai reindirizzato alla gestione veicoli.' });
-                router.push('/admin');
-                return;
-            }
+      const userRef = doc(firestore, 'users', loggedInUser.uid);
+      const userDoc = await getDoc(userRef);
 
-            const userRef = doc(firestore, 'users', loggedInUser.uid);
-            const userDoc = await getDoc(userRef);
-            if (userDoc.exists() && userDoc.data()?.role === 'seller') {
-                toast({ title: 'Accesso Venditore effettuato!', description: 'Verrai reindirizzato al catalogo.' });
-                router.push('/auto');
-                return;
-            }
-
-            // If user has a document but not seller role, or no document at all.
-            await signOut(auth);
-            toast({
-                variant: 'destructive',
-                title: 'Accesso non autorizzato',
-                description: 'Il tuo account non ha un ruolo assegnato o è in attesa di approvazione.',
-            });
-        })
-        .catch((error) => {
-            let description = 'Si è verificato un errore imprevisto.';
-            if (error.code) {
-                switch (error.code) {
-                    case 'auth/user-not-found':
-                    case 'auth/wrong-password':
-                    case 'auth/invalid-credential':
-                        description = 'Email o password non corrette. Riprova.';
-                        break;
-                    case 'auth/too-many-requests':
-                        description = 'Accesso temporaneamente bloccato per troppi tentativi falliti. Riprova più tardi.';
-                        break;
-                }
-            }
-            toast({
-                variant: 'destructive',
-                title: 'Login fallito',
-                description: description,
-            });
-        })
-        .finally(() => {
-            setIsSubmitting(false);
+      if (userDoc.exists()) {
+        const userRole = userDoc.data()?.role as Role;
+        if (userRole === 'admin') {
+          toast({ title: 'Accesso Admin effettuato!', description: 'Verrai reindirizzato alla gestione veicoli.' });
+          router.push('/admin');
+        } else if (userRole === 'seller') {
+          toast({ title: 'Accesso Venditore effettuato!', description: 'Verrai reindirizzato al catalogo.' });
+          router.push('/auto');
+        } else {
+          // User has a document but no valid role
+          await signOut(auth);
+          toast({
+            variant: 'destructive',
+            title: 'Accesso non autorizzato',
+            description: 'Il tuo account non ha un ruolo assegnato.',
+          });
+        }
+      } else {
+        // User is authenticated in Firebase Auth but has no document in 'users' collection
+        await signOut(auth);
+        toast({
+          variant: 'destructive',
+          title: 'Accesso non autorizzato',
+          description: 'Profilo utente non trovato o in attesa di approvazione.',
         });
+      }
+    } catch (error: any) {
+      let description = 'Si è verificato un errore imprevisto.';
+      if (error.code) {
+        switch (error.code) {
+          case 'auth/user-not-found':
+          case 'auth/wrong-password':
+          case 'auth/invalid-credential':
+            description = 'Email o password non corrette. Riprova.';
+            break;
+          case 'auth/too-many-requests':
+            description = 'Accesso temporaneamente bloccato per troppi tentativi falliti. Riprova più tardi.';
+            break;
+          default:
+            description = error.message;
+        }
+      }
+      toast({
+        variant: 'destructive',
+        title: 'Login fallito',
+        description: description,
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   }
   
   if (isUserLoading || isCheckingRole) {
