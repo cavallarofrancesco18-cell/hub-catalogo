@@ -48,7 +48,7 @@ service cloud.firestore {
      *   Rules for the primary collection of vehicle listings.
      *   - Public read access for all.
      *   - Full write access for Admins.
-     *   - Limited update access for Sellers (only description).
+     *   - Limited update access for Sellers (description and status).
      * @path
      *   /vehicles/{vehicleId}
      */
@@ -62,13 +62,19 @@ service cloud.firestore {
       // Admins can update any field.
       allow update: if isAdmin();
       
-      // Sellers can only update 'descrizione'.
-      // We also ensure that 'updatedAt' is being set to the server time.
-      allow update: if isSeller()
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['descrizione', 'updatedAt'])
-                    && request.resource.data.updatedAt == request.time;
+      // Sellers can update the description OR the status.
+      allow update: if isSeller() && (
+        // Case 1: Only updating description
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['descrizione', 'updatedAt']) &&
+         request.resource.data.updatedAt == request.time)
+        ||
+        // Case 2: Updating status
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stato', 'statusChangedBy', 'updatedAt']) &&
+         request.resource.data.updatedAt == request.time &&
+         request.resource.data.statusChangedBy == request.auth.uid)
+      );
       
-      // Any signed-in user can change the status from 'In vendita' to 'Prenotato'.
+      // Any signed-in user (including those without a 'seller' role) can change the status from 'In vendita' to 'Prenotato'.
       allow update: if isSignedIn()
                     && resource.data.stato == 'In vendita'
                     && request.resource.data.stato == 'Prenotato'
