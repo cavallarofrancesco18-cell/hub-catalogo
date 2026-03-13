@@ -37,7 +37,9 @@ service cloud.firestore {
      * Uses .get() with a default value for safety against missing fields.
      */
     function isSeller() {
-        return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', null) == 'seller';
+        return isSignedIn()
+               && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+               && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', null) == 'seller';
     }
 
     /**
@@ -65,8 +67,8 @@ service cloud.firestore {
                     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['descrizione', 'updatedAt'])
                     && request.resource.data.updatedAt == request.time;
       
-      // Sellers can also change the status from 'In vendita' to 'Prenotato'.
-      allow update: if isSeller()
+      // Any signed in user can also change the status from 'In vendita' to 'Prenotato'.
+      allow update: if isSignedIn()
                     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stato', 'updatedAt', 'statusChangedBy'])
                     && resource.data.stato == 'In vendita'
                     && request.resource.data.stato == 'Prenotato'
@@ -128,11 +130,11 @@ service cloud.firestore {
       // An Admin can do anything.
       allow read, write: if isAdmin();
       
-      // A Seller can create a contract, ensuring they set themselves as the creator.
-      allow create: if isSeller() && request.resource.data.creatorId == request.auth.uid;
+      // Any signed-in user can create a contract, ensuring they set themselves as the creator.
+      allow create: if isSignedIn() && request.resource.data.creatorId == request.auth.uid;
       
-      // A Seller can read or update a contract they created.
-      allow get, update: if isSeller() && resource.data.creatorId == request.auth.uid;
+      // A user can read or update a contract they created.
+      allow get, update: if isSignedIn() && resource.data.creatorId == request.auth.uid;
       
       // No one can list all contracts except admins (covered by first rule).
       allow list: if isAdmin();
