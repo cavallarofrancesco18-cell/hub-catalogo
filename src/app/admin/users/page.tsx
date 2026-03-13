@@ -21,7 +21,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { format } from 'date-fns';
 import { Trash2, Loader2 } from 'lucide-react';
 import {
   AlertDialog,
@@ -123,8 +122,8 @@ export default function UsersPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead>ID</TableHead>
                 <TableHead>Email</TableHead>
-                <TableHead>Data Registrazione</TableHead>
                 <TableHead>Tipo Venditore</TableHead>
                 <TableHead className="w-[100px] text-right">Azioni</TableHead>
               </TableRow>
@@ -134,10 +133,10 @@ export default function UsersPage() {
                 Array.from({ length: 3 }).map((_, i) => (
                   <TableRow key={i}>
                     <TableCell>
-                      <Skeleton className="h-4 w-48" />
+                      <Skeleton className="h-4 w-32" />
                     </TableCell>
                     <TableCell>
-                      <Skeleton className="h-4 w-32" />
+                      <Skeleton className="h-4 w-48" />
                     </TableCell>
                     <TableCell>
                       <Skeleton className="h-10 w-28" />
@@ -157,12 +156,8 @@ export default function UsersPage() {
               {!isLoading && !error && sellers && sellers.length > 0 ? (
                 sellers.map(seller => (
                   <TableRow key={seller.id}>
+                    <TableCell className="font-mono text-xs">{seller.id}</TableCell>
                     <TableCell className="font-medium">{seller.email || '(Email non specificata)'}</TableCell>
-                    <TableCell>
-                      {seller.createdAt?.toDate
-                        ? format(seller.createdAt.toDate(), 'dd/MM/yyyy')
-                        : 'N/A'}
-                    </TableCell>
                     <TableCell>
                         {isUpdating === seller.id ? (
                             <Loader2 className="h-5 w-5 animate-spin" />
