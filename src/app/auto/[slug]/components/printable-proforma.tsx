@@ -48,7 +48,7 @@ export function PrintableProforma({ vehicle, customer, price, costoVultura, cust
   );
 
   return (
-    <div className="bg-white text-black p-8 font-sans text-sm">
+    <div className="bg-white text-black p-8 text-sm" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
       <header className="flex justify-between items-start pb-4 mb-8 border-b-2 border-gray-300" style={{ breakInside: 'avoid' }}>
         <div className="flex items-center gap-4">
           {logoUrl ? (

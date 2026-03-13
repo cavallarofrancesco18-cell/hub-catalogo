@@ -30,7 +30,7 @@ export function PrintableVehicleSheet({ vehicle, price, branding }: PrintableVeh
 
 
   return (
-    <div className="bg-white text-black p-6 font-sans">
+    <div className="bg-white text-black p-6" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
       {/* Header */}
       <header className="flex justify-between items-center pb-4 border-b-2 border-gray-200" style={{ breakInside: 'avoid' }}>
         <div className="flex items-center gap-4">
