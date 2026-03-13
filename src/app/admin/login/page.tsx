@@ -50,8 +50,12 @@ export default function AdminLoginPage() {
   });
   
   useEffect(() => {
-    if (!isRoleLoading && role === 'admin') {
-      router.replace('/admin');
+    if (!isRoleLoading) {
+      if (role === 'admin') {
+        router.replace('/admin');
+      } else if (role === 'seller') {
+        router.replace('/auto');
+      }
     }
   }, [isRoleLoading, role, router]);
 
@@ -63,7 +67,7 @@ export default function AdminLoginPage() {
       // once the user's role is confirmed.
       toast({
         title: 'Accesso effettuato!',
-        description: 'Verrai reindirizzato alla dashboard.',
+        description: 'Verrai reindirizzato a breve.',
       });
     } catch (error: any) {
       let description = 'Si è verificato un errore imprevisto.';
@@ -80,8 +84,8 @@ export default function AdminLoginPage() {
     }
   }
   
-  // Don't render the form if the user is already an admin and about to be redirected.
-  if (isRoleLoading || role === 'admin') {
+  // Don't render the form if the user is already logged in and about to be redirected.
+  if (isRoleLoading || role === 'admin' || role === 'seller') {
     return (
       <div className="flex h-screen w-full items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -93,9 +97,9 @@ export default function AdminLoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <Card className="w-full max-w-sm">
         <CardHeader>
-          <CardTitle className="text-2xl">Accesso Admin</CardTitle>
+          <CardTitle className="text-2xl">Accesso</CardTitle>
           <CardDescription>
-            Inserisci le tue credenziali per accedere all'area di amministrazione.
+            Inserisci le tue credenziali per accedere.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -108,7 +112,7 @@ export default function AdminLoginPage() {
                   <FormItem>
                     <FormLabel>Email</FormLabel>
                     <FormControl>
-                      <Input placeholder="admin@example.com" {...field} />
+                      <Input placeholder="email@example.com" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
