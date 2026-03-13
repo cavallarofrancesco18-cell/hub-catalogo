@@ -48,7 +48,7 @@ export function PrintableProforma({ vehicle, customer, price, costoVultura, cust
   );
 
   return (
-    <div className="bg-white text-black p-6 text-sm leading-normal" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
+    <div className="bg-white text-black p-6 text-sm" style={{ fontFamily: 'Arial, Helvetica, sans-serif', lineHeight: '1.4' }}>
       <header className="flex justify-between items-start pb-4 mb-6 border-b-2 border-gray-300" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
         <div className="flex items-center gap-4">
           {logoUrl ? (
@@ -70,8 +70,8 @@ export function PrintableProforma({ vehicle, customer, price, costoVultura, cust
         </div>
       </header>
 
-      <div style={{ textAlign: 'center', marginBottom: '24px', breakInside: 'avoid', pageBreakInside: 'avoid' }}>
-        <h1 style={{ fontSize: '16px', fontWeight: 'bold', letterSpacing: '0.5px' }}>CONTRATTO DI COMPRAVENDITA DI AUTOVEICOLO USATO</h1>
+      <div style={{ textAlign: 'center', marginBottom: '24px', letterSpacing: '0.5px' }}>
+        <h1 style={{ fontSize: '16px', fontWeight: 'bold' }}>CONTRATTO DI COMPRAVENDITA DI AUTOVEICOLO USATO</h1>
         <p style={{ fontSize: '14px', marginTop: '4px' }}>redatto in duplice copia originale</p>
       </div>
 
@@ -162,7 +162,7 @@ export function PrintableProforma({ vehicle, customer, price, costoVultura, cust
         )}
       </section>
 
-      <section className="mb-4" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
+      <section className="mb-4" style={{ breakBefore: 'page', pageBreakBefore: 'always' }}>
         <h2 className="font-bold text-base mb-2 pb-1 border-b">Art. 3 - Garanzia</h2>
         {customerType === 'privato' ? (
           <p style={{ whiteSpace: 'pre-wrap', breakInside: 'avoid', pageBreakInside: 'avoid' }}>{warranty || 'Nessuna garanzia specificata.'}</p>
@@ -214,3 +214,5 @@ export function PrintableProforma({ vehicle, customer, price, costoVultura, cust
     </div>
   );
 }
+
+    
