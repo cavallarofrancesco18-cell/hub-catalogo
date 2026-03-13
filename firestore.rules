@@ -64,14 +64,14 @@ service cloud.firestore {
                     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['descrizione', 'updatedAt'])
                     && request.resource.data.updatedAt == request.time;
 
-      // Rule for sellers updating vehicle status (booking or managing)
-      allow update: if isSeller()
+      // Rule for sellers or admins updating vehicle status (booking or managing)
+      allow update: if (isSeller() || isAdmin())
                     && request.resource.data.diff(resource.data).affectedKeys().isSubsetOf(['stato', 'statusChangedBy', 'updatedAt'])
                     && request.resource.data.updatedAt == request.time
                     && (
                       // Scenario 1: A seller books a vehicle that is currently for sale.
                       (resource.data.stato == 'In vendita' && request.resource.data.stato == 'Prenotato' && request.resource.data.statusChangedBy == request.auth.uid) ||
-                      // Scenario 2: The seller who previously booked/sold the car can manage its status further.
+                      // Scenario 2: The user who previously booked/sold the car can manage its status further.
                       (resource.data.statusChangedBy == request.auth.uid)
                     );
     }

@@ -36,19 +36,6 @@ export function useUserRole(): UserRoleState {
   }
 
   if (!user || !userData) {
-    // If the user is anonymous, we can treat them as an admin for development.
-    if (user?.isAnonymous) {
-      return {
-        role: 'admin',
-        roleData: {
-            id: user.uid,
-            email: 'anonymous@dev.com',
-            createdAt: new Date(),
-            role: 'admin',
-        },
-        isLoading: false
-      }
-    }
     return { role: null, roleData: null, isLoading: false };
   }
 

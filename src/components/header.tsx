@@ -1,18 +1,32 @@
 'use client';
 
-import { FileText, Home, ClipboardList } from 'lucide-react';
+import { FileText, Home, ClipboardList, LogIn, LogOut } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { signOut } from 'firebase/auth';
 
 import { Button } from '@/components/ui/button';
 import { getBranding } from '@/lib/branding';
+import { useUserRole, useAuth } from '@/firebase';
+import type { User } from '@/lib/types';
+import { useRouter } from 'next/navigation';
 
-// NOTE: This component has been simplified to remove authentication logic.
-// It currently displays an admin-level view by default.
 export function Header() {
-  // Always use default branding as there is no user role.
-  const branding = getBranding(null, undefined);
+  const { role, roleData, isLoading } = useUserRole();
+  const auth = useAuth();
+  const router = useRouter();
+  
+  const branding = getBranding(role, (roleData as User)?.sellerType);
   const { logoUrl, companyName } = branding;
+
+  const handleLogout = async () => {
+    await signOut(auth);
+    router.push('/admin/login');
+  };
+
+  const isAdmin = role === 'admin';
+  const isSeller = role === 'seller';
+  const isLoggedIn = isAdmin || isSeller;
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background shadow-sm print:hidden">
@@ -33,26 +47,62 @@ export function Header() {
             </span>
           )}
         </Link>
-        <div className="flex items-center gap-2">
+        <nav className="flex items-center gap-2">
           <Button asChild variant="ghost">
             <Link href="/auto">
               <Home className="mr-2 h-4 w-4" />
               Catalogo
             </Link>
           </Button>
-          <Button asChild variant="ghost">
-              <Link href="/admin">
-                  <ClipboardList className="mr-2 h-4 w-4" />
-                  Gestione Veicoli
+
+          {!isLoading && isAdmin && (
+            <>
+              <Button asChild variant="ghost">
+                  <Link href="/admin">
+                      <ClipboardList className="mr-2 h-4 w-4" />
+                      Gestione Veicoli
+                  </Link>
+              </Button>
+              <Button asChild variant="ghost">
+                  <Link href="/admin/users">
+                      <ClipboardList className="mr-2 h-4 w-4" />
+                      Gestione Utenti
+                  </Link>
+              </Button>
+              <Button asChild variant="ghost">
+                <Link href="/modulistica">
+                  <FileText className="mr-2 h-4 w-4" />
+                  Modulistica
+                </Link>
+              </Button>
+            </>
+          )}
+
+          {!isLoading && isSeller && (
+             <Button asChild variant="ghost">
+                <Link href="/seller">
+                    <ClipboardList className="mr-2 h-4 w-4" />
+                    Area Venditore
+                </Link>
+             </Button>
+          )}
+
+          {!isLoading && !isLoggedIn && (
+            <Button asChild>
+              <Link href="/admin/login">
+                <LogIn className="mr-2 h-4 w-4" />
+                Login
               </Link>
-          </Button>
-          <Button asChild variant="ghost">
-            <Link href="/modulistica">
-              <FileText className="mr-2 h-4 w-4" />
-              Modulistica
-            </Link>
-          </Button>
-        </div>
+            </Button>
+          )}
+
+          {!isLoading && isLoggedIn && (
+            <Button variant="ghost" onClick={handleLogout}>
+              <LogOut className="mr-2 h-4 w-4" />
+              Logout
+            </Button>
+          )}
+        </nav>
       </div>
     </header>
   );

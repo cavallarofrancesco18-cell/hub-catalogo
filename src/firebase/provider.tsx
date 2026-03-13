@@ -3,7 +3,7 @@
 import React, { DependencyList, createContext, useContext, ReactNode, useMemo, useState, useEffect } from 'react';
 import { FirebaseApp } from 'firebase/app';
 import { Firestore } from 'firebase/firestore';
-import { Auth, User, onAuthStateChanged, signInAnonymously } from 'firebase/auth';
+import { Auth, User, onAuthStateChanged } from 'firebase/auth';
 import { FirebaseErrorListener } from '@/components/FirebaseErrorListener'
 
 interface FirebaseProviderProps {
@@ -71,17 +71,7 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
     const unsubscribe = onAuthStateChanged(
       auth,
       (user) => {
-        if (user) {
-          // If a user is already signed in (e.g., from a previous session), use them.
-          setUserAuthState({ user, isUserLoading: false, userError: null });
-        } else {
-          // If no user is signed in, automatically sign in anonymously for development.
-          signInAnonymously(auth).catch((error) => {
-            console.error("Anonymous sign-in failed for development mode:", error);
-            // If anonymous sign-in fails, proceed with no user.
-            setUserAuthState({ user: null, isUserLoading: false, userError: error });
-          });
-        }
+        setUserAuthState({ user, isUserLoading: false, userError: null });
       },
       (error) => {
         // Handle errors in the auth state listener itself.
