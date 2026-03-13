@@ -255,22 +255,6 @@
         }
       },
       {
-        "path": "/users/{userId}",
-        "definition": {
-          "entityName": "User",
-          "schema": {
-            "$ref": "#/backend/entities/User"
-          },
-          "description": "Collection storing administrator user profiles. Existence of a document in this collection grants admin privileges.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier of the user, matching their Firebase Auth UID."
-            }
-          ]
-        }
-      },
-      {
         "path": "/sellers/{sellerId}",
         "definition": {
           "entityName": "User",
@@ -298,6 +282,6 @@
         }
       }
     ],
-    "reasoning": "The Firestore structure has been refactored to use separate collections for different user roles. The `/users` collection is now exclusively for administrators. A new `/sellers` collection has been added to store profiles for seller-level users. New user registrations will create documents in the `/sellers` collection by default. This approach makes role management implicit based on collection membership, simplifying security rules and application logic for role checking."
+    "reasoning": "The Firestore structure has been simplified. The `/users` collection for administrators has been removed. Admin access is now determined by a hardcoded UID in the application logic and security rules, simplifying role management to a single administrator. The `/sellers` collection is used for all other registered users."
   }
 }

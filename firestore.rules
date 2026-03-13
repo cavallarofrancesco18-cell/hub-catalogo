@@ -10,7 +10,7 @@ service cloud.firestore {
     }
     
     function isAdmin() {
-      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+      return isSignedIn() && request.auth.uid == '4E6MSEuIXZeeo3j2taWIA7LbYcw2';
     }
 
     function isSeller() {
@@ -30,16 +30,6 @@ service cloud.firestore {
     match /forms/{formId} {
       allow get, list: if isAdmin() || isSeller();
       allow create, update, delete: if isAdmin();
-    }
-
-    match /users/{userId} {
-      // Only admins can write to the users (admin) collection.
-      allow write: if isAdmin();
-      // Only admins can list all admins.
-      allow list: if isAdmin();
-      // An admin can get any user doc, and any user can get their own.
-      // This is required for the useUserRole hook to check for admin status.
-      allow get: if isAdmin() || (isSignedIn() && request.auth.uid == userId);
     }
     
     match /sellers/{sellerId} {

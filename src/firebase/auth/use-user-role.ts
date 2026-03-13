@@ -15,29 +15,26 @@ export interface UserRoleState {
   isLoading: boolean;
 }
 
+const ADMIN_UID = '4E6MSEuIXZeeo3j2taWIA7LbYcw2';
+
 /**
- * Hook to get the current user's role from their document in Firestore.
- * It checks for a document in the 'users' (for admins) or 'sellers' collection.
+ * Hook to get the current user's role.
+ * Admin role is determined by a hardcoded UID.
+ * Seller role is determined by document existence in the 'sellers' collection.
  */
 export function useUserRole(): UserRoleState {
   const { user, isUserLoading: isAuthLoading } = useUser();
   const firestore = useFirestore();
-
-  const adminDocRef = useMemoFirebase(() => {
-    if (!user || !firestore) return null;
-    return doc(firestore, 'users', user.uid);
-  }, [user, firestore]);
 
   const sellerDocRef = useMemoFirebase(() => {
     if (!user || !firestore) return null;
     return doc(firestore, 'sellers', user.uid);
   }, [user, firestore]);
 
-  const { data: adminData, isLoading: isAdminDataLoading } = useDoc<UserData>(adminDocRef);
   const { data: sellerData, isLoading: isSellerDataLoading } = useDoc<UserData>(sellerDocRef);
 
   const roleState = useMemo((): UserRoleState => {
-    const isLoading = isAuthLoading || (!!user && (isAdminDataLoading || isSellerDataLoading));
+    const isLoading = isAuthLoading || (!!user && isSellerDataLoading);
 
     if (isLoading) {
       return { role: null, roleData: null, isLoading: true };
@@ -47,15 +44,22 @@ export function useUserRole(): UserRoleState {
         return { role: null, roleData: null, isLoading: false };
     }
 
-    if (adminData) {
-      return { role: 'admin', roleData: adminData, isLoading: false };
+    // Check for admin role by UID first
+    if (user.uid === ADMIN_UID) {
+      // Create a UserData object for the admin on the fly
+      const adminUserData: UserData = {
+          id: user.uid,
+          email: user.email!,
+          createdAt: user.metadata.creationTime ? new Date(user.metadata.creationTime) : new Date(),
+      };
+      return { role: 'admin', roleData: adminUserData, isLoading: false };
     }
 
     if (sellerData) {
       return { role: 'seller', roleData: sellerData, isLoading: false };
     }
 
-    // User is authenticated but has no role document in either collection.
+    // User is authenticated but has no specific role document.
     const basicUserData: UserData = {
         id: user.uid,
         email: user.email!,
@@ -63,7 +67,7 @@ export function useUserRole(): UserRoleState {
     };
     return { role: null, roleData: basicUserData, isLoading: false };
 
-  }, [isAuthLoading, isAdminDataLoading, isSellerDataLoading, user, adminData, sellerData]);
+  }, [isAuthLoading, isSellerDataLoading, user, sellerData]);
 
   return roleState;
 }

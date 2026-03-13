@@ -34,6 +34,7 @@ const loginSchema = z.object({
 });
 
 type LoginFormValues = z.infer<typeof loginSchema>;
+const ADMIN_UID = '4E6MSEuIXZeeo3j2taWIA7LbYcw2';
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -68,23 +69,21 @@ export default function AdminLoginPage() {
       const userCredential = await signInWithEmailAndPassword(auth, data.email, data.password);
       const user = userCredential.user;
 
-      // Explicitly check the user's role from Firestore after successful login
-      const adminDocRef = doc(firestore, 'users', user.uid);
-      const adminDocSnap = await getDoc(adminDocRef);
-
-      if (adminDocSnap.exists()) {
+      // Check if the user is the hardcoded admin
+      if (user.uid === ADMIN_UID) {
         toast({ title: 'Accesso Admin riuscito!', description: 'Verrai reindirizzato a breve.' });
         router.replace('/admin');
-        return; // Stop execution after redirect
+        return;
       }
-
+      
+      // If not admin, check if they are a seller
       const sellerDocRef = doc(firestore, 'sellers', user.uid);
       const sellerDocSnap = await getDoc(sellerDocRef);
 
       if (sellerDocSnap.exists()) {
         toast({ title: 'Accesso riuscito!', description: 'Verrai reindirizzato a breve.' });
         router.replace('/auto');
-        return; // Stop execution after redirect
+        return;
       }
 
       // If the user exists in Auth but has no role document, sign them out and show an error.
