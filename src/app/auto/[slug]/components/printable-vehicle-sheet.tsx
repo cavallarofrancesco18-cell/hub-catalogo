@@ -54,9 +54,9 @@ export function PrintableVehicleSheet({ vehicle, price, branding }: PrintableVeh
       </header>
 
       {/* Title */}
-      <div className="my-8 text-center" style={{ breakInside: 'avoid' }}>
-        <h1 className="text-4xl font-bold">{`${vehicle.marca} ${vehicle.modello}`}</h1>
-        <h2 className="text-2xl text-gray-600">{vehicle.versione}</h2>
+      <div style={{ margin: '32px 0', textAlign: 'center', breakInside: 'avoid' }}>
+        <h1 style={{ fontSize: '30px', fontWeight: 'bold', letterSpacing: '0.5px' }}>{`${vehicle.marca} ${vehicle.modello}`}</h1>
+        <h2 style={{ fontSize: '20px', color: '#4B5563', marginTop: '4px' }}>{vehicle.versione}</h2>
       </div>
 
       {/* Main Content */}
