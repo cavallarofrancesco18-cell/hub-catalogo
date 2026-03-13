@@ -5,7 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useCollection } from '@/firebase/firestore/use-collection';
 import { collection, doc, serverTimestamp, getDoc } from 'firebase/firestore';
-import type { Vehicle, Contract, SellerRole as SellerRoleData } from '@/lib/types';
+import type { Vehicle, Contract, User as SellerRoleData } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import {
   Table,
@@ -39,7 +39,7 @@ import { useToast } from '@/hooks/use-toast';
 import {
   deleteDocumentNonBlocking,
   updateDocumentNonBlocking,
-  setDocumentNonBlocking
+  setDocumentNonBlocking,
 } from '@/firebase/non-blocking-updates';
 import { getStorage, ref, deleteObject } from 'firebase/storage';
 import {
@@ -80,94 +80,118 @@ import html2canvas from 'html2canvas';
 import { format } from 'date-fns';
 import { brandingProfiles } from '@/lib/branding';
 
-const proformaSchema = z.object({
-  name: z.string().min(1, 'Nome e cognome o Ragione Sociale sono obbligatori.'),
-  address: z.string().min(1, 'Indirizzo obbligatorio.'),
-  cf: z.string().min(1, 'Codice Fiscale o P.IVA sono obbligatori.'),
-  docNumber: z.string().optional(),
-  birthDate: z.string().optional(),
-  birthPlace: z.string().optional(),
-  phone: z.string().optional(),
-  email: z.string().email({ message: "Email non valida." }).optional().or(z.literal('')),
-  price: z.coerce.number().positive('Il prezzo deve essere un numero positivo.'),
-  costoVultura: z.coerce.number().nonnegative("Il costo non può essere negativo.").optional().or(z.literal('')),
-  customerType: z.enum(['privato', 'commerciante'], {
-    required_error: 'Selezionare il tipo di cliente.',
-  }),
-  paymentMethod: z.enum(['contanti', 'bonifico', 'assegno', 'finanziamento'], {
-    required_error: 'Selezionare la modalità di pagamento.',
-  }),
-  warranty: z.string().optional(),
-  insurance: z.string().optional(),
-  wearAndTear: z.string().optional(),
-  withdrawal: z.string().optional(),
-  financingCompany: z.string().optional(),
-  numberOfInstallments: z.coerce.number().positive('Il numero di rate deve essere positivo.').optional().or(z.literal('')),
-  installmentAmount: z.coerce.number().positive("L'importo della rata deve essere positivo.").optional().or(z.literal('')),
-  totalFinancedAmount: z.coerce.number().positive("L'importo totale deve essere positivo.").optional().or(z.literal('')),
-}).superRefine((data, ctx) => {
-  if (data.customerType === 'privato') {
-    if (!data.docNumber || data.docNumber.length === 0) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Questo campo è obbligatorio per i clienti privati.',
-        path: ['docNumber'],
-      });
+const proformaSchema = z
+  .object({
+    name: z
+      .string()
+      .min(1, 'Nome e cognome o Ragione Sociale sono obbligatori.'),
+    address: z.string().min(1, 'Indirizzo obbligatorio.'),
+    cf: z.string().min(1, 'Codice Fiscale o P.IVA sono obbligatori.'),
+    docNumber: z.string().optional(),
+    birthDate: z.string().optional(),
+    birthPlace: z.string().optional(),
+    phone: z.string().optional(),
+    email: z.string().email({ message: 'Email non valida.' }).optional().or(z.literal('')),
+    price: z.coerce
+      .number()
+      .positive('Il prezzo deve essere un numero positivo.'),
+    costoVultura: z.coerce
+      .number()
+      .nonnegative('Il costo non può essere negativo.')
+      .optional()
+      .or(z.literal('')),
+    customerType: z.enum(['privato', 'commerciante'], {
+      required_error: 'Selezionare il tipo di cliente.',
+    }),
+    paymentMethod: z.enum(
+      ['contanti', 'bonifico', 'assegno', 'finanziamento'],
+      {
+        required_error: 'Selezionare la modalità di pagamento.',
+      }
+    ),
+    warranty: z.string().optional(),
+    insurance: z.string().optional(),
+    wearAndTear: z.string().optional(),
+    withdrawal: z.string().optional(),
+    financingCompany: z.string().optional(),
+    numberOfInstallments: z.coerce
+      .number()
+      .positive('Il numero di rate deve essere positivo.')
+      .optional()
+      .or(z.literal('')),
+    installmentAmount: z.coerce
+      .number()
+      .positive("L'importo della rata deve essere positivo.")
+      .optional()
+      .or(z.literal('')),
+    totalFinancedAmount: z.coerce
+      .number()
+      .positive("L'importo totale deve essere positivo.")
+      .optional()
+      .or(z.literal('')),
+  })
+  .superRefine((data, ctx) => {
+    if (data.customerType === 'privato') {
+      if (!data.docNumber || data.docNumber.length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Questo campo è obbligatorio per i clienti privati.',
+          path: ['docNumber'],
+        });
+      }
+      if (!data.birthDate || data.birthDate.length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Questo campo è obbligatorio per i clienti privati.',
+          path: ['birthDate'],
+        });
+      }
+      if (!data.birthPlace || data.birthPlace.length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Questo campo è obbligatorio per i clienti privati.',
+          path: ['birthPlace'],
+        });
+      }
+      if (!data.phone || data.phone.length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Numero di cellulare obbligatorio.',
+          path: ['phone'],
+        });
+      }
+      if (!data.email || data.email.length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Email obbligatoria.',
+          path: ['email'],
+        });
+      }
     }
-    if (!data.birthDate || data.birthDate.length === 0) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Questo campo è obbligatorio per i clienti privati.',
-        path: ['birthDate'],
-      });
+    if (data.paymentMethod === 'finanziamento') {
+      if (!data.financingCompany || data.financingCompany.length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Il nome della finanziaria è obbligatorio.',
+          path: ['financingCompany'],
+        });
+      }
+      if (!data.numberOfInstallments) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Il numero di rate è obbligatorio.',
+          path: ['numberOfInstallments'],
+        });
+      }
+      if (!data.installmentAmount) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "L'importo della rata è obbligatorio.",
+          path: ['installmentAmount'],
+        });
+      }
     }
-    if (!data.birthPlace || data.birthPlace.length === 0) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Questo campo è obbligatorio per i clienti privati.',
-        path: ['birthPlace'],
-      });
-    }
-    if (!data.phone || data.phone.length === 0) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Numero di cellulare obbligatorio.',
-        path: ['phone'],
-      });
-    }
-    if (!data.email || data.email.length === 0) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Email obbligatoria.',
-        path: ['email'],
-      });
-    }
-  }
-   if (data.paymentMethod === 'finanziamento') {
-    if (!data.financingCompany || data.financingCompany.length === 0) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Il nome della finanziaria è obbligatorio.',
-        path: ['financingCompany'],
-      });
-    }
-    if (!data.numberOfInstallments) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Il numero di rate è obbligatorio.',
-        path: ['numberOfInstallments'],
-      });
-    }
-    if (!data.installmentAmount) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "L'importo della rata è obbligatorio.",
-        path: ['installmentAmount'],
-      });
-    }
-  }
-});
-
+  });
 
 type ProformaFormValues = z.infer<typeof proformaSchema>;
 
@@ -189,18 +213,23 @@ export default function AdminPage() {
 
   const [isDeleting, setIsDeleting] = useState(false);
   const [vehicleToDelete, setVehicleToDelete] = useState<Vehicle | null>(null);
-  const [isUpdatingStatus, setIsUpdatingStatus] = useState<string | null>(null);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState<string | null>(
+    null
+  );
 
   // State for contract creation
-  const [vehicleForContract, setVehicleForContract] = useState<Vehicle | null>(null);
+  const [vehicleForContract, setVehicleForContract] =
+    useState<Vehicle | null>(null);
   const proformaSheetRef = useRef<HTMLDivElement>(null);
   const [isProformaFormOpen, setIsProformaFormOpen] = useState(false);
-  const [proformaCustomerData, setProformaCustomerData] = useState<ProformaFormValues | null>(null);
+  const [proformaCustomerData, setProformaCustomerData] =
+    useState<ProformaFormValues | null>(null);
   const [isGeneratingProforma, setIsGeneratingProforma] = useState(false);
   const [isBooking, setIsBooking] = useState<string | null>(null);
-  const [existingContract, setExistingContract] = useState<Contract | null>(null);
+  const [existingContract, setExistingContract] = useState<Contract | null>(
+    null
+  );
   const [showContractSuccess, setShowContractSuccess] = useState(false);
-
 
   const proformaForm = useForm<ProformaFormValues>({
     resolver: zodResolver(proformaSchema),
@@ -234,10 +263,16 @@ export default function AdminPage() {
   const installmentAmount = proformaForm.watch('installmentAmount');
 
   useEffect(() => {
-    if (paymentMethod === 'finanziamento' && numberOfInstallments && installmentAmount) {
+    if (
+      paymentMethod === 'finanziamento' &&
+      numberOfInstallments &&
+      installmentAmount
+    ) {
       const total = Number(numberOfInstallments) * Number(installmentAmount);
       if (!isNaN(total)) {
-        proformaForm.setValue('totalFinancedAmount', total, { shouldValidate: true });
+        proformaForm.setValue('totalFinancedAmount', total, {
+          shouldValidate: true,
+        });
       }
     }
   }, [numberOfInstallments, installmentAmount, paymentMethod, proformaForm]);
@@ -250,11 +285,13 @@ export default function AdminPage() {
       customerType === 'commerciante'
     ) {
       proformaForm.setValue('name', 'AUTO MGV S.R.L.');
-      proformaForm.setValue('address', 'VIA F. BARACCA 1, 10040 - LA LOGGIA (TO)');
+      proformaForm.setValue(
+        'address',
+        'VIA F. BARACCA 1, 10040 - LA LOGGIA (TO)'
+      );
       proformaForm.setValue('cf', '12416720014');
     }
   }, [customerType, role, roleData, proformaForm]);
-
 
   const handleStatusChange = (
     vehicleId: string,
@@ -354,7 +391,7 @@ export default function AdminPage() {
         format: 'a4',
       });
 
-      const margin = 15;
+      const margin = 10;
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
       const contentWidth = pdfWidth - margin * 2;
@@ -373,7 +410,7 @@ export default function AdminPage() {
         contentWidth,
         totalImgHeightInPdf
       );
-      heightLeft -= pdfHeight - margin * 2;
+      heightLeft -= pdfHeight;
 
       while (heightLeft > 0) {
         position -= pdfHeight;
@@ -442,11 +479,11 @@ export default function AdminPage() {
   const handleCreateContractClick = async (vehicle: Vehicle) => {
     if (!firestore || !currentUser) return;
     setVehicleForContract(vehicle);
-  
+
     // Check for an existing contract for this vehicle
     const contractRef = doc(firestore, 'contracts', vehicle.id);
     const contractSnap = await getDoc(contractRef);
-  
+
     if (contractSnap.exists()) {
       // If contract exists, load its data into the form
       setExistingContract(contractSnap.data() as Contract);
@@ -472,11 +509,16 @@ export default function AdminPage() {
           customerType: 'privato',
           paymentMethod: 'bonifico',
           costoVultura: '',
-          warranty: 'Il veicolo viene venduto con garanzia legale di conformità per 12 mesi come da D.Lgs. 206/2005 (Codice del Consumo).',
-          insurance: 'L\'acquirente si impegna a stipulare una polizza assicurativa RC auto prima del ritiro del veicolo.',
-          wearAndTear: 'L\'acquirente dichiara di aver preso visione dello stato d\'uso del veicolo e di accettarlo nelle condizioni in cui si trova, tenuto conto della normale usura pregressa in base all\'anno di immatricolazione e al chilometraggio.',
-          withdrawal: 'Per i contratti conclusi a distanza, l\'acquirente consumatore ha diritto di recedere dal contratto, senza alcuna penalità e senza specificarne il motivo, entro il termine di 14 giorni dalla presa in consegna del veicolo.',
-          price: (vehicle.prezzo ?? 0) + (vehicle.garanzia_legale_prezzo ?? 0),
+          warranty:
+            'Il veicolo viene venduto con garanzia legale di conformità per 12 mesi come da D.Lgs. 206/2005 (Codice del Consumo).',
+          insurance:
+            "L'acquirente si impegna a stipulare una polizza assicurativa RC auto prima del ritiro del veicolo.",
+          wearAndTear:
+            "L'acquirente dichiara di aver preso visione dello stato d'uso del veicolo e di accettarlo nelle condizioni in cui si trova, tenuto conto della normale usura pregressa in base all'anno di immatricolazione e al chilometraggio.",
+          withdrawal:
+            "Per i contratti conclusi a distanza, l'acquirente consumatore ha diritto di recedere dal contratto, senza alcuna penalità e senza specificarne il motivo, entro il termine di 14 giorni dalla presa in consegna del veicolo.",
+          price:
+            (vehicle.prezzo ?? 0) + (vehicle.garanzia_legale_prezzo ?? 0),
           financingCompany: '',
           numberOfInstallments: '',
           installmentAmount: '',
@@ -484,11 +526,11 @@ export default function AdminPage() {
         });
         setIsProformaFormOpen(true);
       };
-  
+
       if (vehicle.stato === 'In vendita') {
         setIsBooking(vehicle.id);
         const vehicleRef = doc(firestore, 'vehicles', vehicle.id);
-  
+
         updateDocumentNonBlocking(vehicleRef, {
           stato: 'Prenotato',
           updatedAt: serverTimestamp(),
@@ -497,7 +539,8 @@ export default function AdminPage() {
           .then(() => {
             toast({
               title: 'Veicolo Prenotato!',
-              description: 'Il veicolo è stato prenotato. Compila i dati per il contratto.',
+              description:
+                'Il veicolo è stato prenotato. Compila i dati per il contratto.',
             });
             openTheForm();
           })
@@ -505,7 +548,8 @@ export default function AdminPage() {
             toast({
               variant: 'destructive',
               title: 'Prenotazione Fallita',
-              description: 'Impossibile prenotare il veicolo. Controlla la console per i dettagli.',
+              description:
+                'Impossibile prenotare il veicolo. Controlla la console per i dettagli.',
             });
           })
           .finally(() => {
@@ -653,7 +697,9 @@ export default function AdminPage() {
                             <SelectValue placeholder="Seleziona stato" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="In vendita">In vendita</SelectItem>
+                            <SelectItem value="In vendita">
+                              In vendita
+                            </SelectItem>
                             <SelectItem value="Prenotato">Prenotato</SelectItem>
                             <SelectItem value="Venduto">Venduto</SelectItem>
                           </SelectContent>
@@ -679,7 +725,12 @@ export default function AdminPage() {
                         )}
                         <span className="sr-only">Crea Contratto</span>
                       </Button>
-                      <Button asChild variant="ghost" size="icon" title="Modifica">
+                      <Button
+                        asChild
+                        variant="ghost"
+                        size="icon"
+                        title="Modifica"
+                      >
                         <Link href={`/admin/edit-vehicle/${vehicle.id}`}>
                           <Pencil className="h-4 w-4" />
                           <span className="sr-only">Modifica</span>
@@ -825,7 +876,11 @@ export default function AdminPage() {
                       <FormItem>
                         <FormLabel>Finanziaria *</FormLabel>
                         <FormControl>
-                          <Input placeholder="Es. Santander" {...field} value={field.value ?? ''} />
+                          <Input
+                            placeholder="Es. Santander"
+                            {...field}
+                            value={field.value ?? ''}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -839,7 +894,12 @@ export default function AdminPage() {
                         <FormItem>
                           <FormLabel>Numero Rate *</FormLabel>
                           <FormControl>
-                            <Input type="number" placeholder="Es. 48" {...field} value={field.value ?? ''} />
+                            <Input
+                              type="number"
+                              placeholder="Es. 48"
+                              {...field}
+                              value={field.value ?? ''}
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -852,7 +912,12 @@ export default function AdminPage() {
                         <FormItem>
                           <FormLabel>Importo Rata (€) *</FormLabel>
                           <FormControl>
-                            <Input type="number" placeholder="Es. 250" {...field} value={field.value ?? ''} />
+                            <Input
+                              type="number"
+                              placeholder="Es. 250"
+                              {...field}
+                              value={field.value ?? ''}
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -866,9 +931,15 @@ export default function AdminPage() {
                       <FormItem>
                         <FormLabel>Importo Totale Finanziato (€)</FormLabel>
                         <FormControl>
-                          <Input type="number" {...field} value={field.value ?? ''} />
+                          <Input
+                            type="number"
+                            {...field}
+                            value={field.value ?? ''}
+                          />
                         </FormControl>
-                        <FormDescription>Calcolato automaticamente, ma puoi modificarlo.</FormDescription>
+                        <FormDescription>
+                          Calcolato automaticamente, ma puoi modificarlo.
+                        </FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -882,10 +953,18 @@ export default function AdminPage() {
                   name="name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{customerType === 'privato' ? 'Nome e Cognome *' : 'Ragione Sociale *'}</FormLabel>
+                      <FormLabel>
+                        {customerType === 'privato'
+                          ? 'Nome e Cognome *'
+                          : 'Ragione Sociale *'}
+                      </FormLabel>
                       <FormControl>
                         <Input
-                          placeholder={customerType === 'privato' ? 'Es. Mario Rossi' : 'Es. Auto S.R.L.'}
+                          placeholder={
+                            customerType === 'privato'
+                              ? 'Es. Mario Rossi'
+                              : 'Es. Auto S.R.L.'
+                          }
                           {...field}
                           value={field.value ?? ''}
                         />
@@ -899,7 +978,11 @@ export default function AdminPage() {
                   name="cf"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{customerType === 'privato' ? 'Codice Fiscale *' : 'Partita IVA *'}</FormLabel>
+                      <FormLabel>
+                        {customerType === 'privato'
+                          ? 'Codice Fiscale *'
+                          : 'Partita IVA *'}
+                      </FormLabel>
                       <FormControl>
                         <Input {...field} value={field.value ?? ''} />
                       </FormControl>
@@ -983,14 +1066,15 @@ export default function AdminPage() {
                 </>
               )}
 
-
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <FormField
                   control={proformaForm.control}
                   name="phone"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Cellulare {customerType === 'privato' && '*'}</FormLabel>
+                      <FormLabel>
+                        Cellulare {customerType === 'privato' && '*'}
+                      </FormLabel>
                       <FormControl>
                         <Input
                           type="tel"
@@ -1007,7 +1091,9 @@ export default function AdminPage() {
                   name="email"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Email {customerType === 'privato' && '*'}</FormLabel>
+                      <FormLabel>
+                        Email {customerType === 'privato' && '*'}
+                      </FormLabel>
                       <FormControl>
                         <Input
                           type="email"
@@ -1023,42 +1109,49 @@ export default function AdminPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t pt-4">
                 <FormField
-                    control={proformaForm.control}
-                    name="price"
-                    render={({ field }) => (
-                        <FormItem>
-                        <FormLabel>Prezzo Veicolo (€) *</FormLabel>
-                        <FormControl>
-                            <Input
-                            type="number"
-                            {...field}
-                            value={field.value ?? ''}
-                            disabled={role !== 'admin'}
-                            />
-                        </FormControl>
-                        {role !== 'admin' && (
-                            <FormDescription>
-                            Solo gli amministratori possono modificare il prezzo.
-                            </FormDescription>
-                        )}
-                        <FormMessage />
-                        </FormItem>
-                    )}
-                    />
+                  control={proformaForm.control}
+                  name="price"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Prezzo Veicolo (€) *</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          {...field}
+                          value={field.value ?? ''}
+                          disabled={role !== 'admin'}
+                        />
+                      </FormControl>
+                      {role !== 'admin' && (
+                        <FormDescription>
+                          Solo gli amministratori possono modificare il prezzo.
+                        </FormDescription>
+                      )}
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
                 <FormField
-                    control={proformaForm.control}
-                    name="costoVultura"
-                    render={({ field }) => (
-                        <FormItem>
-                        <FormLabel>Costo Voltura (€)</FormLabel>
-                        <FormControl>
-                            <Input type="number" placeholder="Es. 600" {...field} value={field.value ?? ''} />
-                        </FormControl>
-                        <FormDescription>Verrà sommato al prezzo del veicolo.</FormDescription>
-                        <FormMessage />
-                        </FormItem>
-                    )}
-                    />
+                  control={proformaForm.control}
+                  name="costoVultura"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Costo Voltura (€)</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          placeholder="Es. 600"
+                          {...field}
+                          value={field.value ?? ''}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Verrà sommato al prezzo del veicolo.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </div>
 
               {customerType === 'privato' && (
@@ -1075,7 +1168,10 @@ export default function AdminPage() {
                           value={field.value ?? ''}
                         />
                       </FormControl>
-                      <FormDescription>Questo testo è modificabile e verrà incluso nel contratto finale.</FormDescription>
+                      <FormDescription>
+                        Questo testo è modificabile e verrà incluso nel
+                        contratto finale.
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -1095,7 +1191,10 @@ export default function AdminPage() {
                         value={field.value ?? ''}
                       />
                     </FormControl>
-                    <FormDescription>Questo testo è modificabile e verrà incluso nel contratto finale.</FormDescription>
+                    <FormDescription>
+                      Questo testo è modificabile e verrà incluso nel contratto
+                      finale.
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -1114,7 +1213,10 @@ export default function AdminPage() {
                         value={field.value ?? ''}
                       />
                     </FormControl>
-                    <FormDescription>Questo testo è modificabile e verrà incluso nel contratto finale.</FormDescription>
+                    <FormDescription>
+                      Questo testo è modificabile e verrà incluso nel contratto
+                      finale.
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -1134,7 +1236,10 @@ export default function AdminPage() {
                           value={field.value ?? ''}
                         />
                       </FormControl>
-                      <FormDescription>Questo testo è modificabile e verrà incluso nel contratto finale.</FormDescription>
+                      <FormDescription>
+                        Questo testo è modificabile e verrà incluso nel
+                        contratto finale.
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -1167,9 +1272,10 @@ export default function AdminPage() {
           <DialogHeader>
             <DialogTitle>Anteprima Contratto di Vendita</DialogTitle>
             {showContractSuccess && (
-                <DialogDescription className="text-primary font-medium pt-2">
-                    Contratto {existingContract ? 'aggiornato' : 'creato'} con successo. L'anteprima è pronta per la stampa.
-                </DialogDescription>
+              <DialogDescription className="text-primary font-medium pt-2">
+                Contratto {existingContract ? 'aggiornato' : 'creato'} con
+                successo. L'anteprima è pronta per la stampa.
+              </DialogDescription>
             )}
           </DialogHeader>
           <div className="flex-1 overflow-auto bg-gray-300 p-8">
@@ -1186,9 +1292,17 @@ export default function AdminPage() {
                   customerType={proformaCustomerData.customerType}
                   paymentMethod={proformaCustomerData.paymentMethod}
                   financingCompany={proformaCustomerData.financingCompany}
-                  numberOfInstallments={Number(proformaCustomerData.numberOfInstallments) || undefined}
-                  installmentAmount={Number(proformaCustomerData.installmentAmount) || undefined}
-                  totalFinancedAmount={Number(proformaCustomerData.totalFinancedAmount) || undefined}
+                  numberOfInstallments={
+                    Number(proformaCustomerData.numberOfInstallments) ||
+                    undefined
+                  }
+                  installmentAmount={
+                    Number(proformaCustomerData.installmentAmount) || undefined
+                  }
+                  totalFinancedAmount={
+                    Number(proformaCustomerData.totalFinancedAmount) ||
+                    undefined
+                  }
                   warranty={proformaCustomerData.warranty || ''}
                   insurance={proformaCustomerData.insurance || ''}
                   wearAndTear={proformaCustomerData.wearAndTear || ''}

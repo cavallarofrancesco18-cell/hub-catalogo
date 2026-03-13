@@ -8,14 +8,22 @@ import { useMemo, useRef, useState, useEffect } from 'react';
 import type { Vehicle, Contract, User as UserData } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useCollection } from '@/firebase/firestore/use-collection';
-import { collection, query, where, limit, doc, serverTimestamp, getDoc } from 'firebase/firestore';
+import {
+  collection,
+  query,
+  where,
+  limit,
+  doc,
+  serverTimestamp,
+  getDoc,
+} from 'firebase/firestore';
 import {
   useFirestore,
   useMemoFirebase,
   useUserRole,
   updateDocumentNonBlocking,
   useUser,
-  setDocumentNonBlocking
+  setDocumentNonBlocking,
 } from '@/firebase';
 import { format } from 'date-fns';
 import { PrintableVehicleSheet } from './components/printable-vehicle-sheet';
@@ -35,106 +43,146 @@ import { Loader2 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+  FormDescription,
+} from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { PrintableProforma } from './components/printable-proforma';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { getBranding, brandingProfiles } from '@/lib/branding';
 import { useToast } from '@/hooks/use-toast';
 
-const proformaSchema = z.object({
-  name: z.string().min(1, 'Nome e cognome o Ragione Sociale sono obbligatori.'),
-  address: z.string().min(1, 'Indirizzo obbligatorio.'),
-  cf: z.string().min(1, 'Codice Fiscale o P.IVA sono obbligatori.'),
-  docNumber: z.string().optional(),
-  birthDate: z.string().optional(),
-  birthPlace: z.string().optional(),
-  phone: z.string().optional(),
-  email: z.string().email({ message: "Email non valida." }).optional().or(z.literal('')),
-  price: z.coerce.number().positive('Il prezzo deve essere un numero positivo.'),
-  costoVultura: z.coerce.number().nonnegative("Il costo non può essere negativo.").optional().or(z.literal('')),
-  customerType: z.enum(['privato', 'commerciante'], {
-    required_error: 'Selezionare il tipo di cliente.',
-  }),
-  paymentMethod: z.enum(['contanti', 'bonifico', 'assegno', 'finanziamento'], {
-    required_error: 'Selezionare la modalità di pagamento.',
-  }),
-  warranty: z.string().optional(),
-  insurance: z.string().optional(),
-  wearAndTear: z.string().optional(),
-  withdrawal: z.string().optional(),
-  financingCompany: z.string().optional(),
-  numberOfInstallments: z.coerce.number().positive('Il numero di rate deve essere positivo.').optional().or(z.literal('')),
-  installmentAmount: z.coerce.number().positive("L'importo della rata deve essere positivo.").optional().or(z.literal('')),
-  totalFinancedAmount: z.coerce.number().positive("L'importo totale deve essere positivo.").optional().or(z.literal('')),
-}).superRefine((data, ctx) => {
-  if (data.customerType === 'privato') {
-    if (!data.docNumber || data.docNumber.length === 0) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Questo campo è obbligatorio per i clienti privati.',
-        path: ['docNumber'],
-      });
+const proformaSchema = z
+  .object({
+    name: z
+      .string()
+      .min(1, 'Nome e cognome o Ragione Sociale sono obbligatori.'),
+    address: z.string().min(1, 'Indirizzo obbligatorio.'),
+    cf: z.string().min(1, 'Codice Fiscale o P.IVA sono obbligatori.'),
+    docNumber: z.string().optional(),
+    birthDate: z.string().optional(),
+    birthPlace: z.string().optional(),
+    phone: z.string().optional(),
+    email: z.string().email({ message: 'Email non valida.' }).optional().or(z.literal('')),
+    price: z.coerce
+      .number()
+      .positive('Il prezzo deve essere un numero positivo.'),
+    costoVultura: z.coerce
+      .number()
+      .nonnegative('Il costo non può essere negativo.')
+      .optional()
+      .or(z.literal('')),
+    customerType: z.enum(['privato', 'commerciante'], {
+      required_error: 'Selezionare il tipo di cliente.',
+    }),
+    paymentMethod: z.enum(
+      ['contanti', 'bonifico', 'assegno', 'finanziamento'],
+      {
+        required_error: 'Selezionare la modalità di pagamento.',
+      }
+    ),
+    warranty: z.string().optional(),
+    insurance: z.string().optional(),
+    wearAndTear: z.string().optional(),
+    withdrawal: z.string().optional(),
+    financingCompany: z.string().optional(),
+    numberOfInstallments: z.coerce
+      .number()
+      .positive('Il numero di rate deve essere positivo.')
+      .optional()
+      .or(z.literal('')),
+    installmentAmount: z.coerce
+      .number()
+      .positive("L'importo della rata deve essere positivo.")
+      .optional()
+      .or(z.literal('')),
+    totalFinancedAmount: z.coerce
+      .number()
+      .positive("L'importo totale deve essere positivo.")
+      .optional()
+      .or(z.literal('')),
+  })
+  .superRefine((data, ctx) => {
+    if (data.customerType === 'privato') {
+      if (!data.docNumber || data.docNumber.length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Questo campo è obbligatorio per i clienti privati.',
+          path: ['docNumber'],
+        });
+      }
+      if (!data.birthDate || data.birthDate.length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Questo campo è obbligatorio per i clienti privati.',
+          path: ['birthDate'],
+        });
+      }
+      if (!data.birthPlace || data.birthPlace.length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Questo campo è obbligatorio per i clienti privati.',
+          path: ['birthPlace'],
+        });
+      }
+      if (!data.phone || data.phone.length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Numero di cellulare obbligatorio.',
+          path: ['phone'],
+        });
+      }
+      if (!data.email || data.email.length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Email obbligatoria.',
+          path: ['email'],
+        });
+      }
     }
-    if (!data.birthDate || data.birthDate.length === 0) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Questo campo è obbligatorio per i clienti privati.',
-        path: ['birthDate'],
-      });
+    if (data.paymentMethod === 'finanziamento') {
+      if (!data.financingCompany || data.financingCompany.length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Il nome della finanziaria è obbligatorio.',
+          path: ['financingCompany'],
+        });
+      }
+      if (!data.numberOfInstallments) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Il numero di rate è obbligatorio.',
+          path: ['numberOfInstallments'],
+        });
+      }
+      if (!data.installmentAmount) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "L'importo della rata è obbligatorio.",
+          path: ['installmentAmount'],
+        });
+      }
     }
-    if (!data.birthPlace || data.birthPlace.length === 0) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Questo campo è obbligatorio per i clienti privati.',
-        path: ['birthPlace'],
-      });
-    }
-    if (!data.phone || data.phone.length === 0) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Numero di cellulare obbligatorio.',
-        path: ['phone'],
-      });
-    }
-    if (!data.email || data.email.length === 0) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Email obbligatoria.',
-        path: ['email'],
-      });
-    }
-  }
-  if (data.paymentMethod === 'finanziamento') {
-    if (!data.financingCompany || data.financingCompany.length === 0) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Il nome della finanziaria è obbligatorio.',
-        path: ['financingCompany'],
-      });
-    }
-    if (!data.numberOfInstallments) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Il numero di rate è obbligatorio.',
-        path: ['numberOfInstallments'],
-      });
-    }
-    if (!data.installmentAmount) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "L'importo della rata è obbligatorio.",
-        path: ['installmentAmount'],
-      });
-    }
-  }
-});
-
+  });
 
 const priceSheetSchema = z.object({
-  price: z.coerce.number().positive('Il prezzo deve essere un numero positivo.'),
+  price: z.coerce
+    .number()
+    .positive('Il prezzo deve essere un numero positivo.'),
 });
 
 type ProformaFormValues = z.infer<typeof proformaSchema>;
@@ -155,13 +203,20 @@ export default function VehiclePage() {
 
   const vehicleQuery = useMemoFirebase(() => {
     if (!slug || !firestore) return null;
-    return query(collection(firestore, 'vehicles'), where('slug', '==', slug), limit(1));
+    return query(
+      collection(firestore, 'vehicles'),
+      where('slug', '==', slug),
+      limit(1)
+    );
   }, [firestore, slug]);
 
-  const { data: vehicles, isLoading: loading } = useCollection<Vehicle>(vehicleQuery);
+  const { data: vehicles, isLoading: loading } =
+    useCollection<Vehicle>(vehicleQuery);
 
   const vehicle = useMemo(() => vehicles?.[0], [vehicles]);
-  const registrationDate = vehicle?.data_immatricolazione ? format(new Date(vehicle.data_immatricolazione), 'dd/MM/yyyy') : vehicle?.anno;
+  const registrationDate = vehicle?.data_immatricolazione
+    ? format(new Date(vehicle.data_immatricolazione), 'dd/MM/yyyy')
+    : vehicle?.anno;
 
   let editPath: string | null = null;
   if (!isLoadingRole && role && vehicle) {
@@ -182,12 +237,14 @@ export default function VehiclePage() {
   // State for proforma contract
   const proformaSheetRef = useRef<HTMLDivElement>(null);
   const [isProformaFormOpen, setIsProformaFormOpen] = useState(false);
-  const [proformaCustomerData, setProformaCustomerData] = useState<ProformaFormValues | null>(null);
+  const [proformaCustomerData, setProformaCustomerData] =
+    useState<ProformaFormValues | null>(null);
   const [isGeneratingProforma, setIsGeneratingProforma] = useState(false);
   const [isBooking, setIsBooking] = useState(false);
-  const [existingContract, setExistingContract] = useState<Contract | null>(null);
+  const [existingContract, setExistingContract] = useState<Contract | null>(
+    null
+  );
   const [showContractSuccess, setShowContractSuccess] = useState(false);
-
 
   const proformaForm = useForm<ProformaFormValues>({
     resolver: zodResolver(proformaSchema),
@@ -200,10 +257,14 @@ export default function VehiclePage() {
       customerType: 'privato',
       paymentMethod: 'bonifico',
       costoVultura: '',
-      warranty: 'Il veicolo viene venduto con garanzia legale di conformità per 12 mesi come da D.Lgs. 206/2005 (Codice del Consumo).',
-      insurance: 'L\'acquirente si impegna a stipulare una polizza assicurativa RC auto prima del ritiro del veicolo.',
-      wearAndTear: 'L\'acquirente dichiara di aver preso visione dello stato d\'uso del veicolo e di accettarlo nelle condizioni in cui si trova, tenuto conto della normale usura pregressa in base all\'anno di immatricolazione e al chilometraggio.',
-      withdrawal: 'Per i contratti conclusi a distanza, l\'acquirente consumatore ha diritto di recedere dal contratto, senza alcuna penalità e senza specificarne il motivo, entro il termine di 14 giorni dalla presa in consegna del veicolo.',
+      warranty:
+        'Il veicolo viene venduto con garanzia legale di conformità per 12 mesi come da D.Lgs. 206/2005 (Codice del Consumo).',
+      insurance:
+        "L'acquirente si impegna a stipulare una polizza assicurativa RC auto prima del ritiro del veicolo.",
+      wearAndTear:
+        "L'acquirente dichiara di aver preso visione dello stato d'uso del veicolo e di accettarlo nelle condizioni in cui si trova, tenuto conto della normale usura pregressa in base all'anno di immatricolazione e al chilometraggio.",
+      withdrawal:
+        "Per i contratti conclusi a distanza, l'acquirente consumatore ha diritto di recedere dal contratto, senza alcuna penalità e senza specificarne il motivo, entro il termine di 14 giorni dalla presa in consegna del veicolo.",
       financingCompany: '',
       numberOfInstallments: '',
       installmentAmount: '',
@@ -221,10 +282,16 @@ export default function VehiclePage() {
   const installmentAmount = proformaForm.watch('installmentAmount');
 
   useEffect(() => {
-    if (paymentMethod === 'finanziamento' && numberOfInstallments && installmentAmount) {
+    if (
+      paymentMethod === 'finanziamento' &&
+      numberOfInstallments &&
+      installmentAmount
+    ) {
       const total = Number(numberOfInstallments) * Number(installmentAmount);
       if (!isNaN(total)) {
-        proformaForm.setValue('totalFinancedAmount', total, { shouldValidate: true });
+        proformaForm.setValue('totalFinancedAmount', total, {
+          shouldValidate: true,
+        });
       }
     }
   }, [numberOfInstallments, installmentAmount, paymentMethod, proformaForm]);
@@ -237,12 +304,18 @@ export default function VehiclePage() {
       customerType === 'commerciante'
     ) {
       proformaForm.setValue('name', 'AUTO MGV S.R.L.');
-      proformaForm.setValue('address', 'VIA F. BARACCA 1, 10040 - LA LOGGIA (TO)');
+      proformaForm.setValue(
+        'address',
+        'VIA F. BARACCA 1, 10040 - LA LOGGIA (TO)'
+      );
       proformaForm.setValue('cf', '12416720014');
     }
   }, [customerType, role, roleData, proformaForm]);
 
-  const handleGeneratePdf = async (ref: React.RefObject<HTMLDivElement>, fileName: string) => {
+  const handleGeneratePdf = async (
+    ref: React.RefObject<HTMLDivElement>,
+    fileName: string
+  ) => {
     if (!ref.current) return;
 
     setIsPrinting(true);
@@ -261,26 +334,41 @@ export default function VehiclePage() {
         format: 'a4',
       });
 
-      const margin = 15;
+      const margin = 10;
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
       const contentWidth = pdfWidth - margin * 2;
       const imgProps = pdf.getImageProperties(imgData);
-      const totalImgHeightInPdf = (imgProps.height * contentWidth) / imgProps.width;
+      const totalImgHeightInPdf =
+        (imgProps.height * contentWidth) / imgProps.width;
 
       let heightLeft = totalImgHeightInPdf;
       let position = 0;
 
-      pdf.addImage(imgData, 'PNG', margin, position, contentWidth, totalImgHeightInPdf);
-      heightLeft -= (pdfHeight - margin * 2);
+      pdf.addImage(
+        imgData,
+        'PNG',
+        margin,
+        position,
+        contentWidth,
+        totalImgHeightInPdf
+      );
+      heightLeft -= pdfHeight - margin * 2;
 
       while (heightLeft > 0) {
         position -= pdfHeight;
         pdf.addPage();
-        pdf.addImage(imgData, 'PNG', margin, position + margin, contentWidth, totalImgHeightInPdf);
+        pdf.addImage(
+          imgData,
+          'PNG',
+          margin,
+          position + margin,
+          contentWidth,
+          totalImgHeightInPdf
+        );
         heightLeft -= pdfHeight;
       }
-      
+
       pdf.save(fileName);
     } catch (error) {
       console.error('Errore durante la creazione del PDF:', error);
@@ -288,11 +376,13 @@ export default function VehiclePage() {
       setIsPrinting(false);
     }
   };
-  
+
   const showPriceSheetEditor = () => {
     if (vehicle) {
-        priceSheetForm.reset({ price: (vehicle.prezzo ?? 0) + (vehicle.garanzia_legale_prezzo ?? 0) });
-        setIsPriceSheetEditorOpen(true);
+      priceSheetForm.reset({
+        price: (vehicle.prezzo ?? 0) + (vehicle.garanzia_legale_prezzo ?? 0),
+      });
+      setIsPriceSheetEditorOpen(true);
     }
   };
 
@@ -305,21 +395,26 @@ export default function VehiclePage() {
   const hidePreview = () => {
     setIsPreviewing(false);
     setFinalSheetPrice(null);
-    priceSheetForm.reset({ price: (vehicle?.prezzo ?? 0) + (vehicle?.garanzia_legale_prezzo ?? 0) });
+    priceSheetForm.reset({
+      price: (vehicle?.prezzo ?? 0) + (vehicle?.garanzia_legale_prezzo ?? 0),
+    });
   };
-  
+
   const handleConfirmPrint = async () => {
     if (vehicle) {
-        await handleGeneratePdf(printableSheetRef, `scheda-veicolo-${vehicle.slug}.pdf`);
+      await handleGeneratePdf(
+        printableSheetRef,
+        `scheda-veicolo-${vehicle.slug}.pdf`
+      );
     }
     hidePreview();
   };
 
   function onProformaSubmit(values: ProformaFormValues) {
     if (!vehicle || !user) return;
-  
+
     const contractRef = doc(firestore, 'contracts', vehicle.id);
-  
+
     const dataToSave = {
       ...values,
       id: vehicle.id,
@@ -328,9 +423,9 @@ export default function VehiclePage() {
       updatedAt: serverTimestamp(),
       ...(existingContract ? {} : { createdAt: serverTimestamp() }),
     };
-  
+
     setDocumentNonBlocking(contractRef, dataToSave, { merge: true });
-  
+
     setProformaCustomerData(values);
     setShowContractSuccess(true);
     setIsProformaFormOpen(false);
@@ -352,7 +447,7 @@ export default function VehiclePage() {
       });
       return;
     }
-  
+
     setExistingContract(null);
     const openTheForm = () => {
       proformaForm.reset({
@@ -370,12 +465,13 @@ export default function VehiclePage() {
         warranty:
           'Il veicolo viene venduto con garanzia legale di conformità per 12 mesi come da D.Lgs. 206/2005 (Codice del Consumo).',
         insurance:
-          'L\'acquirente si impegna a stipulare una polizza assicurativa RC auto prima del ritiro del veicolo.',
+          "L'acquirente si impegna a stipulare una polizza assicurativa RC auto prima del ritiro del veicolo.",
         wearAndTear:
-          'L\'acquirente dichiara di aver preso visione dello stato d\'uso del veicolo e di accettarlo nelle condizioni in cui si trova, tenuto conto della normale usura pregressa in base all\'anno di immatricolazione e al chilometraggio.',
+          "L'acquirente dichiara di aver preso visione dello stato d'uso del veicolo e di accettarlo nelle condizioni in cui si trova, tenuto conto della normale usura pregressa in base all'anno di immatricolazione e al chilometraggio.",
         withdrawal:
-          'Per i contratti conclusi a distanza, l\'acquirente consumatore ha diritto di recedere dal contratto, senza alcuna penalità e senza specificarne il motivo, entro il termine di 14 giorni dalla presa in consegna del veicolo.',
-        price: (vehicle.prezzo ?? 0) + (vehicle.garanzia_legale_prezzo ?? 0),
+          "Per i contratti conclusi a distanza, l'acquirente consumatore ha diritto di recedere dal contratto, senza alcuna penalità e senza specificarne il motivo, entro il termine di 14 giorni dalla presa in consegna del veicolo.",
+        price:
+          (vehicle.prezzo ?? 0) + (vehicle.garanzia_legale_prezzo ?? 0),
         financingCompany: '',
         numberOfInstallments: '',
         installmentAmount: '',
@@ -383,12 +479,12 @@ export default function VehiclePage() {
       });
       setIsProformaFormOpen(true);
     };
-  
+
     // If it's for sale, book it and open form
     if (vehicle.stato === 'In vendita') {
       setIsBooking(true);
       const vehicleRef = doc(firestore, 'vehicles', vehicle.id);
-  
+
       updateDocumentNonBlocking(vehicleRef, {
         stato: 'Prenotato',
         updatedAt: serverTimestamp(),
@@ -397,7 +493,8 @@ export default function VehiclePage() {
         .then(() => {
           toast({
             title: 'Veicolo Prenotato!',
-            description: 'Il veicolo è stato prenotato con successo. Compila i dati per il contratto.',
+            description:
+              'Il veicolo è stato prenotato con successo. Compila i dati per il contratto.',
           });
           openTheForm();
         })
@@ -405,7 +502,8 @@ export default function VehiclePage() {
           toast({
             variant: 'destructive',
             title: 'Prenotazione Fallita',
-            description: 'Impossibile prenotare il veicolo. Controlla la console per i dettagli.',
+            description:
+              'Impossibile prenotare il veicolo. Controlla la console per i dettagli.',
           });
         })
         .finally(() => {
@@ -413,7 +511,10 @@ export default function VehiclePage() {
         });
     }
     // If it's already booked or sold BY THE CURRENT USER, just open the form.
-    else if ((vehicle.stato === 'Prenotato' || vehicle.stato === 'Venduto') && vehicle.statusChangedBy === user.uid) {
+    else if (
+      (vehicle.stato === 'Prenotato' || vehicle.stato === 'Venduto') &&
+      vehicle.statusChangedBy === user.uid
+    ) {
       openTheForm();
     }
     // Otherwise, it's not available.
@@ -425,17 +526,20 @@ export default function VehiclePage() {
       });
     }
   };
-  
+
   const hideProformaPreview = () => {
     setProformaCustomerData(null);
     setShowContractSuccess(false);
   };
-  
+
   const handleConfirmProformaPrint = async () => {
-    if(vehicle) {
-        setIsGeneratingProforma(true);
-        await handleGeneratePdf(proformaSheetRef, `contratto-vendita-${vehicle.slug}.pdf`);
-        setIsGeneratingProforma(false);
+    if (vehicle) {
+      setIsGeneratingProforma(true);
+      await handleGeneratePdf(
+        proformaSheetRef,
+        `contratto-vendita-${vehicle.slug}.pdf`
+      );
+      setIsGeneratingProforma(false);
     }
     hideProformaPreview();
   };
@@ -449,22 +553,22 @@ export default function VehiclePage() {
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
           <div className="lg:col-span-3">
-             <Skeleton className="w-full h-[450px] rounded-lg" />
+            <Skeleton className="w-full h-[450px] rounded-lg" />
           </div>
           <div className="lg:col-span-2">
             <Skeleton className="w-full h-[250px] rounded-lg" />
           </div>
         </div>
-         <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="md:col-span-2 space-y-4">
-                 <Skeleton className="h-8 w-1/4" />
-                 <Skeleton className="h-20 w-full" />
-            </div>
-            <div className="space-y-4">
-                 <Skeleton className="h-8 w-1/4" />
-                 <Skeleton className="h-40 w-full" />
-            </div>
-         </div>
+        <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="md:col-span-2 space-y-4">
+            <Skeleton className="h-8 w-1/4" />
+            <Skeleton className="h-20 w-full" />
+          </div>
+          <div className="space-y-4">
+            <Skeleton className="h-8 w-1/4" />
+            <Skeleton className="h-40 w-full" />
+          </div>
+        </div>
       </div>
     );
   }
@@ -494,107 +598,168 @@ export default function VehiclePage() {
 
         <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-8">
           <div className="md:col-span-2">
-              <h2 className="text-2xl font-bold mb-4 font-headline">Descrizione</h2>
-              <p className="text-foreground/80 leading-relaxed whitespace-pre-wrap">{vehicle.descrizione}</p>
+            <h2 className="text-2xl font-bold mb-4 font-headline">
+              Descrizione
+            </h2>
+            <p className="text-foreground/80 leading-relaxed whitespace-pre-wrap">
+              {vehicle.descrizione}
+            </p>
           </div>
           <div>
-              <h2 className="text-2xl font-bold mb-4 font-headline">Dati Tecnici</h2>
-              <div className="space-y-3 text-sm">
-                <div className="flex justify-between">
-                  <span className="font-medium text-muted-foreground">Immatricolazione</span>
-                  <span className="font-semibold">{registrationDate}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-medium text-muted-foreground">Chilometraggio</span>
-                  <span className="font-semibold">{formatNumber(vehicle.chilometraggio)} km</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-medium text-muted-foreground">Carburante</span>
-                  <span className="font-semibold">{vehicle.carburante}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-medium text-muted-foreground">Cambio</span>
-                  <span className="font-semibold">{vehicle.cambio}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-medium text-muted-foreground">Potenza</span>
-                  <span className="font-semibold">{vehicle.potenza} CV {vehicle.potenza_kw && `(${vehicle.potenza_kw} kW)`}</span>
-                </div>
-                 {vehicle.cilindrata && (
-                  <div className="flex justify-between">
-                    <span className="font-medium text-muted-foreground">Cilindrata</span>
-                    <span className="font-semibold">{formatNumber(vehicle.cilindrata)} cc</span>
-                  </div>
-                )}
-                <div className="flex justify-between">
-                  <span className="font-medium text-muted-foreground">Colore Esterno</span>
-                  <span className="font-semibold">{vehicle.colore_esterno}</span>
-                </div>
-                 {vehicle.colore_interni && (
-                  <div className="flex justify-between">
-                    <span className="font-medium text-muted-foreground">Colore Interni</span>
-                    <span className="font-semibold">{vehicle.colore_interni}</span>
-                  </div>
-                )}
-                {vehicle.classe_emissioni && (
-                  <div className="flex justify-between">
-                    <span className="font-medium text-muted-foreground">Classe Emissioni</span>
-                    <span className="font-semibold">{vehicle.classe_emissioni}</span>
-                  </div>
-                )}
-                 {vehicle.garanzia && (
-                  <div className="flex justify-between">
-                    <span className="font-medium text-muted-foreground">Garanzia</span>
-                    <span className="font-semibold">{vehicle.garanzia}</span>
-                  </div>
-                )}
-                 {vehicle.bollo && (
-                  <div className="flex justify-between">
-                    <span className="font-medium text-muted-foreground">Bollo</span>
-                    <span className="font-semibold">{vehicle.bollo}</span>
-                  </div>
-                )}
-                <div className="flex justify-between items-center">
-                  <span className="font-medium text-muted-foreground">Stato</span>
-                  <Badge variant={vehicle.stato === 'Venduto' ? 'destructive' : vehicle.stato === 'Prenotato' ? 'default' : 'secondary'}>
-                    {vehicle.stato}
-                  </Badge>
-                </div>
+            <h2 className="text-2xl font-bold mb-4 font-headline">
+              Dati Tecnici
+            </h2>
+            <div className="space-y-3 text-sm">
+              <div className="flex justify-between">
+                <span className="font-medium text-muted-foreground">
+                  Immatricolazione
+                </span>
+                <span className="font-semibold">{registrationDate}</span>
               </div>
+              <div className="flex justify-between">
+                <span className="font-medium text-muted-foreground">
+                  Chilometraggio
+                </span>
+                <span className="font-semibold">
+                  {formatNumber(vehicle.chilometraggio)} km
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="font-medium text-muted-foreground">
+                  Carburante
+                </span>
+                <span className="font-semibold">{vehicle.carburante}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="font-medium text-muted-foreground">
+                  Cambio
+                </span>
+                <span className="font-semibold">{vehicle.cambio}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="font-medium text-muted-foreground">
+                  Potenza
+                </span>
+                <span className="font-semibold">
+                  {vehicle.potenza} CV{' '}
+                  {vehicle.potenza_kw && `(${vehicle.potenza_kw} kW)`}
+                </span>
+              </div>
+              {vehicle.cilindrata && (
+                <div className="flex justify-between">
+                  <span className="font-medium text-muted-foreground">
+                    Cilindrata
+                  </span>
+                  <span className="font-semibold">
+                    {formatNumber(vehicle.cilindrata)} cc
+                  </span>
+                </div>
+              )}
+              <div className="flex justify-between">
+                <span className="font-medium text-muted-foreground">
+                  Colore Esterno
+                </span>
+                <span className="font-semibold">{vehicle.colore_esterno}</span>
+              </div>
+              {vehicle.colore_interni && (
+                <div className="flex justify-between">
+                  <span className="font-medium text-muted-foreground">
+                    Colore Interni
+                  </span>
+                  <span className="font-semibold">
+                    {vehicle.colore_interni}
+                  </span>
+                </div>
+              )}
+              {vehicle.classe_emissioni && (
+                <div className="flex justify-between">
+                  <span className="font-medium text-muted-foreground">
+                    Classe Emissioni
+                  </span>
+                  <span className="font-semibold">
+                    {vehicle.classe_emissioni}
+                  </span>
+                </div>
+              )}
+              {vehicle.garanzia && (
+                <div className="flex justify-between">
+                  <span className="font-medium text-muted-foreground">
+                    Garanzia
+                  </span>
+                  <span className="font-semibold">{vehicle.garanzia}</span>
+                </div>
+              )}
+              {vehicle.bollo && (
+                <div className="flex justify-between">
+                  <span className="font-medium text-muted-foreground">
+                    Bollo
+                  </span>
+                  <span className="font-semibold">{vehicle.bollo}</span>
+                </div>
+              )}
+              <div className="flex justify-between items-center">
+                <span className="font-medium text-muted-foreground">Stato</span>
+                <Badge
+                  variant={
+                    vehicle.stato === 'Venduto'
+                      ? 'destructive'
+                      : vehicle.stato === 'Prenotato'
+                        ? 'default'
+                        : 'secondary'
+                  }
+                >
+                  {vehicle.stato}
+                </Badge>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-       {/* Price Sheet Editor Dialog */}
-      <Dialog open={isPriceSheetEditorOpen} onOpenChange={setIsPriceSheetEditorOpen}>
+      {/* Price Sheet Editor Dialog */}
+      <Dialog
+        open={isPriceSheetEditorOpen}
+        onOpenChange={setIsPriceSheetEditorOpen}
+      >
         <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Modifica Prezzo per la Stampa</DialogTitle>
-              <DialogDescription>
-                Inserisci il prezzo finale da mostrare sulla scheda del veicolo.
-              </DialogDescription>
-            </DialogHeader>
-            <Form {...priceSheetForm}>
-                <form onSubmit={priceSheetForm.handleSubmit(onPriceSheetSubmit)} className="space-y-4">
-                    <FormField
-                    control={priceSheetForm.control}
-                    name="price"
-                    render={({ field }) => (
-                        <FormItem>
-                        <FormLabel>Prezzo Finale (€)</FormLabel>
-                        <FormControl><Input type="number" {...field} value={field.value ?? ''} /></FormControl>
-                        <FormMessage />
-                        </FormItem>
-                    )}
-                    />
-                    <DialogFooter>
-                        <DialogClose asChild>
-                            <Button type="button" variant="outline">Annulla</Button>
-                        </DialogClose>
-                        <Button type="submit">Genera Anteprima</Button>
-                    </DialogFooter>
-                </form>
-            </Form>
+          <DialogHeader>
+            <DialogTitle>Modifica Prezzo per la Stampa</DialogTitle>
+            <DialogDescription>
+              Inserisci il prezzo finale da mostrare sulla scheda del veicolo.
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...priceSheetForm}>
+            <form
+              onSubmit={priceSheetForm.handleSubmit(onPriceSheetSubmit)}
+              className="space-y-4"
+            >
+              <FormField
+                control={priceSheetForm.control}
+                name="price"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Prezzo Finale (€)</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        {...field}
+                        value={field.value ?? ''}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button type="button" variant="outline">
+                    Annulla
+                  </Button>
+                </DialogClose>
+                <Button type="submit">Genera Anteprima</Button>
+              </DialogFooter>
+            </form>
+          </Form>
         </DialogContent>
       </Dialog>
 
@@ -610,7 +775,11 @@ export default function VehiclePage() {
               className="w-[800px] mx-auto my-8 shadow-2xl"
             >
               {finalSheetPrice !== null && (
-                <PrintableVehicleSheet vehicle={vehicle} price={finalSheetPrice} branding={branding} />
+                <PrintableVehicleSheet
+                  vehicle={vehicle}
+                  price={finalSheetPrice}
+                  branding={branding}
+                />
               )}
             </div>
           </div>
@@ -640,11 +809,15 @@ export default function VehiclePage() {
           <DialogHeader>
             <DialogTitle>Crea Contratto di Vendita</DialogTitle>
             <DialogDescription>
-              Inserisci i dati dell'acquirente e le clausole per generare il contratto.
+              Inserisci i dati dell'acquirente e le clausole per generare il
+              contratto.
             </DialogDescription>
           </DialogHeader>
           <Form {...proformaForm}>
-            <form onSubmit={proformaForm.handleSubmit(onProformaSubmit)} className="space-y-4">
+            <form
+              onSubmit={proformaForm.handleSubmit(onProformaSubmit)}
+              className="space-y-4"
+            >
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <FormField
                   control={proformaForm.control}
@@ -662,13 +835,17 @@ export default function VehiclePage() {
                             <FormControl>
                               <RadioGroupItem value="privato" />
                             </FormControl>
-                            <FormLabel className="font-normal">Privato</FormLabel>
+                            <FormLabel className="font-normal">
+                              Privato
+                            </FormLabel>
                           </FormItem>
                           <FormItem className="flex items-center space-x-2 space-y-0">
                             <FormControl>
                               <RadioGroupItem value="commerciante" />
                             </FormControl>
-                            <FormLabel className="font-normal">Commerciante</FormLabel>
+                            <FormLabel className="font-normal">
+                              Commerciante
+                            </FormLabel>
                           </FormItem>
                         </RadioGroup>
                       </FormControl>
@@ -682,7 +859,10 @@ export default function VehiclePage() {
                   render={({ field }) => (
                     <FormItem className="space-y-3">
                       <FormLabel>Modalità di Pagamento *</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <Select
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                      >
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Seleziona modalità" />
@@ -692,7 +872,9 @@ export default function VehiclePage() {
                           <SelectItem value="contanti">Contanti</SelectItem>
                           <SelectItem value="bonifico">Bonifico</SelectItem>
                           <SelectItem value="assegno">Assegno</SelectItem>
-                          <SelectItem value="finanziamento">Finanziamento</SelectItem>
+                          <SelectItem value="finanziamento">
+                            Finanziamento
+                          </SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -711,7 +893,11 @@ export default function VehiclePage() {
                       <FormItem>
                         <FormLabel>Finanziaria *</FormLabel>
                         <FormControl>
-                          <Input placeholder="Es. Santander" {...field} value={field.value ?? ''} />
+                          <Input
+                            placeholder="Es. Santander"
+                            {...field}
+                            value={field.value ?? ''}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -725,7 +911,12 @@ export default function VehiclePage() {
                         <FormItem>
                           <FormLabel>Numero Rate *</FormLabel>
                           <FormControl>
-                            <Input type="number" placeholder="Es. 48" {...field} value={field.value ?? ''} />
+                            <Input
+                              type="number"
+                              placeholder="Es. 48"
+                              {...field}
+                              value={field.value ?? ''}
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -738,7 +929,12 @@ export default function VehiclePage() {
                         <FormItem>
                           <FormLabel>Importo Rata (€) *</FormLabel>
                           <FormControl>
-                            <Input type="number" placeholder="Es. 250" {...field} value={field.value ?? ''} />
+                            <Input
+                              type="number"
+                              placeholder="Es. 250"
+                              {...field}
+                              value={field.value ?? ''}
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -752,9 +948,15 @@ export default function VehiclePage() {
                       <FormItem>
                         <FormLabel>Importo Totale Finanziato (€)</FormLabel>
                         <FormControl>
-                          <Input type="number" {...field} value={field.value ?? ''} />
+                          <Input
+                            type="number"
+                            {...field}
+                            value={field.value ?? ''}
+                          />
                         </FormControl>
-                        <FormDescription>Calcolato automaticamente, ma puoi modificarlo.</FormDescription>
+                        <FormDescription>
+                          Calcolato automaticamente, ma puoi modificarlo.
+                        </FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -762,47 +964,66 @@ export default function VehiclePage() {
                 </div>
               )}
 
-               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                 <FormField
-                    control={proformaForm.control}
-                    name="name"
-                    render={({ field }) => (
-                        <FormItem>
-                        <FormLabel>{customerType === 'privato' ? 'Nome e Cognome *' : 'Ragione Sociale *'}</FormLabel>
-                        <FormControl>
-                            <Input
-                            placeholder={customerType === 'privato' ? 'Es. Mario Rossi' : 'Es. Auto S.R.L.'}
-                            {...field}
-                            value={field.value ?? ''}
-                            />
-                        </FormControl>
-                        <FormMessage />
-                        </FormItem>
-                    )}
-                    />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <FormField
-                    control={proformaForm.control}
-                    name="cf"
-                    render={({ field }) => (
-                        <FormItem>
-                        <FormLabel>{customerType === 'privato' ? 'Codice Fiscale *' : 'Partita IVA *'}</FormLabel>
-                        <FormControl>
-                            <Input {...field} value={field.value ?? ''} />
-                        </FormControl>
-                        <FormMessage />
-                        </FormItem>
-                    )}
-                    />
-               </div>
+                  control={proformaForm.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>
+                        {customerType === 'privato'
+                          ? 'Nome e Cognome *'
+                          : 'Ragione Sociale *'}
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder={
+                            customerType === 'privato'
+                              ? 'Es. Mario Rossi'
+                              : 'Es. Auto S.R.L.'
+                          }
+                          {...field}
+                          value={field.value ?? ''}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={proformaForm.control}
+                  name="cf"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>
+                        {customerType === 'privato'
+                          ? 'Codice Fiscale *'
+                          : 'Partita IVA *'}
+                      </FormLabel>
+                      <FormControl>
+                        <Input {...field} value={field.value ?? ''} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
 
-
-               <FormField
+              <FormField
                 control={proformaForm.control}
                 name="address"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Indirizzo Completo di Residenza/Sede *</FormLabel>
-                    <FormControl><Input placeholder="Es. Via Roma 1, 10121 Torino (TO)" {...field} value={field.value ?? ''} /></FormControl>
+                    <FormLabel>
+                      Indirizzo Completo di Residenza/Sede *
+                    </FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Es. Via Roma 1, 10121 Torino (TO)"
+                        {...field}
+                        value={field.value ?? ''}
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -810,53 +1031,74 @@ export default function VehiclePage() {
 
               {customerType === 'privato' && (
                 <>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <FormField
-                        control={proformaForm.control}
-                        name="birthDate"
-                        render={({ field }) => (
-                            <FormItem>
-                            <FormLabel>Data di Nascita *</FormLabel>
-                            <FormControl><Input type="date" {...field} value={field.value ?? ''} /></FormControl>
-                            <FormMessage />
-                            </FormItem>
-                        )}
-                        />
-                        <FormField
-                        control={proformaForm.control}
-                        name="birthPlace"
-                        render={({ field }) => (
-                            <FormItem>
-                            <FormLabel>Luogo di Nascita *</FormLabel>
-                            <FormControl><Input placeholder="Es. Torino" {...field} value={field.value ?? ''} /></FormControl>
-                            <FormMessage />
-                            </FormItem>
-                        )}
-                        />
-                    </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <FormField
+                      control={proformaForm.control}
+                      name="birthDate"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Data di Nascita *</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="date"
+                              {...field}
+                              value={field.value ?? ''}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={proformaForm.control}
+                      name="birthPlace"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Luogo di Nascita *</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="Es. Torino"
+                              {...field}
+                              value={field.value ?? ''}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <FormField
                     control={proformaForm.control}
                     name="docNumber"
                     render={({ field }) => (
-                        <FormItem>
+                      <FormItem>
                         <FormLabel>Numero Documento (C.I.) *</FormLabel>
-                        <FormControl><Input {...field} value={field.value ?? ''} /></FormControl>
+                        <FormControl>
+                          <Input {...field} value={field.value ?? ''} />
+                        </FormControl>
                         <FormMessage />
-                        </FormItem>
+                      </FormItem>
                     )}
-                    />
+                  />
                 </>
               )}
 
-
-               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <FormField
                   control={proformaForm.control}
                   name="phone"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Cellulare {customerType === 'privato' && '*'}</FormLabel>
-                      <FormControl><Input type="tel" {...field} value={field.value ?? ''} /></FormControl>
+                      <FormLabel>
+                        Cellulare {customerType === 'privato' && '*'}
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          type="tel"
+                          {...field}
+                          value={field.value ?? ''}
+                        />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -866,43 +1108,69 @@ export default function VehiclePage() {
                   name="email"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Email {customerType === 'privato' && '*'}</FormLabel>
-                      <FormControl><Input type="email" {...field} value={field.value ?? ''} /></FormControl>
+                      <FormLabel>
+                        Email {customerType === 'privato' && '*'}
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          type="email"
+                          {...field}
+                          value={field.value ?? ''}
+                        />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
               </div>
 
-               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t pt-4">
-                 <FormField
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t pt-4">
+                <FormField
                   control={proformaForm.control}
                   name="price"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Prezzo Veicolo (€) *</FormLabel>
-                      <FormControl><Input type="number" {...field} value={field.value ?? ''} disabled={role !== 'admin'} /></FormControl>
-                      {role !== 'admin' && <FormDescription>Solo gli amministratori possono modificare il prezzo.</FormDescription>}
+                      <FormControl>
+                        <Input
+                          type="number"
+                          {...field}
+                          value={field.value ?? ''}
+                          disabled={role !== 'admin'}
+                        />
+                      </FormControl>
+                      {role !== 'admin' && (
+                        <FormDescription>
+                          Solo gli amministratori possono modificare il prezzo.
+                        </FormDescription>
+                      )}
                       <FormMessage />
                     </FormItem>
                   )}
                 />
                 <FormField
-                    control={proformaForm.control}
-                    name="costoVultura"
-                    render={({ field }) => (
-                        <FormItem>
-                        <FormLabel>Costo Voltura (€)</FormLabel>
-                        <FormControl>
-                            <Input type="number" placeholder="Es. 600" {...field} value={field.value ?? ''} />
-                        </FormControl>
-                        <FormDescription>Verrà sommato al prezzo del veicolo.</FormDescription>
-                        <FormMessage />
-                        </FormItem>
-                    )}
-                    />
+                  control={proformaForm.control}
+                  name="costoVultura"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Costo Voltura (€)</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          placeholder="Es. 600"
+                          {...field}
+                          value={field.value ?? ''}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Verrà sommato al prezzo del veicolo.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </div>
-              
+
               {customerType === 'privato' && (
                 <FormField
                   control={proformaForm.control}
@@ -910,8 +1178,17 @@ export default function VehiclePage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Dettagli Garanzia</FormLabel>
-                      <FormControl><Textarea className="min-h-[100px]" {...field} value={field.value ?? ''} /></FormControl>
-                      <FormDescription>Questo testo è modificabile e verrà incluso nel contratto finale.</FormDescription>
+                      <FormControl>
+                        <Textarea
+                          className="min-h-[100px]"
+                          {...field}
+                          value={field.value ?? ''}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Questo testo è modificabile e verrà incluso nel
+                        contratto finale.
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -924,8 +1201,17 @@ export default function VehiclePage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Stato di Usura del Mezzo</FormLabel>
-                    <FormControl><Textarea className="min-h-[100px]" {...field} value={field.value ?? ''} /></FormControl>
-                    <FormDescription>Questo testo è modificabile e verrà incluso nel contratto finale.</FormDescription>
+                    <FormControl>
+                      <Textarea
+                        className="min-h-[100px]"
+                        {...field}
+                        value={field.value ?? ''}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      Questo testo è modificabile e verrà incluso nel contratto
+                      finale.
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -937,8 +1223,17 @@ export default function VehiclePage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Assicurazione</FormLabel>
-                    <FormControl><Textarea className="min-h-[80px]" {...field} value={field.value ?? ''} /></FormControl>
-                    <FormDescription>Questo testo è modificabile e verrà incluso nel contratto finale.</FormDescription>
+                    <FormControl>
+                      <Textarea
+                        className="min-h-[80px]"
+                        {...field}
+                        value={field.value ?? ''}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      Questo testo è modificabile e verrà incluso nel contratto
+                      finale.
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -951,8 +1246,17 @@ export default function VehiclePage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Diritto di Recesso</FormLabel>
-                      <FormControl><Textarea className="min-h-[100px]" {...field} value={field.value ?? ''} /></FormControl>
-                      <FormDescription>Questo testo è modificabile e verrà incluso nel contratto finale.</FormDescription>
+                      <FormControl>
+                        <Textarea
+                          className="min-h-[100px]"
+                          {...field}
+                          value={field.value ?? ''}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Questo testo è modificabile e verrà incluso nel
+                        contratto finale.
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -960,10 +1264,12 @@ export default function VehiclePage() {
               )}
 
               <DialogFooter>
-                  <DialogClose asChild>
-                    <Button type="button" variant="outline">Annulla</Button>
-                  </DialogClose>
-                  <Button type="submit">Genera Anteprima Contratto</Button>
+                <DialogClose asChild>
+                  <Button type="button" variant="outline">
+                    Annulla
+                  </Button>
+                </DialogClose>
+                <Button type="submit">Genera Anteprima Contratto</Button>
               </DialogFooter>
             </form>
           </Form>
@@ -971,18 +1277,25 @@ export default function VehiclePage() {
       </Dialog>
 
       {/* Proforma Preview Dialog */}
-      <Dialog open={!!proformaCustomerData} onOpenChange={(open) => !open && hideProformaPreview()}>
+      <Dialog
+        open={!!proformaCustomerData}
+        onOpenChange={open => !open && hideProformaPreview()}
+      >
         <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Anteprima Contratto di Vendita</DialogTitle>
             {showContractSuccess && (
-                <DialogDescription className="text-primary font-medium pt-2">
-                    Contratto {existingContract ? 'aggiornato' : 'creato'} con successo. L'anteprima è pronta per la stampa.
-                </DialogDescription>
+              <DialogDescription className="text-primary font-medium pt-2">
+                Contratto {existingContract ? 'aggiornato' : 'creato'} con
+                successo. L'anteprima è pronta per la stampa.
+              </DialogDescription>
             )}
           </DialogHeader>
           <div className="flex-1 overflow-auto bg-gray-300 p-8">
-            <div ref={proformaSheetRef} className="w-[800px] mx-auto my-8 shadow-2xl">
+            <div
+              ref={proformaSheetRef}
+              className="w-[800px] mx-auto my-8 shadow-2xl"
+            >
               {proformaCustomerData && vehicle && (
                 <PrintableProforma
                   vehicle={vehicle}
@@ -992,9 +1305,17 @@ export default function VehiclePage() {
                   customerType={proformaCustomerData.customerType}
                   paymentMethod={proformaCustomerData.paymentMethod}
                   financingCompany={proformaCustomerData.financingCompany}
-                  numberOfInstallments={Number(proformaCustomerData.numberOfInstallments) || undefined}
-                  installmentAmount={Number(proformaCustomerData.installmentAmount) || undefined}
-                  totalFinancedAmount={Number(proformaCustomerData.totalFinancedAmount) || undefined}
+                  numberOfInstallments={
+                    Number(proformaCustomerData.numberOfInstallments) ||
+                    undefined
+                  }
+                  installmentAmount={
+                    Number(proformaCustomerData.installmentAmount) || undefined
+                  }
+                  totalFinancedAmount={
+                    Number(proformaCustomerData.totalFinancedAmount) ||
+                    undefined
+                  }
                   warranty={proformaCustomerData.warranty || ''}
                   insurance={proformaCustomerData.insurance || ''}
                   wearAndTear={proformaCustomerData.wearAndTear || ''}
@@ -1006,10 +1327,17 @@ export default function VehiclePage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={hideProformaPreview} disabled={isGeneratingProforma}>
+            <Button
+              variant="outline"
+              onClick={hideProformaPreview}
+              disabled={isGeneratingProforma}
+            >
               Annulla
             </Button>
-            <Button onClick={handleConfirmProformaPrint} disabled={isGeneratingProforma}>
+            <Button
+              onClick={handleConfirmProformaPrint}
+              disabled={isGeneratingProforma}
+            >
               {isGeneratingProforma ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

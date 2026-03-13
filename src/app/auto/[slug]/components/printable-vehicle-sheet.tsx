@@ -30,7 +30,7 @@ export function PrintableVehicleSheet({ vehicle, price, branding }: PrintableVeh
 
 
   return (
-    <div className="bg-white text-black p-6" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
+    <div className="bg-white text-black p-6 leading-normal" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
       {/* Header */}
       <header className="flex justify-between items-center pb-4 border-b-2 border-gray-200" style={{ breakInside: 'avoid' }}>
         <div className="flex items-center gap-4">
@@ -54,7 +54,7 @@ export function PrintableVehicleSheet({ vehicle, price, branding }: PrintableVeh
       </header>
 
       {/* Title */}
-      <div style={{ margin: '32px 0', textAlign: 'center', breakInside: 'avoid' }}>
+      <div style={{ margin: '24px 0', textAlign: 'center', breakInside: 'avoid' }}>
         <h1 style={{ fontSize: '30px', fontWeight: 'bold', letterSpacing: '0.5px' }}>{`${vehicle.marca} ${vehicle.modello}`}</h1>
         <h2 style={{ fontSize: '20px', color: '#4B5563', marginTop: '4px' }}>{vehicle.versione}</h2>
       </div>
@@ -114,7 +114,7 @@ export function PrintableVehicleSheet({ vehicle, price, branding }: PrintableVeh
       
       {/* Short Description */}
       {shortDescription && shortDescription.length > 1 && (
-        <div className="mt-8" style={{ breakInside: 'avoid' }}>
+        <div className="mt-6" style={{ breakInside: 'avoid' }}>
             <h3 className="text-2xl font-bold border-b pb-2 mb-4">Descrizione</h3>
             <p className="text-gray-700 text-base leading-relaxed">
                 {shortDescription}
@@ -124,7 +124,7 @@ export function PrintableVehicleSheet({ vehicle, price, branding }: PrintableVeh
 
       {/* Additional Details */}
       {hasAdditionalDetails && (
-          <div className="mt-8" style={{ breakInside: 'avoid' }}>
+          <div className="mt-6" style={{ breakInside: 'avoid' }}>
             <h3 className="text-2xl font-bold border-b pb-2 mb-4">Caratteristiche Principali</h3>
             <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-base">
             
@@ -165,7 +165,7 @@ export function PrintableVehicleSheet({ vehicle, price, branding }: PrintableVeh
 
       {/* Photo Gallery */}
       {otherImages.length > 0 && (
-        <div className="mt-8" style={{ breakInside: 'avoid' }}>
+        <div className="mt-6" style={{ breakInside: 'avoid' }}>
           <h3 className="text-2xl font-bold border-b pb-2 mb-4">Galleria Fotografica</h3>
           <div className="grid grid-cols-4 gap-4">
             {otherImages.map((url, index) => (
@@ -184,7 +184,7 @@ export function PrintableVehicleSheet({ vehicle, price, branding }: PrintableVeh
       )}
 
       {/* Footer */}
-      <footer className="mt-12 text-center text-sm text-gray-500 border-t pt-4" style={{ breakInside: 'avoid' }}>
+      <footer className="mt-8 text-center text-sm text-gray-500 border-t pt-4" style={{ breakInside: 'avoid' }}>
         <p>
             I dati relativi a veicoli e documentazione possono essere soggetti a modifiche e aggiornamenti; le informazioni qui rappresentate non costituiscono impegno contrattuale.
         </p>

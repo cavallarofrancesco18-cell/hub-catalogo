@@ -67,7 +67,9 @@ const vehicleSchema = z.object({
 });
 
 const priceSheetSchema = z.object({
-  price: z.coerce.number().positive('Il prezzo deve essere un numero positivo.'),
+  price: z.coerce
+    .number()
+    .positive('Il prezzo deve essere un numero positivo.'),
 });
 
 type VehicleFormValues = z.infer<typeof vehicleSchema>;
@@ -78,18 +80,20 @@ export default function SellerEditVehiclePage() {
   const params = useParams();
   const firestore = useFirestore();
   const { toast } = useToast();
-  
+
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const vehicleId = params.id as string;
-  
+
   const [existingImages, setExistingImages] = useState<string[]>([]);
   const printableSheetRef = useRef<HTMLDivElement>(null);
 
   const [isPrinting, setIsPrinting] = useState(false);
   const [isPreviewing, setIsPreviewing] = useState(false);
-  const [vehicleForPreview, setVehicleForPreview] = useState<Vehicle | null>(null);
+  const [vehicleForPreview, setVehicleForPreview] = useState<Vehicle | null>(
+    null
+  );
   const [isPriceSheetEditorOpen, setIsPriceSheetEditorOpen] = useState(false);
   const [finalSheetPrice, setFinalSheetPrice] = useState<number | null>(null);
 
@@ -119,13 +123,19 @@ export default function SellerEditVehiclePage() {
         if (docSnap.exists()) {
           const vehicleData = { id: docSnap.id, ...docSnap.data() } as Vehicle;
           setVehicle(vehicleData);
-          const registrationDateISO = vehicleData.data_immatricolazione || (vehicleData.anno ? new Date(vehicleData.anno, 0, 1).toISOString() : new Date().toISOString());
+          const registrationDateISO =
+            vehicleData.data_immatricolazione ||
+            (vehicleData.anno
+              ? new Date(vehicleData.anno, 0, 1).toISOString()
+              : new Date().toISOString());
           const dataForForm = {
             ...vehicleData,
             prezzo: vehicleData.prezzo ?? '',
             garanzia_legale_prezzo: vehicleData.garanzia_legale_prezzo ?? '',
             descrizione: vehicleData.descrizione ?? '',
-            data_immatricolazione: new Date(registrationDateISO).toISOString().split('T')[0],
+            data_immatricolazione: new Date(registrationDateISO)
+              .toISOString()
+              .split('T')[0],
           };
           form.reset(dataForForm as any);
           setExistingImages(vehicleData.immagini || []);
@@ -138,7 +148,7 @@ export default function SellerEditVehiclePage() {
           router.push('/seller');
         }
       } catch (error) {
-        console.error("Errore nel caricamento del veicolo:", error);
+        console.error('Errore nel caricamento del veicolo:', error);
         toast({
           variant: 'destructive',
           title: 'Uh oh! Qualcosa è andato storto.',
@@ -170,27 +180,42 @@ export default function SellerEditVehiclePage() {
         unit: 'mm',
         format: 'a4',
       });
-      
-      const margin = 15;
+
+      const margin = 10;
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
       const contentWidth = pdfWidth - margin * 2;
       const imgProps = pdf.getImageProperties(imgData);
-      const totalImgHeightInPdf = (imgProps.height * contentWidth) / imgProps.width;
+      const totalImgHeightInPdf =
+        (imgProps.height * contentWidth) / imgProps.width;
 
       let heightLeft = totalImgHeightInPdf;
       let position = 0;
 
-      pdf.addImage(imgData, 'PNG', margin, position, contentWidth, totalImgHeightInPdf);
-      heightLeft -= (pdfHeight - margin * 2);
+      pdf.addImage(
+        imgData,
+        'PNG',
+        margin,
+        position,
+        contentWidth,
+        totalImgHeightInPdf
+      );
+      heightLeft -= pdfHeight - margin * 2;
 
       while (heightLeft > 0) {
         position -= pdfHeight;
         pdf.addPage();
-        pdf.addImage(imgData, 'PNG', margin, position + margin, contentWidth, totalImgHeightInPdf);
+        pdf.addImage(
+          imgData,
+          'PNG',
+          margin,
+          position + margin,
+          contentWidth,
+          totalImgHeightInPdf
+        );
         heightLeft -= pdfHeight;
       }
-      
+
       pdf.save(`scheda-veicolo-${vehicleForPreview.slug}.pdf`);
     } catch (error) {
       console.error('Errore durante la creazione del PDF:', error);
@@ -201,8 +226,10 @@ export default function SellerEditVehiclePage() {
 
   const showPriceSheetEditor = () => {
     if (vehicle) {
-        priceSheetForm.reset({ price: (vehicle.prezzo ?? 0) + (vehicle.garanzia_legale_prezzo ?? 0) });
-        setIsPriceSheetEditorOpen(true);
+      priceSheetForm.reset({
+        price: (vehicle.prezzo ?? 0) + (vehicle.garanzia_legale_prezzo ?? 0),
+      });
+      setIsPriceSheetEditorOpen(true);
     }
   };
 
@@ -213,14 +240,14 @@ export default function SellerEditVehiclePage() {
 
     const currentFormData = form.getValues();
     const previewData: Vehicle = {
-        ...vehicle,
-        stato: vehicle.stato,
-        descrizione: currentFormData.descrizione || vehicle.descrizione,
+      ...vehicle,
+      stato: vehicle.stato,
+      descrizione: currentFormData.descrizione || vehicle.descrizione,
     };
     setVehicleForPreview(previewData);
     setIsPreviewing(true);
   }
-  
+
   const hidePreview = () => {
     setIsPreviewing(false);
     setVehicleForPreview(null);
@@ -229,54 +256,55 @@ export default function SellerEditVehiclePage() {
 
   const handleConfirmPrint = async () => {
     if (vehicleForPreview) {
-        await handleGeneratePdf();
+      await handleGeneratePdf();
     }
     hidePreview();
   };
 
   function onSubmit(data: VehicleFormValues) {
     if (!firestore) return;
-    
+
     setIsSubmitting(true);
     const vehicleRef = doc(firestore, 'vehicles', vehicleId);
-    
-    const dataToSave: {descrizione?: string; updatedAt: any} = {
-        updatedAt: serverTimestamp(),
+
+    const dataToSave: { descrizione?: string; updatedAt: any } = {
+      updatedAt: serverTimestamp(),
     };
 
     if (data.descrizione) {
-        dataToSave.descrizione = data.descrizione;
+      dataToSave.descrizione = data.descrizione;
     }
-    
+
     updateDocumentNonBlocking(vehicleRef, dataToSave)
-        .then(() => {
-            toast({
-                title: 'Veicolo aggiornato!',
-                description: `Le modifiche sono state salvate.`,
-            });
-            router.push('/seller');
-        })
-        .catch((error) => {
-            toast({
-                variant: "destructive",
-                title: "Uh oh! Qualcosa è andato storto.",
-                description: "Impossibile salvare le modifiche. Controlla la console per i dettagli.",
-            });
-        })
-        .finally(() => {
-            setIsSubmitting(false);
+      .then(() => {
+        toast({
+          title: 'Veicolo aggiornato!',
+          description: `Le modifiche sono state salvate.`,
         });
+        router.push('/seller');
+      })
+      .catch(error => {
+        toast({
+          variant: 'destructive',
+          title: 'Uh oh! Qualcosa è andato storto.',
+          description:
+            'Impossibile salvare le modifiche. Controlla la console per i dettagli.',
+        });
+      })
+      .finally(() => {
+        setIsSubmitting(false);
+      });
   }
 
   if (isLoading) {
     return (
-        <div className="container mx-auto px-4 py-8">
-            <h1 className="text-3xl font-bold mb-6">Caricamento...</h1>
-            <div className="space-y-6">
-                <Skeleton className="h-48 w-full" />
-                <Skeleton className="h-64 w-full" />
-            </div>
+      <div className="container mx-auto px-4 py-8">
+        <h1 className="text-3xl font-bold mb-6">Caricamento...</h1>
+        <div className="space-y-6">
+          <Skeleton className="h-48 w-full" />
+          <Skeleton className="h-64 w-full" />
         </div>
+      </div>
     );
   }
 
@@ -284,205 +312,260 @@ export default function SellerEditVehiclePage() {
 
   return (
     <>
-    <div className="container mx-auto px-4 py-8">
-       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold font-headline">Modifica Veicolo (Venditore)</h1>
-      </div>
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-3xl font-bold font-headline">
+            Modifica Veicolo (Venditore)
+          </h1>
+        </div>
 
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-        <Card>
-            <CardHeader>
-              <CardTitle>Informazioni Veicolo</CardTitle>
-              <CardDescription>
-                Puoi modificare solo la descrizione. Le altre informazioni sono in sola lettura.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              <FormField
-                control={form.control}
-                name="marca"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Marca</FormLabel>
-                    <FormControl>
-                      <Input {...field} readOnly disabled />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="modello"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Modello</FormLabel>
-                    <FormControl>
-                      <Input {...field} readOnly disabled />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="versione"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Versione/Allestimento</FormLabel>
-                    <FormControl>
-                      <Input {...field} readOnly disabled />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-              <FormItem>
-                <FormLabel>Stato</FormLabel>
-                <Badge variant={vehicle.stato === 'Venduto' ? 'destructive' : 'secondary'} className="block w-fit text-base py-1 px-3">
-                  {vehicle.stato}
-                </Badge>
-              </FormItem>
-              <FormField
-                control={form.control}
-                name="prezzo"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Prezzo</FormLabel>
-                    <FormControl>
-                      <Input type="number" placeholder="Es. 32000" {...field} value={field.value ?? ''} readOnly disabled />
-                    </FormControl>
-                    <FormDescription>Il prezzo può essere modificato solo da un amministratore.</FormDescription>
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="garanzia_legale_prezzo"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Garanzia Legale (€)</FormLabel>
-                    <FormControl>
-                      <Input type="number" {...field} value={field.value ?? ''} readOnly disabled />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-                <CardTitle>Campi Modificabili</CardTitle>
-            </CardHeader>
-            <CardContent>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+            <Card>
+              <CardHeader>
+                <CardTitle>Informazioni Veicolo</CardTitle>
+                <CardDescription>
+                  Puoi modificare solo la descrizione. Le altre informazioni sono
+                  in sola lettura.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <FormField
-                    control={form.control}
-                    name="descrizione"
-                    render={({ field }) => (
+                  control={form.control}
+                  name="marca"
+                  render={({ field }) => (
                     <FormItem>
-                        <FormLabel>Descrizione Commerciale</FormLabel>
-                        <FormControl>
-                        <Textarea
-                            placeholder="Aggiungi o modifica la descrizione del veicolo..."
-                            className="min-h-[120px]"
-                            {...field}
-                        />
-                        </FormControl>
-                        <FormDescription>
-                            Puoi aggiungere dettagli o note alla descrizione esistente.
-                        </FormDescription>
-                        <FormMessage />
+                      <FormLabel>Marca</FormLabel>
+                      <FormControl>
+                        <Input {...field} readOnly disabled />
+                      </FormControl>
                     </FormItem>
-                    )}
+                  )}
                 />
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader>
+                <FormField
+                  control={form.control}
+                  name="modello"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Modello</FormLabel>
+                      <FormControl>
+                        <Input {...field} readOnly disabled />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="versione"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Versione/Allestimento</FormLabel>
+                      <FormControl>
+                        <Input {...field} readOnly disabled />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+                <FormItem>
+                  <FormLabel>Stato</FormLabel>
+                  <Badge
+                    variant={
+                      vehicle.stato === 'Venduto' ? 'destructive' : 'secondary'
+                    }
+                    className="block w-fit text-base py-1 px-3"
+                  >
+                    {vehicle.stato}
+                  </Badge>
+                </FormItem>
+                <FormField
+                  control={form.control}
+                  name="prezzo"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Prezzo</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          placeholder="Es. 32000"
+                          {...field}
+                          value={field.value ?? ''}
+                          readOnly
+                          disabled
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Il prezzo può essere modificato solo da un
+                        amministratore.
+                      </FormDescription>
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="garanzia_legale_prezzo"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Garanzia Legale (€)</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          {...field}
+                          value={field.value ?? ''}
+                          readOnly
+                          disabled
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Campi Modificabili</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <FormField
+                  control={form.control}
+                  name="descrizione"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Descrizione Commerciale</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="Aggiungi o modifica la descrizione del veicolo..."
+                          className="min-h-[120px]"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Puoi aggiungere dettagli o note alla descrizione
+                        esistente.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
                 <CardTitle>Immagini (Sola Lettura)</CardTitle>
                 <CardDescription>
-                    Le immagini possono essere modificate solo da un amministratore.
+                  Le immagini possono essere modificate solo da un
+                  amministratore.
                 </CardDescription>
-            </CardHeader>
-            <CardContent>
-                 {existingImages.length > 0 ? (
-                    <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                        {existingImages.map((url, index) => {
-                            const imageUrl = getDirectImageUrl(url);
-                            if (!imageUrl) return null;
+              </CardHeader>
+              <CardContent>
+                {existingImages.length > 0 ? (
+                  <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                    {existingImages.map((url, index) => {
+                      const imageUrl = getDirectImageUrl(url);
+                      if (!imageUrl) return null;
 
-                            return (
-                            <div key={`${url}-${index}`} className="relative group aspect-[16/9]">
-                                {index === 0 && (
-                                    <Badge variant="default" className="absolute top-2 left-2 z-10">Copertina</Badge>
-                                )}
-                                <Image
-                                    src={imageUrl}
-                                    alt="Immagine veicolo esistente"
-                                    fill
-                                    sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
-                                    className="object-cover rounded-md"
-                                />
-                            </div>
-                            );
-                        })}
-                    </div>
+                      return (
+                        <div
+                          key={`${url}-${index}`}
+                          className="relative group aspect-[16/9]"
+                        >
+                          {index === 0 && (
+                            <Badge
+                              variant="default"
+                              className="absolute top-2 left-2 z-10"
+                            >
+                              Copertina
+                            </Badge>
+                          )}
+                          <Image
+                            src={imageUrl}
+                            alt="Immagine veicolo esistente"
+                            fill
+                            sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
+                            className="object-cover rounded-md"
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
                 ) : (
-                    <p className="mt-2 text-sm text-muted-foreground">Nessuna immagine disponibile per questo veicolo.</p>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Nessuna immagine disponibile per questo veicolo.
+                  </p>
                 )}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          <div className="flex items-center justify-between">
-             <Button onClick={showPriceSheetEditor} type="button" variant="outline" disabled={isPrinting || isPreviewing}>
+            <div className="flex items-center justify-between">
+              <Button
+                onClick={showPriceSheetEditor}
+                type="button"
+                variant="outline"
+                disabled={isPrinting || isPreviewing}
+              >
                 <Printer className="mr-2 h-5 w-5" />
                 Anteprima Stampa
-            </Button>
-            <div className="flex items-center gap-4">
-              <Button variant="outline" asChild>
+              </Button>
+              <div className="flex items-center gap-4">
+                <Button variant="outline" asChild>
                   <Link href="/seller">Annulla</Link>
-              </Button>
-              <Button type="submit" disabled={isSubmitting || isLoading}>
-                {isSubmitting ? 'Salvataggio in corso...' : 'Salva Modifiche'}
-              </Button>
+                </Button>
+                <Button type="submit" disabled={isSubmitting || isLoading}>
+                  {isSubmitting ? 'Salvataggio in corso...' : 'Salva Modifiche'}
+                </Button>
+              </div>
             </div>
-          </div>
-        </form>
-      </Form>
-    </div>
-    
-    <Dialog open={isPriceSheetEditorOpen} onOpenChange={setIsPriceSheetEditorOpen}>
+          </form>
+        </Form>
+      </div>
+
+      <Dialog
+        open={isPriceSheetEditorOpen}
+        onOpenChange={setIsPriceSheetEditorOpen}
+      >
         <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Modifica Prezzo per la Stampa</DialogTitle>
-              <DialogDescription>
-                Inserisci il prezzo finale da mostrare sulla scheda del veicolo.
-              </DialogDescription>
-            </DialogHeader>
-            <Form {...priceSheetForm}>
-                <form onSubmit={priceSheetForm.handleSubmit(onPriceSheetSubmit)} className="space-y-4">
-                    <FormField
-                    control={priceSheetForm.control}
-                    name="price"
-                    render={({ field }) => (
-                        <FormItem>
-                        <FormLabel>Prezzo Finale (€)</FormLabel>
-                        <FormControl><Input type="number" {...field} value={field.value ?? ''} /></FormControl>
-                        <FormMessage />
-                        </FormItem>
-                    )}
-                    />
-                    <DialogFooter>
-                        <DialogClose asChild>
-                            <Button type="button" variant="outline">Annulla</Button>
-                        </DialogClose>
-                        <Button type="submit">Genera Anteprima</Button>
-                    </DialogFooter>
-                </form>
-            </Form>
+          <DialogHeader>
+            <DialogTitle>Modifica Prezzo per la Stampa</DialogTitle>
+            <DialogDescription>
+              Inserisci il prezzo finale da mostrare sulla scheda del veicolo.
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...priceSheetForm}>
+            <form
+              onSubmit={priceSheetForm.handleSubmit(onPriceSheetSubmit)}
+              className="space-y-4"
+            >
+              <FormField
+                control={priceSheetForm.control}
+                name="price"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Prezzo Finale (€)</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        {...field}
+                        value={field.value ?? ''}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button type="button" variant="outline">
+                    Annulla
+                  </Button>
+                </DialogClose>
+                <Button type="submit">Genera Anteprima</Button>
+              </DialogFooter>
+            </form>
+          </Form>
         </DialogContent>
       </Dialog>
-    
+
       <Dialog open={isPreviewing} onOpenChange={hidePreview}>
         <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
           <DialogHeader>
@@ -494,13 +577,21 @@ export default function SellerEditVehiclePage() {
               className="w-[800px] mx-auto my-8 shadow-2xl"
             >
               {vehicleForPreview && finalSheetPrice !== null && (
-                <PrintableVehicleSheet vehicle={vehicleForPreview} price={finalSheetPrice} branding={branding} />
+                <PrintableVehicleSheet
+                  vehicle={vehicleForPreview}
+                  price={finalSheetPrice}
+                  branding={branding}
+                />
               )}
             </div>
           </div>
           <DialogFooter>
             <DialogClose asChild>
-              <Button variant="outline" disabled={isPrinting} onClick={hidePreview}>
+              <Button
+                variant="outline"
+                disabled={isPrinting}
+                onClick={hidePreview}
+              >
                 Annulla
               </Button>
             </DialogClose>

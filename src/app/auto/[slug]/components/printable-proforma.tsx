@@ -48,8 +48,8 @@ export function PrintableProforma({ vehicle, customer, price, costoVultura, cust
   );
 
   return (
-    <div className="bg-white text-black p-8 text-sm" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
-      <header className="flex justify-between items-start pb-4 mb-8 border-b-2 border-gray-300" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
+    <div className="bg-white text-black p-6 text-sm leading-normal" style={{ fontFamily: 'Arial, Helvetica, sans-serif' }}>
+      <header className="flex justify-between items-start pb-4 mb-6 border-b-2 border-gray-300" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
         <div className="flex items-center gap-4">
           {logoUrl ? (
              <Image
@@ -70,12 +70,12 @@ export function PrintableProforma({ vehicle, customer, price, costoVultura, cust
         </div>
       </header>
 
-      <div style={{ textAlign: 'center', marginBottom: '32px', breakInside: 'avoid', pageBreakInside: 'avoid' }}>
+      <div style={{ textAlign: 'center', marginBottom: '24px', breakInside: 'avoid', pageBreakInside: 'avoid' }}>
         <h1 style={{ fontSize: '16px', fontWeight: 'bold', letterSpacing: '0.5px' }}>CONTRATTO DI COMPRAVENDITA DI AUTOVEICOLO USATO</h1>
         <p style={{ fontSize: '14px', marginTop: '4px' }}>redatto in duplice copia originale</p>
       </div>
 
-      <section className="mb-6" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
+      <section className="mb-4" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
         <h2 className="font-bold text-base mb-2 pb-1 border-b">TRA</h2>
         <p style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}><span className="font-semibold">{companyName}</span>, con sede in {companyAddress}, in qualità di VENDITORE</p>
         <h2 className="font-bold text-base mt-4 mb-2 pb-1 border-b">E</h2>
@@ -95,7 +95,7 @@ export function PrintableProforma({ vehicle, customer, price, costoVultura, cust
         </p>
       </section>
 
-      <section className="mb-6" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
+      <section className="mb-4" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
         <h2 className="font-bold text-base mb-2 pb-1 border-b">Art. 1 - Oggetto del Contratto</h2>
         <p className="mb-3" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>Il VENDITORE vende e cede all'ACQUIRENTE, che accetta, il seguente autoveicolo usato:</p>
         <table className="w-full text-left" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
@@ -114,7 +114,7 @@ export function PrintableProforma({ vehicle, customer, price, costoVultura, cust
         </table>
       </section>
 
-      <section className="mb-6" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
+      <section className="mb-4" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
         <h2 className="font-bold text-base mb-2 pb-1 border-b">Art. 2 - Prezzo e Pagamento</h2>
         <p style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>Il prezzo di vendita è convenuto come segue:</p>
          <table className="w-2/3 text-left my-3 text-base" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
@@ -162,7 +162,7 @@ export function PrintableProforma({ vehicle, customer, price, costoVultura, cust
         )}
       </section>
 
-      <section className="mb-6" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
+      <section className="mb-4" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
         <h2 className="font-bold text-base mb-2 pb-1 border-b">Art. 3 - Garanzia</h2>
         {customerType === 'privato' ? (
           <p style={{ whiteSpace: 'pre-wrap', breakInside: 'avoid', pageBreakInside: 'avoid' }}>{warranty || 'Nessuna garanzia specificata.'}</p>
@@ -171,36 +171,36 @@ export function PrintableProforma({ vehicle, customer, price, costoVultura, cust
         )}
       </section>
 
-      <section className="mb-6" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
+      <section className="mb-4" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
         <h2 className="font-bold text-base mb-2 pb-1 border-b">Art. 4 - Stato d'Uso del Mezzo</h2>
         <p style={{ whiteSpace: 'pre-wrap', breakInside: 'avoid', pageBreakInside: 'avoid' }}>{wearAndTear || 'Nessuna dichiarazione sullo stato d\'uso.'}</p>
       </section>
 
-      <section className="mb-6" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
+      <section className="mb-4" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
         <h2 className="font-bold text-base mb-2 pb-1 border-b">Art. 5 - Assicurazione</h2>
         <p style={{ whiteSpace: 'pre-wrap', breakInside: 'avoid', pageBreakInside: 'avoid' }}>{insurance || 'Nessuna indicazione sull\'assicurazione.'}</p>
       </section>
       
       {customerType === 'privato' && (
-        <section className="mb-6" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
+        <section className="mb-4" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
           <h2 className="font-bold text-base mb-2 pb-1 border-b">Art. 6 - Diritto di Recesso</h2>
           <p style={{ whiteSpace: 'pre-wrap', breakInside: 'avoid', pageBreakInside: 'avoid' }}>{withdrawal || 'Nessuna indicazione sul diritto di recesso.'}</p>
         </section>
       )}
       
-      <section className="mb-6" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
+      <section className="mb-4" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
         <h2 className="font-bold text-base mb-2 pb-1 border-b">Art. 7 - Dichiarazioni Finali</h2>
         <p style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>L'ACQUIRENTE dichiara di aver ispezionato il veicolo e di averlo trovato in buono stato d'uso, idoneo all'uso cui è destinato e di proprio gradimento. Il passaggio di proprietà avverrà contestualmente al saldo del prezzo.</p>
       </section>
 
-      <footer className="mt-16" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
+      <footer className="mt-10" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
         <p>Letto, approvato e sottoscritto.</p>
         <p>Data: {date}</p>
-        <div className="mt-12">
+        <div className="mt-8">
             <p className="font-bold">Caparra Controfirmatoria</p>
-            <div className="mt-8 border-b border-gray-400"></div>
+            <div className="mt-6 border-b border-gray-400"></div>
         </div>
-        <div className="flex justify-between mt-12">
+        <div className="flex justify-between mt-8">
             <div className="w-2/5">
                 <p className="font-bold">Firma del Venditore</p>
                 <div className="mt-8 border-b border-gray-400"></div>
