@@ -5,8 +5,9 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useRouter } from 'next/navigation';
-import { signInWithEmailAndPassword } from 'firebase/auth';
-import { useAuth, useUserRole } from '@/firebase';
+import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
+import { useAuth, useUserRole, useFirestore } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -37,6 +38,7 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 export default function AdminLoginPage() {
   const router = useRouter();
   const auth = useAuth();
+  const firestore = useFirestore();
   const { role, isLoading: isRoleLoading } = useUserRole();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -49,6 +51,7 @@ export default function AdminLoginPage() {
     },
   });
   
+  // This effect handles redirection for users who are already logged in when they visit the page.
   useEffect(() => {
     if (!isRoleLoading) {
       if (role === 'admin') {
@@ -62,13 +65,36 @@ export default function AdminLoginPage() {
   async function onSubmit(data: LoginFormValues) {
     setIsSubmitting(true);
     try {
-      await signInWithEmailAndPassword(auth, data.email, data.password);
-      // After successful login, the useEffect above will handle the redirection
-      // once the user's role is confirmed.
+      const userCredential = await signInWithEmailAndPassword(auth, data.email, data.password);
+      const user = userCredential.user;
+
+      // Explicitly check the user's role from Firestore after successful login
+      const adminDocRef = doc(firestore, 'users', user.uid);
+      const adminDocSnap = await getDoc(adminDocRef);
+
+      if (adminDocSnap.exists()) {
+        toast({ title: 'Accesso Admin riuscito!', description: 'Verrai reindirizzato a breve.' });
+        router.replace('/admin');
+        return; // Stop execution after redirect
+      }
+
+      const sellerDocRef = doc(firestore, 'sellers', user.uid);
+      const sellerDocSnap = await getDoc(sellerDocRef);
+
+      if (sellerDocSnap.exists()) {
+        toast({ title: 'Accesso riuscito!', description: 'Verrai reindirizzato a breve.' });
+        router.replace('/auto');
+        return; // Stop execution after redirect
+      }
+
+      // If the user exists in Auth but has no role document, sign them out and show an error.
+      await signOut(auth);
       toast({
-        title: 'Accesso effettuato!',
-        description: 'Verrai reindirizzato a breve.',
+        variant: 'destructive',
+        title: 'Accesso Fallito',
+        description: 'Nessun ruolo valido assegnato a questo account.',
       });
+
     } catch (error: any) {
       let description = 'Si è verificato un errore imprevisto.';
       if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
@@ -84,8 +110,8 @@ export default function AdminLoginPage() {
     }
   }
   
-  // Don't render the form if the user is already logged in and about to be redirected.
-  if (isRoleLoading || role === 'admin' || role === 'seller') {
+  // Show a loader while checking auth status or if the user is already logged in and being redirected.
+  if (isRoleLoading || (role && (role === 'admin' || role === 'seller'))) {
     return (
       <div className="flex h-screen w-full items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" />
