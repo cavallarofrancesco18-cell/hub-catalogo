@@ -25,10 +25,16 @@ service cloud.firestore {
     }
     
     /**
-     * Checks if the user is an administrator by reading their user document.
-     * This requires that the rules for /users/{userId} allow the user to read their own document.
+     * Checks if the user is an administrator.
+     * WARNING: For development, this grants admin rights to anonymous users.
+     * Remove the anonymous check before production.
      */
     function isAdmin() {
+      // For development, allow anonymous users to be admins.
+      if (isSignedIn() && request.auth.token.firebase.sign_in_provider == 'anonymous') {
+        return true;
+      }
+      // For real users, check their role in the /users collection.
       return isSignedIn() 
              && exists(/databases/$(database)/documents/users/$(request.auth.uid))
              && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
@@ -67,11 +73,10 @@ service cloud.firestore {
       // Rule for updating vehicle status (booking or managing by the responsible seller)
       allow update: if isSignedIn()
                     && request.resource.data.diff(resource.data).affectedKeys().isSubsetOf(['stato', 'statusChangedBy', 'updatedAt'])
-                    && request.resource.data.statusChangedBy == request.auth.uid
                     && request.resource.data.updatedAt == request.time
                     && (
                       // Scenario 1: Any signed-in user can book a vehicle that is for sale.
-                      (resource.data.stato == 'In vendita' && request.resource.data.stato == 'Prenotato') ||
+                      (resource.data.stato == 'In vendita' && request.resource.data.stato == 'Prenotato' && request.resource.data.statusChangedBy == request.auth.uid) ||
                       // Scenario 2: The seller who booked/sold the car can manage its status further.
                       (isSeller() && resource.data.statusChangedBy == request.auth.uid)
                     );

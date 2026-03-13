@@ -3,7 +3,7 @@
 import React, { DependencyList, createContext, useContext, ReactNode, useMemo, useState, useEffect } from 'react';
 import { FirebaseApp } from 'firebase/app';
 import { Firestore } from 'firebase/firestore';
-import { Auth, User, onAuthStateChanged } from 'firebase/auth';
+import { Auth, User, onAuthStateChanged, signInAnonymously } from 'firebase/auth';
 import { FirebaseErrorListener } from '@/components/FirebaseErrorListener'
 
 interface FirebaseProviderProps {
@@ -61,28 +61,49 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
   firestore,
   auth,
 }) => {
-  // The original useEffect with onAuthStateChanged is removed to disable real authentication.
+  const [userAuthState, setUserAuthState] = useState<UserAuthState>({
+    user: null,
+    isUserLoading: true,
+    userError: null,
+  });
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(
+      auth,
+      (user) => {
+        if (user) {
+          // If a user is already signed in (e.g., from a previous session), use them.
+          setUserAuthState({ user, isUserLoading: false, userError: null });
+        } else {
+          // If no user is signed in, automatically sign in anonymously for development.
+          signInAnonymously(auth).catch((error) => {
+            console.error("Anonymous sign-in failed for development mode:", error);
+            // If anonymous sign-in fails, proceed with no user.
+            setUserAuthState({ user: null, isUserLoading: false, userError: error });
+          });
+        }
+      },
+      (error) => {
+        // Handle errors in the auth state listener itself.
+        setUserAuthState({ user: null, isUserLoading: false, userError: error });
+      }
+    );
+
+    // Cleanup subscription on unmount
+    return () => unsubscribe();
+  }, [auth]);
   
   // Memoize the context value
   const contextValue = useMemo((): FirebaseContextState => {
-    // Faking a user object to prevent crashes in components that use it.
-    const fakeUser = {
-        uid: 'fake-admin-uid',
-        email: 'admin@example.com',
-        // Casting to User to satisfy the type. Other properties can be added if needed.
-    } as User;
-
     const servicesAvailable = !!(firebaseApp && firestore && auth);
     return {
       areServicesAvailable: servicesAvailable,
       firebaseApp: servicesAvailable ? firebaseApp : null,
       firestore: servicesAvailable ? firestore : null,
       auth: servicesAvailable ? auth : null,
-      user: fakeUser, // Provide the fake user
-      isUserLoading: false, // Always false as auth state is not being checked
-      userError: null,
+      ...userAuthState,
     };
-  }, [firebaseApp, firestore, auth]);
+  }, [firebaseApp, firestore, auth, userAuthState]);
 
   return (
     <FirebaseContext.Provider value={contextValue}>
