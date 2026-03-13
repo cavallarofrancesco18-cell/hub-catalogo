@@ -251,6 +251,7 @@ export default function VehiclePage() {
       const canvas = await html2canvas(ref.current, {
         scale: 2,
         useCORS: true,
+        letterRendering: true,
       });
 
       const imgData = canvas.toDataURL('image/png');
