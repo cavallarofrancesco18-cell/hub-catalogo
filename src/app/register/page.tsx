@@ -76,7 +76,6 @@ export default function RegisterPage() {
       router.push('/admin/login');
 
     } catch (error: any) {
-      console.error('Errore di registrazione:', error);
       let description = 'Si è verificato un errore imprevisto.';
       if (error.code === 'auth/email-already-in-use') {
         description = 'Questo indirizzo email è già stato registrato.';

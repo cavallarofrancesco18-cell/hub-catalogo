@@ -66,7 +66,6 @@ export default function AdminLoginPage() {
       });
       router.push('/admin');
     } catch (error: any) {
-      console.error('Errore di accesso:', error);
       let description = 'Si è verificato un errore imprevisto.';
       if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
         description = 'Credenziali non valide. Controlla email e password.';
