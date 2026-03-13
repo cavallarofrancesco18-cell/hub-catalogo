@@ -59,12 +59,12 @@ export default function AdminLoginPage() {
     setIsSubmitting(true);
     try {
       await signInWithEmailAndPassword(auth, data.email, data.password);
-      // The layout's useEffect will handle redirection on successful login
+      // After successful login, the useEffect above will handle the redirection
+      // once the user's role is confirmed.
       toast({
         title: 'Accesso effettuato!',
         description: 'Verrai reindirizzato alla dashboard.',
       });
-      router.push('/admin');
     } catch (error: any) {
       let description = 'Si è verificato un errore imprevisto.';
       if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
