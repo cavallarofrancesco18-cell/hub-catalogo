@@ -12,9 +12,9 @@ import { useUser, useUserRole } from '@/firebase';
 
 export function Header() {
   const { user, isUserLoading } = useUser();
-  const { role } = useUserRole();
+  const { role, roleData } = useUserRole();
   const router = useRouter();
-  const { logoUrl, companyName } = getBranding(role || undefined);
+  const { logoUrl, companyName } = getBranding(roleData);
   
   const handleLogout = async () => {
     const auth = getAuth();

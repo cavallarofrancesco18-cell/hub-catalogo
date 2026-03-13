@@ -195,11 +195,11 @@ export default function VehiclePage() {
 
   const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
-  const { role, isLoading: isLoadingRole } = useUserRole();
+  const { role, roleData, isLoading: isLoadingRole } = useUserRole();
 
   const branding = useMemo(() => {
-    return getBranding(role);
-  }, [role]);
+    return getBranding(roleData);
+  }, [roleData]);
 
   const vehicleQuery = useMemoFirebase(() => {
     if (!slug || !firestore) return null;

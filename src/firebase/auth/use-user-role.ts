@@ -51,6 +51,7 @@ export function useUserRole(): UserRoleState {
           id: user.uid,
           email: user.email!,
           createdAt: user.metadata.creationTime ? new Date(user.metadata.creationTime) : new Date(),
+          sellerType: 'HUB',
       };
       return { role: 'admin', roleData: adminUserData, isLoading: false };
     }

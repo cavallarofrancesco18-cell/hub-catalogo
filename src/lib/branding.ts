@@ -1,4 +1,4 @@
-import type { Role } from "./types";
+import type { User } from './types';
 
 export type BrandingProfile = {
   logoUrl: string;
@@ -18,7 +18,12 @@ export const brandingProfiles: { default: BrandingProfile } = {
   },
 };
 
-export const getBranding = (role?: Role): BrandingProfile => {
-  // Always return default branding as seller roles are removed
+export const getBranding = (user?: User | null): BrandingProfile => {
+  // For now, there is only one branding profile, so we always return it.
+  // This logic is prepared for future expansion with more branding types.
+  if (user?.sellerType === 'HUB') {
+    return brandingProfiles.default; // This is the HUB profile
+  }
+  // All other users (or logged out users) get the default profile.
   return brandingProfiles.default;
 };
