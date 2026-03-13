@@ -161,7 +161,7 @@ export default function UsersPage() {
               {!isLoading && !error && sellers && sellers.length > 0 ? (
                 sellers.map(seller => (
                   <TableRow key={seller.id}>
-                    <TableCell className="font-medium">{seller.email}</TableCell>
+                    <TableCell className="font-medium">{seller.email || '(Email non specificata)'}</TableCell>
                     <TableCell className="font-medium">{seller.name || '(Non specificato)'}</TableCell>
                     <TableCell>
                       {seller.createdAt?.toDate
