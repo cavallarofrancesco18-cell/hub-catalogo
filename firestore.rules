@@ -33,13 +33,25 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow read, write: if isAdmin();
+      // Only admins can write to the users (admin) collection.
+      allow write: if isAdmin();
+      // Only admins can list all admins.
+      allow list: if isAdmin();
+      // An admin can get any user doc, and any user can get their own.
+      // This is required for the useUserRole hook to check for admin status.
+      allow get: if isAdmin() || (isSignedIn() && request.auth.uid == userId);
     }
     
     match /sellers/{sellerId} {
+      // Allow a user to be created in the sellers collection during registration.
       allow create: if isSignedIn() && request.auth.uid == sellerId;
-      allow read, write: if isAdmin();
-      allow list: if isAdmin();
+
+      // Only admins can manage sellers.
+      allow list, update, delete: if isAdmin();
+
+      // A seller can read their own document, and an admin can read any seller document.
+      // This is required for the useUserRole hook.
+      allow get: if (isSignedIn() && request.auth.uid == sellerId) || isAdmin();
     }
 
     match /contracts/{contractId} {
