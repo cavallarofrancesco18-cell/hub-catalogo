@@ -27,9 +27,9 @@ export const brandingProfiles: { default: BrandingProfile; express: BrandingProf
   },
   mgv: {
     logoUrl: MGV_LOGO_URL,
-    companyName: 'MGV Mobility',
-    companyAddress: 'Via Verdi 20, Roma (RM)',
-    companyContact: 'info@mgvmobility.it',
+    companyName: 'AUTO MGV',
+    companyAddress: 'Via F.Baracca 1, La Loggia (TO)',
+    companyContact: 'info@automgv.it',
   }
 };
 
