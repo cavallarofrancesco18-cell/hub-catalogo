@@ -73,9 +73,9 @@ export default function LoginPage() {
         return;
       }
 
-      const sellerRef = doc(firestore, 'sellertype', user.uid);
-      const sellerDoc = await getDoc(sellerRef);
-      if (sellerDoc.exists()) {
+      const userRef = doc(firestore, 'users', user.uid);
+      const userDoc = await getDoc(userRef);
+      if (userDoc.exists() && userDoc.data().role === 'seller') {
         router.replace('/auto');
         return;
       }
@@ -112,20 +112,20 @@ export default function LoginPage() {
                 return;
             }
 
-            const sellerRef = doc(firestore, 'sellertype', loggedInUser.uid);
-            const sellerDoc = await getDoc(sellerRef);
-            if (sellerDoc.exists()) {
+            const userRef = doc(firestore, 'users', loggedInUser.uid);
+            const userDoc = await getDoc(userRef);
+            if (userDoc.exists() && userDoc.data()?.role === 'seller') {
                 toast({ title: 'Accesso Venditore effettuato!', description: 'Verrai reindirizzato al catalogo.' });
                 router.push('/auto');
                 return;
             }
 
-            // If user has role but is not yet approved
+            // If user has a document but not seller role, or no document at all.
             await signOut(auth);
             toast({
                 variant: 'destructive',
                 title: 'Accesso non autorizzato',
-                description: 'Il tuo account è in attesa di approvazione da parte di un amministratore.',
+                description: 'Il tuo account non ha un ruolo assegnato o è in attesa di approvazione.',
             });
         })
         .catch((error) => {
