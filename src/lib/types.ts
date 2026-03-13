@@ -71,5 +71,5 @@ export type User = {
   id: string;
   email: string;
   createdAt: any;
-  sellerType?: 'HUB' | 'EXPRESS' | null;
+  sellerType?: 'HUB' | 'EXPRESS' | 'MGV' | null;
 };

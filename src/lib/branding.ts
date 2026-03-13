@@ -9,9 +9,10 @@ export type BrandingProfile = {
 
 const HUB_LOGO_URL = 'https://firebasestorage.googleapis.com/v0/b/studio-3074982188-44660.firebasestorage.app/o/HUB%20-%20logo%20tutti%20formati_Tavola%20disegno%201%20copia%204%20(4).png?alt=media&token=a2c0e07e-e514-4d75-bc9c-a27e5b4e69d3';
 const EXPRESS_LOGO_URL = 'https://firebasestorage.googleapis.com/v0/b/studio-3074982188-44660.appspot.com/o/Logo-1%20trasparente.png?alt=media';
+const MGV_LOGO_URL = 'https://firebasestorage.googleapis.com/v0/b/studio-3074982188-44660.appspot.com/o/MGV_logo.png?alt=media';
 
 
-export const brandingProfiles: { default: BrandingProfile; express: BrandingProfile } = {
+export const brandingProfiles: { default: BrandingProfile; express: BrandingProfile, mgv: BrandingProfile } = {
   default: {
     logoUrl: HUB_LOGO_URL,
     companyName: 'Hub Mobility',
@@ -23,12 +24,21 @@ export const brandingProfiles: { default: BrandingProfile; express: BrandingProf
     companyName: 'Express Mobility',
     companyAddress: 'Via Garibaldi 10, Milano (MI)',
     companyContact: 'info@expressmobility.it',
+  },
+  mgv: {
+    logoUrl: MGV_LOGO_URL,
+    companyName: 'MGV Mobility',
+    companyAddress: 'Via Verdi 20, Roma (RM)',
+    companyContact: 'info@mgvmobility.it',
   }
 };
 
 export const getBranding = (user?: User | null): BrandingProfile => {
   if (user?.sellerType === 'EXPRESS') {
     return brandingProfiles.express;
+  }
+  if (user?.sellerType === 'MGV') {
+    return brandingProfiles.mgv;
   }
   // Admins and HUB sellers get the default HUB branding
   if (user?.sellerType === 'HUB') {

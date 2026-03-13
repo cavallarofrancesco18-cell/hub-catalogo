@@ -78,7 +78,7 @@ export default function UsersPage() {
       });
   };
 
-  const handleSellerTypeChange = (sellerId: string, newType: 'HUB' | 'EXPRESS' | 'standard') => {
+  const handleSellerTypeChange = (sellerId: string, newType: 'HUB' | 'EXPRESS' | 'MGV' | 'standard') => {
     if (!firestore) return;
     setIsUpdating(sellerId);
     
@@ -151,7 +151,7 @@ export default function UsersPage() {
                         ) : (
                             <Select
                                 value={seller.sellerType || 'standard'}
-                                onValueChange={(value: 'HUB' | 'EXPRESS' | 'standard') => handleSellerTypeChange(seller.id, value)}
+                                onValueChange={(value: 'HUB' | 'EXPRESS' | 'MGV' | 'standard') => handleSellerTypeChange(seller.id, value)}
                                 disabled={isUpdating === seller.id}
                             >
                                 <SelectTrigger className="w-[120px]">
@@ -161,6 +161,7 @@ export default function UsersPage() {
                                     <SelectItem value="standard">Standard</SelectItem>
                                     <SelectItem value="HUB">HUB</SelectItem>
                                     <SelectItem value="EXPRESS">EXPRESS</SelectItem>
+                                    <SelectItem value="MGV">MGV</SelectItem>
                                 </SelectContent>
                             </Select>
                         )}
