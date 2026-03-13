@@ -187,9 +187,16 @@
           "description": "Timestamp indicating when the user account was created."
         },
         "sellerType": {
-          "type": ["string", "null"],
-          "description": "The brand affiliation of the seller (e.g., 'HUB').",
-          "enum": ["HUB", null]
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The brand affiliation of the seller (e.g., 'HUB', 'EXPRESS').",
+          "enum": [
+            "HUB",
+            "EXPRESS",
+            null
+          ]
         }
       },
       "required": [
