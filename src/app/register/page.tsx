@@ -61,11 +61,12 @@ export default function RegisterPage() {
 
       const userDocRef = doc(firestore, 'seller', user.uid);
       
-      setDocumentNonBlocking(userDocRef, {
+      await setDocumentNonBlocking(userDocRef, {
         name: data.name,
         email: user.email,
         createdAt: serverTimestamp(),
         id: user.uid,
+        sellerType: null,
       }, {});
 
       // Sign out the user immediately after registration so they have to log in.

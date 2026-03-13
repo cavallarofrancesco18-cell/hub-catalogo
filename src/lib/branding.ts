@@ -22,8 +22,8 @@ export const brandingProfiles: { default: BrandingProfile; express: BrandingProf
   express: {
     logoUrl: EXPRESS_LOGO_URL,
     companyName: 'Express Mobility',
-    companyAddress: 'Via Garibaldi 10, Milano (MI)',
-    companyContact: 'info@expressmobility.it',
+    companyAddress: 'Via Lido Malone 15, Brandizzo',
+    companyContact: 'express2srls@gmail.com',
   },
   mgv: {
     logoUrl: MGV_LOGO_URL,
