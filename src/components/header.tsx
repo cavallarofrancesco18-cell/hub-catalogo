@@ -34,6 +34,7 @@ export function Header() {
               height={60}
               className="h-24 w-auto"
               priority
+              unoptimized
             />
           ) : (
             <span className="text-xl font-bold tracking-tight font-headline">
