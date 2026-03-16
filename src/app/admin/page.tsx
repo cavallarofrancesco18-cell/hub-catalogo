@@ -112,6 +112,7 @@ const proformaSchema = z
     warranty: z.string().optional(),
     insurance: z.string().optional(),
     wearAndTear: z.string().optional(),
+    documentation: z.string().optional(),
     withdrawal: z.string().optional(),
     financingCompany: z.string().optional(),
     numberOfInstallments: z.coerce
@@ -242,12 +243,12 @@ export default function AdminPage() {
       customerType: 'privato',
       paymentMethod: 'bonifico',
       costoVultura: '',
-      warranty:
-        'Il veicolo viene venduto con garanzia legale di conformità per 12 mesi come da D.Lgs. 206/2005 (Codice del Consumo).',
+      warranty: 'Il veicolo viene venduto con garanzia legale di conformità per 12 mesi come da D.Lgs. 206/2005 (Codice del Consumo). L\'Acquirente si obbliga ad effettuare gli interventi di manutenzione ordinaria programmata dell\'AUTO, in conformità alle indicazioni e scadenze del libretto di manutenzione. In caso di interventi in garanzia, il venditore si obbliga ad utilizzare ricambi originali. La garanzia non opererà per quei guasti/avarie che siano stati causati dalla omessa manutenzione.',
       insurance:
         "L'acquirente si impegna a stipulare una polizza assicurativa RC auto prima del ritiro del veicolo.",
       wearAndTear:
         "L'acquirente dichiara di aver preso visione dello stato d'uso del veicolo e di accettarlo nelle condizioni in cui si trova, tenuto conto della normale usura pregressa in base all'anno di immatricolazione e al chilometraggio.",
+      documentation: 'Il veicolo viene consegnato completo di carta di circolazione, certificato di proprietà (o D.U.) e n.2 chiavi. Il passaggio di proprietà avverrà a seguito del saldo completo.',
       withdrawal:
         "Per i contratti conclusi a distanza, l'acquirente consumatore ha diritto di recedere dal contratto, senza alcuna penalità e senza specificarne il motivo, entro il termine di 14 giorni dalla presa in consegna del veicolo.",
       financingCompany: '',
@@ -497,12 +498,12 @@ export default function AdminPage() {
           customerType: 'privato',
           paymentMethod: 'bonifico',
           costoVultura: '',
-          warranty:
-            'Il veicolo viene venduto con garanzia legale di conformità per 12 mesi come da D.Lgs. 206/2005 (Codice del Consumo).',
+          warranty: 'Il veicolo viene venduto con garanzia legale di conformità per 12 mesi come da D.Lgs. 206/2005 (Codice del Consumo). L\'Acquirente si obbliga ad effettuare gli interventi di manutenzione ordinaria programmata dell\'AUTO, in conformità alle indicazioni e scadenze del libretto di manutenzione. In caso di interventi in garanzia, il venditore si obbliga ad utilizzare ricambi originali. La garanzia non opererà per quei guasti/avarie che siano stati causati dalla omessa manutenzione.',
           insurance:
             "L'acquirente si impegna a stipulare una polizza assicurativa RC auto prima del ritiro del veicolo.",
           wearAndTear:
             "L'acquirente dichiara di aver preso visione dello stato d'uso del veicolo e di accettarlo nelle condizioni in cui si trova, tenuto conto della normale usura pregressa in base all'anno di immatricolazione e al chilometraggio.",
+          documentation: 'Il veicolo viene consegnato completo di carta di circolazione, certificato di proprietà (o D.U.) e n.2 chiavi. Il passaggio di proprietà avverrà a seguito del saldo completo.',
           withdrawal:
             "Per i contratti conclusi a distanza, l'acquirente consumatore ha diritto di recedere dal contratto, senza alcuna penalità e senza specificarne il motivo, entro il termine di 14 giorni dalla presa in consegna del veicolo.",
           price:
@@ -1199,6 +1200,29 @@ export default function AdminPage() {
                 />
               )}
 
+              {proformaForm.watch('customerType') === 'privato' && (
+                <FormField
+                  control={proformaForm.control}
+                  name="documentation"
+                  render={({ field }) => (
+                  <FormItem>
+                      <FormLabel>Consegna e Documentazione</FormLabel>
+                      <FormControl>
+                      <Textarea
+                          className="min-h-[100px]"
+                          {...field}
+                          value={field.value ?? ''}
+                      />
+                      </FormControl>
+                      <FormDescription>
+                      Questo testo è modificabile e verrà incluso nel contratto finale.
+                      </FormDescription>
+                      <FormMessage />
+                  </FormItem>
+                  )}
+                />
+              )}
+
               <FormField
                 control={proformaForm.control}
                 name="insurance"
@@ -1305,6 +1329,7 @@ export default function AdminPage() {
                   warranty={proformaCustomerData.warranty || ''}
                   insurance={proformaCustomerData.insurance || ''}
                   wearAndTear={proformaCustomerData.wearAndTear || ''}
+                  documentation={proformaCustomerData.documentation || ''}
                   withdrawal={proformaCustomerData.withdrawal || ''}
                   date={format(new Date(), 'dd/MM/yyyy')}
                   branding={brandingProfiles.default}

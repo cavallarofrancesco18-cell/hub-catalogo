@@ -62,6 +62,7 @@ export type Contract = {
   warranty?: string;
   insurance?: string;
   wearAndTear?: string;
+  documentation?: string;
   withdrawal?: string;
   createdAt: any;
   updatedAt: any;

@@ -15,9 +15,9 @@ const MGV_LOGO_URL = 'https://firebasestorage.googleapis.com/v0/b/studio-3074982
 export const brandingProfiles: { default: BrandingProfile; express: BrandingProfile, mgv: BrandingProfile } = {
   default: {
     logoUrl: HUB_LOGO_URL,
-    companyName: 'Hub Mobility',
-    companyAddress: 'Via Pietro Ferrero 1/bis (TO)',
-    companyContact: 'mail:amministrazione@hubmobility.it cell:0110252664',
+    companyName: 'Hub srl',
+    companyAddress: 'Corso Vittorio Emanuele II 71, 10128 - Torino (TO)',
+    companyContact: 'p.iva:12512480017 mail:amministrazione@hubmobility.it cell:0110252664',
   },
   express: {
     logoUrl: EXPRESS_LOGO_URL,

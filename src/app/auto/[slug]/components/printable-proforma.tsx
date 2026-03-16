@@ -25,6 +25,7 @@ interface PrintableProformaProps {
   warranty: string;
   insurance: string;
   wearAndTear: string;
+  documentation: string;
   withdrawal: string;
   date: string;
   branding: BrandingProfile;
@@ -34,7 +35,7 @@ interface PrintableProformaProps {
   totalFinancedAmount?: number;
 }
 
-export function PrintableProforma({ vehicle, customer, price, costoVultura, customerType, paymentMethod, warranty, insurance, wearAndTear, withdrawal, date, branding, financingCompany, numberOfInstallments, installmentAmount, totalFinancedAmount }: PrintableProformaProps) {
+export function PrintableProforma({ vehicle, customer, price, costoVultura, customerType, paymentMethod, warranty, insurance, wearAndTear, documentation, withdrawal, date, branding, financingCompany, numberOfInstallments, installmentAmount, totalFinancedAmount }: PrintableProformaProps) {
   
   const { logoUrl, companyName, companyAddress, companyContact } = branding;
   const totalPrice = price + costoVultura;
@@ -174,21 +175,28 @@ export function PrintableProforma({ vehicle, customer, price, costoVultura, cust
           <p style={{ whiteSpace: 'pre-wrap', breakInside: 'avoid', pageBreakInside: 'avoid' }}>{wearAndTear || 'Nessuna dichiarazione sullo stato d\'uso.'}</p>
         </section>
       )}
+      
+      {customerType === 'privato' && (
+        <section className="mb-4" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
+            <h2 className="font-bold text-base mb-2 pb-1 border-b">Art. 5 - Consegna e Documentazione</h2>
+            <p style={{ whiteSpace: 'pre-wrap', breakInside: 'avoid', pageBreakInside: 'avoid' }}>{documentation || 'Nessuna indicazione sulla documentazione.'}</p>
+        </section>
+      )}
 
       <section className="mb-4" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
-        <h2 className="font-bold text-base mb-2 pb-1 border-b">{`Art. ${customerType === 'privato' ? '5' : '4'} - Assicurazione`}</h2>
+        <h2 className="font-bold text-base mb-2 pb-1 border-b">{`Art. ${customerType === 'privato' ? '6' : '4'} - Assicurazione`}</h2>
         <p style={{ whiteSpace: 'pre-wrap', breakInside: 'avoid', pageBreakInside: 'avoid' }}>{insurance || 'Nessuna indicazione sull\'assicurazione.'}</p>
       </section>
       
       {customerType === 'privato' && (
         <section className="mb-4" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
-          <h2 className="font-bold text-base mb-2 pb-1 border-b">Art. 6 - Diritto di Recesso</h2>
+          <h2 className="font-bold text-base mb-2 pb-1 border-b">Art. 7 - Diritto di Recesso</h2>
           <p style={{ whiteSpace: 'pre-wrap', breakInside: 'avoid', pageBreakInside: 'avoid' }}>{withdrawal || 'Nessuna indicazione sul diritto di recesso.'}</p>
         </section>
       )}
       
       <section className="mb-4" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
-        <h2 className="font-bold text-base mb-2 pb-1 border-b">{`Art. ${customerType === 'privato' ? '7' : '5'} - Dichiarazioni Finali`}</h2>
+        <h2 className="font-bold text-base mb-2 pb-1 border-b">{`Art. ${customerType === 'privato' ? '8' : '5'} - Dichiarazioni Finali`}</h2>
         <p style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>L'ACQUIRENTE dichiara di aver ispezionato il veicolo e di averlo trovato in buono stato d'uso, idoneo all'uso cui è destinato e di proprio gradimento. Il passaggio di proprietà avverrà contestualmente al saldo del prezzo.</p>
       </section>
 
