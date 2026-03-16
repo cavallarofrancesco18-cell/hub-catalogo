@@ -8,7 +8,7 @@ import { FirebaseClientProvider } from '@/firebase';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
 
-const hubLogoUrl = 'https://firebasestorage.googleapis.com/v0/b/studio-3074982188-44660.firebasestorage.app/o/HUB%20-%20logo%20tutti%20formati_Tavola%20disegno%201%20copia%204%20(4).png?alt=media&token=a2c0e07e-e514-4d75-bc9c-a27e5b4e69d3';
+const hubLogoUrl = 'https://firebasestorage.googleapis.com/v0/b/studio-3074982188-44660.appspot.com/o/HUB%20-%20logo%20tutti%20formati_Tavola%20disegno%201%20copia%204%20(4).png?alt=media';
 
 export const metadata: Metadata = {
   title: 'Hub Catalogo',
