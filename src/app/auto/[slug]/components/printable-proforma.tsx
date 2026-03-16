@@ -49,11 +49,6 @@ export function PrintableProforma({ vehicle, customer, price, costoVultura, cust
   return (
     <div className="bg-white text-black p-6 text-sm" style={{ fontFamily: 'Arial, Helvetica, sans-serif', lineHeight: '1.4' }}>
       <header className="flex justify-between items-start pb-4 mb-6 border-b-2 border-gray-300" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
-        <div className="text-left text-xs">
-          <p className="font-bold">{companyName}</p>
-          <p>{companyAddress}</p>
-          <p>{companyContact}</p>
-        </div>
         <div className="flex items-center gap-4">
           {logoUrl ? (
              <img
@@ -64,6 +59,11 @@ export function PrintableProforma({ vehicle, customer, price, costoVultura, cust
           ) : (
             <h1 className="text-xl font-bold">{companyName}</h1>
           )}
+        </div>
+        <div className="text-right text-xs">
+          <p className="font-bold">{companyName}</p>
+          <p>{companyAddress}</p>
+          <p>{companyContact}</p>
         </div>
       </header>
 
@@ -211,5 +211,3 @@ export function PrintableProforma({ vehicle, customer, price, costoVultura, cust
     </div>
   );
 }
-
-    
