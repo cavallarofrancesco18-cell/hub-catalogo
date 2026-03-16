@@ -369,7 +369,7 @@ export default function AdminPage() {
     try {
       const canvas = await html2canvas(ref.current, {
         scale: 2,
-        allowTaint: true,
+        useCORS: true,
         letterRendering: true,
       });
 
