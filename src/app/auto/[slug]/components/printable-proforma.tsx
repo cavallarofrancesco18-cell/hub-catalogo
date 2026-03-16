@@ -168,13 +168,15 @@ export function PrintableProforma({ vehicle, customer, price, costoVultura, cust
         )}
       </section>
 
-      <section className="mb-4" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
-        <h2 className="font-bold text-base mb-2 pb-1 border-b">Art. 4 - Stato d'Uso del Mezzo</h2>
-        <p style={{ whiteSpace: 'pre-wrap', breakInside: 'avoid', pageBreakInside: 'avoid' }}>{wearAndTear || 'Nessuna dichiarazione sullo stato d\'uso.'}</p>
-      </section>
+      {customerType === 'privato' && (
+        <section className="mb-4" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
+          <h2 className="font-bold text-base mb-2 pb-1 border-b">Art. 4 - Stato d'Uso del Mezzo</h2>
+          <p style={{ whiteSpace: 'pre-wrap', breakInside: 'avoid', pageBreakInside: 'avoid' }}>{wearAndTear || 'Nessuna dichiarazione sullo stato d\'uso.'}</p>
+        </section>
+      )}
 
       <section className="mb-4" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
-        <h2 className="font-bold text-base mb-2 pb-1 border-b">Art. 5 - Assicurazione</h2>
+        <h2 className="font-bold text-base mb-2 pb-1 border-b">{`Art. ${customerType === 'privato' ? '5' : '4'} - Assicurazione`}</h2>
         <p style={{ whiteSpace: 'pre-wrap', breakInside: 'avoid', pageBreakInside: 'avoid' }}>{insurance || 'Nessuna indicazione sull\'assicurazione.'}</p>
       </section>
       
@@ -186,7 +188,7 @@ export function PrintableProforma({ vehicle, customer, price, costoVultura, cust
       )}
       
       <section className="mb-4" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
-        <h2 className="font-bold text-base mb-2 pb-1 border-b">Art. 7 - Dichiarazioni Finali</h2>
+        <h2 className="font-bold text-base mb-2 pb-1 border-b">{`Art. ${customerType === 'privato' ? '7' : '5'} - Dichiarazioni Finali`}</h2>
         <p style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>L'ACQUIRENTE dichiara di aver ispezionato il veicolo e di averlo trovato in buono stato d'uso, idoneo all'uso cui è destinato e di proprio gradimento. Il passaggio di proprietà avverrà contestualmente al saldo del prezzo.</p>
       </section>
 

@@ -1175,27 +1175,29 @@ export default function AdminPage() {
                 />
               )}
 
-              <FormField
-                control={proformaForm.control}
-                name="wearAndTear"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Stato di Usura del Mezzo</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        className="min-h-[100px]"
-                        {...field}
-                        value={field.value ?? ''}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      Questo testo è modificabile e verrà incluso nel contratto
-                      finale.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {proformaForm.watch('customerType') === 'privato' && (
+                  <FormField
+                    control={proformaForm.control}
+                    name="wearAndTear"
+                    render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>Stato di Usura del Mezzo</FormLabel>
+                        <FormControl>
+                        <Textarea
+                            className="min-h-[100px]"
+                            {...field}
+                            value={field.value ?? ''}
+                        />
+                        </FormControl>
+                        <FormDescription>
+                        Questo testo è modificabile e verrà incluso nel contratto
+                        finale.
+                        </FormDescription>
+                        <FormMessage />
+                    </FormItem>
+                    )}
+                />
+              )}
 
               <FormField
                 control={proformaForm.control}
