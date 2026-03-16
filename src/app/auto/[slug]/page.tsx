@@ -312,7 +312,7 @@ export default function VehiclePage() {
     try {
       const canvas = await html2canvas(ref.current, {
         scale: 2,
-        useCORS: true,
+        allowTaint: true,
         letterRendering: true,
       });
 
