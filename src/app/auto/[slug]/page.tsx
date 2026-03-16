@@ -63,7 +63,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { getBranding, brandingProfiles } from '@/lib/branding';
+import { getBranding } from '@/lib/branding';
 import { useToast } from '@/hooks/use-toast';
 
 const proformaSchema = z
@@ -1337,7 +1337,7 @@ export default function VehiclePage() {
                   documentation={proformaCustomerData.documentation || ''}
                   withdrawal={proformaCustomerData.withdrawal || ''}
                   date={format(new Date(), 'dd/MM/yyyy')}
-                  branding={brandingProfiles.default}
+                  branding={branding}
                 />
               )}
             </div>

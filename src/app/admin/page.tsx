@@ -78,7 +78,7 @@ import { PrintableProforma } from '@/app/auto/[slug]/components/printable-profor
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { format } from 'date-fns';
-import { brandingProfiles } from '@/lib/branding';
+import { getBranding } from '@/lib/branding';
 
 const proformaSchema = z
   .object({
@@ -205,7 +205,7 @@ export default function AdminPage() {
   );
   const { toast } = useToast();
   const { user: currentUser } = useUser();
-  const { role } = useUserRole();
+  const { role, roleData } = useUserRole();
   const vehiclesRef = useMemoFirebase(
     () => collection(firestore, 'vehicles'),
     [firestore]
@@ -1323,7 +1323,7 @@ export default function AdminPage() {
                   documentation={proformaCustomerData.documentation || ''}
                   withdrawal={proformaCustomerData.withdrawal || ''}
                   date={format(new Date(), 'dd/MM/yyyy')}
-                  branding={brandingProfiles.default}
+                  branding={getBranding(roleData)}
                 />
               )}
             </div>
