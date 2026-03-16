@@ -14,7 +14,7 @@ service cloud.firestore {
     }
 
     function isSeller() {
-        return isSignedIn() && (exists(/databases/$(database)/documents/seller/$(request.auth.uid)) || request.auth.uid == 'GNLawN0m1nN2mQdHBM7KlUPzQ222');
+        return isSignedIn() && exists(/databases/$(database)/documents/seller/$(request.auth.uid));
     }
 
     match /vehicles/{vehicleId} {

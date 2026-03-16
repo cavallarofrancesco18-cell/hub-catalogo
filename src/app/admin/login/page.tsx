@@ -6,8 +6,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useRouter } from 'next/navigation';
 import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
-import { useAuth, useUserRole, useFirestore } from '@/firebase';
+import { doc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { useAuth, useUserRole, useFirestore, setDocumentNonBlocking } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -69,6 +69,23 @@ export default function AdminLoginPage() {
       const userCredential = await signInWithEmailAndPassword(auth, data.email, data.password);
       const user = userCredential.user;
 
+      const sellerDocRef = doc(firestore, 'seller', user.uid);
+      let sellerDocSnap = await getDoc(sellerDocRef);
+
+      // Special logic to create a seller document on login if it doesn't exist for the hardcoded user
+      if (user.uid === 'GNLawN0m1nN2mQdHBM7KlUPzQ222' && !sellerDocSnap.exists()) {
+        await setDocumentNonBlocking(sellerDocRef, {
+          id: user.uid,
+          email: user.email,
+          name: user.displayName || user.email,
+          createdAt: serverTimestamp(),
+          sellerType: null,
+        }, {});
+        // Re-fetch the document to confirm creation
+        sellerDocSnap = await getDoc(sellerDocRef);
+      }
+
+
       // Check if the user is the hardcoded admin
       if (user.uid === ADMIN_UID) {
         toast({ title: 'Accesso Admin riuscito!', description: 'Verrai reindirizzato a breve.' });
@@ -77,9 +94,6 @@ export default function AdminLoginPage() {
       }
       
       // If not admin, check if they are a seller
-      const sellerDocRef = doc(firestore, 'seller', user.uid);
-      const sellerDocSnap = await getDoc(sellerDocRef);
-
       if (sellerDocSnap.exists()) {
         toast({ title: 'Accesso riuscito!', description: 'Verrai reindirizzato a breve.' });
         router.replace('/auto');

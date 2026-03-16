@@ -61,17 +61,6 @@ export function useUserRole(): UserRoleState {
       return { role: 'seller', roleData: sellerData, isLoading: false };
     }
 
-    if (user.uid === 'GNLawN0m1nN2mQdHBM7KlUPzQ222') {
-        const sellerUserData: UserData = {
-            id: user.uid,
-            email: user.email!,
-            name: user.displayName || 'Venditore Abilitato',
-            createdAt: user.metadata.creationTime ? new Date(user.metadata.creationTime) : new Date(),
-            sellerType: null,
-        };
-        return { role: 'seller', roleData: sellerUserData, isLoading: false };
-    }
-
     // User is authenticated but has no specific role document.
     const basicUserData: UserData = {
         id: user.uid,
