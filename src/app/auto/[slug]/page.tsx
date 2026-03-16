@@ -193,6 +193,15 @@ export default function VehiclePage() {
   const slug = params.slug as string;
   const { toast } = useToast();
 
+  const decodedSlug = useMemo(() => {
+    try {
+      return decodeURIComponent(slug);
+    } catch (e) {
+      console.warn("Failed to decode slug, using it as is.", slug);
+      return slug;
+    }
+  }, [slug]);
+
   const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
   const { role, roleData, isLoading: isLoadingRole } = useUserRole();
@@ -202,13 +211,13 @@ export default function VehiclePage() {
   }, [roleData]);
 
   const vehicleQuery = useMemoFirebase(() => {
-    if (!slug || !firestore) return null;
+    if (!decodedSlug || !firestore) return null;
     return query(
       collection(firestore, 'vehicles'),
-      where('slug', '==', slug),
+      where('slug', '==', decodedSlug),
       limit(1)
     );
-  }, [firestore, slug]);
+  }, [firestore, decodedSlug]);
 
   const { data: vehicles, isLoading: loading } =
     useCollection<Vehicle>(vehicleQuery);
