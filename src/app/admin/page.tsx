@@ -558,25 +558,9 @@ export default function AdminPage() {
 
   const canCreateContract = (vehicle: Vehicle) => {
     if (!currentUser) return false;
-    // Admins can always create/edit contracts
-    if (role === 'admin') {
-      return true;
-    }
     
-    // Any user can create/edit contracts under certain conditions
-    // They can start a contract for a vehicle that is for sale.
-    if (vehicle.stato === 'In vendita') {
-      return true;
-    }
-    // The user who last changed the status to booked/sold can edit the contract.
-    if (
-      (vehicle.stato === 'Venduto' || vehicle.stato === 'Prenotato') &&
-      vehicle.statusChangedBy === currentUser.uid
-    ) {
-      return true;
-    }
-
-    return false;
+    // Any authenticated user can create/edit contracts.
+    return true;
   };
 
   return (
@@ -595,6 +579,7 @@ export default function AdminPage() {
               <TableRow>
                 <TableHead className="w-[80px]">Immagine</TableHead>
                 <TableHead>Veicolo</TableHead>
+                <TableHead>Targa</TableHead>
                 <TableHead>Anno</TableHead>
                 <TableHead>Prezzo</TableHead>
                 <TableHead>Stato</TableHead>
@@ -613,6 +598,9 @@ export default function AdminPage() {
                         <Skeleton className="h-4 w-48" />
                         <Skeleton className="h-3 w-32" />
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-6 w-20" />
                     </TableCell>
                     <TableCell>
                       <Skeleton className="h-4 w-12" />
@@ -663,6 +651,9 @@ export default function AdminPage() {
                       <div className="text-sm text-muted-foreground">
                         {vehicle.versione}
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{vehicle.targa || 'N/D'}</Badge>
                     </TableCell>
                     <TableCell>
                       {vehicle.data_immatricolazione
@@ -749,7 +740,7 @@ export default function AdminPage() {
               ) : (
                 !isLoading && (
                   <TableRow>
-                    <TableCell colSpan={6} className="h-24 text-center">
+                    <TableCell colSpan={7} className="h-24 text-center">
                       Nessun veicolo trovato.
                     </TableCell>
                   </TableRow>
