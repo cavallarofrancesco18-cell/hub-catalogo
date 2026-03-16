@@ -56,6 +56,7 @@ export function PrintableProforma({ vehicle, customer, price, costoVultura, cust
               src={logoUrl}
               alt={`${companyName} Logo`}
               style={{ width: '200px', height: 'auto', maxHeight: '64px' }}
+              crossOrigin="anonymous"
             />
           ) : (
             <h1 className="text-xl font-bold">{companyName}</h1>

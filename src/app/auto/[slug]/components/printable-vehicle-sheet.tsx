@@ -35,12 +35,11 @@ export function PrintableVehicleSheet({ vehicle, price, branding }: PrintableVeh
       <header className="flex justify-between items-center pb-4 border-b-2 border-gray-200" style={{ breakInside: 'avoid' }}>
         <div className="flex items-center gap-4">
           {logoUrl ? (
-             <Image
+             <img
               src={logoUrl}
               alt={`${companyName} Logo`}
-              width={200}
-              height={50}
-              className="h-16 w-auto"
+              style={{ width: '200px', height: 'auto', maxHeight: '64px' }}
+              crossOrigin="anonymous"
             />
           ) : (
             <h1 className="text-xl font-bold">{companyName}</h1>
@@ -70,6 +69,7 @@ export function PrintableVehicleSheet({ vehicle, price, branding }: PrintableVeh
               width={800}
               height={600}
               className="w-full object-cover rounded-lg border border-gray-200"
+              crossOrigin="anonymous"
             />
           ) : (
             <div className="w-full aspect-[4/3] bg-gray-100 flex items-center justify-center text-gray-500 rounded-lg border">
@@ -176,6 +176,7 @@ export function PrintableVehicleSheet({ vehicle, price, branding }: PrintableVeh
                   width={200}
                   height={112}
                   className="w-full h-auto object-cover"
+                  crossOrigin="anonymous"
                 />
               </div>
             ))}

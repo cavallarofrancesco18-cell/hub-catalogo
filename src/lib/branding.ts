@@ -17,7 +17,7 @@ export const brandingProfiles: { default: BrandingProfile; express: BrandingProf
     logoUrl: HUB_LOGO_URL,
     companyName: 'Hub srl',
     companyAddress: 'Corso Vittorio Emanuele II 71, 10128 - Torino (TO)',
-    companyContact: 'p.iva:12512480017 mail:amministrazione@hubmobility.it cell:0110252664',
+    companyContact: 'P.iva:12512480017 mail:amministrazione@hubmobility.it tel:0110252664',
   },
   express: {
     logoUrl: EXPRESS_LOGO_URL,
