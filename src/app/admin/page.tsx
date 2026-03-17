@@ -365,57 +365,46 @@ export default function AdminPage() {
     fileName: string
   ) => {
     if (!ref.current) return;
-
+  
     setIsGeneratingProforma(true);
-
+  
     try {
       const canvas = await html2canvas(ref.current, {
         scale: 2,
         useCORS: true,
       });
-
+  
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
         format: 'a4',
       });
-
-      const margin = 10;
+  
+      const margin = 15; // Increased margin to prevent text cutoff at the bottom
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
       const contentWidth = pdfWidth - margin * 2;
+      const pageContentHeight = pdfHeight - margin * 2;
+      
       const imgProps = pdf.getImageProperties(imgData);
-      const totalImgHeightInPdf =
-        (imgProps.height * contentWidth) / imgProps.width;
-
+      const totalImgHeightInPdf = (imgProps.height * contentWidth) / imgProps.width;
+  
       let heightLeft = totalImgHeightInPdf;
-      let position = 0;
-
-      pdf.addImage(
-        imgData,
-        'PNG',
-        margin,
-        position,
-        contentWidth,
-        totalImgHeightInPdf
-      );
-      heightLeft -= pdfHeight;
-
+      let position = 0; // Tracks the total vertical shift for the image
+  
+      // Add the first page
+      pdf.addImage(imgData, 'PNG', margin, margin, contentWidth, totalImgHeightInPdf);
+      heightLeft -= pageContentHeight;
+  
+      // Add subsequent pages if the content is taller than one page
       while (heightLeft > 0) {
-        position -= pdfHeight;
+        position -= pageContentHeight;
         pdf.addPage();
-        pdf.addImage(
-          imgData,
-          'PNG',
-          margin,
-          position + margin,
-          contentWidth,
-          totalImgHeightInPdf
-        );
-        heightLeft -= pdfHeight;
+        pdf.addImage(imgData, 'PNG', margin, position + margin, contentWidth, totalImgHeightInPdf);
+        heightLeft -= pageContentHeight;
       }
-
+  
       pdf.save(fileName);
     } catch (error) {
       console.error('Errore durante la creazione del PDF:', error);
