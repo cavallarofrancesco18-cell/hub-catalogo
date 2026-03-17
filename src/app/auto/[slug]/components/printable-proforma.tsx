@@ -84,7 +84,7 @@ export function PrintableProforma({ vehicle, customer, price, costoVultura, cust
           {customerType === 'privato' && customer.birthPlace && customer.birthDate && (
              <>, nato/a a <span className="font-semibold">{customer.birthPlace}</span> il <span className="font-semibold">{new Date(customer.birthDate).toLocaleDateString('it-IT')}</span></>
           )}
-          , residente in <span className="font-semibold">{customer.address}</span>,
+          , {customerType === 'privato' ? 'residente in' : 'con sede legale in'} <span className="font-semibold">{customer.address}</span>,
           {customerType === 'privato' ? ' C.F. ' : ' P.IVA '}<span className="font-semibold">{customer.cf}</span>
           {customerType === 'privato' && customer.docNumber && (
             <>, documento n. <span className="font-semibold">{customer.docNumber}</span></>

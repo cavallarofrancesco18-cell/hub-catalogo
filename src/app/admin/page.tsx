@@ -384,50 +384,49 @@ export default function AdminPage() {
       const pdfPageHeight = pdf.internal.pageSize.getHeight();
 
       const contentWidth = pdfPageWidth - margin * 2;
-      const contentHeight = pdfPageHeight - margin * 2;
       
       const canvasWidth = canvas.width;
       const canvasHeight = canvas.height;
       
-      // Calculate the height of the canvas content that fits on one PDF page
-      const pageCanvasHeight = (canvasWidth / contentWidth) * contentHeight;
+      const contentHeight = (canvasHeight * contentWidth) / canvasWidth;
       
-      let canvasPosition = 0;
+      let currentY = 0;
+      let pageNumber = 1;
 
-      while (canvasPosition < canvasHeight) {
-        const remainingCanvasHeight = canvasHeight - canvasPosition;
-        const sliceHeight = Math.min(pageCanvasHeight, remainingCanvasHeight);
-
-        // Create a temporary canvas to hold the slice
-        const sliceCanvas = document.createElement('canvas');
-        sliceCanvas.width = canvasWidth;
-        sliceCanvas.height = sliceHeight;
-        const sliceContext = sliceCanvas.getContext('2d');
-
-        if (sliceContext) {
-          // Draw the slice from the main canvas onto the temporary canvas
-          sliceContext.drawImage(
-            canvas,
-            0, // sourceX
-            canvasPosition, // sourceY
-            canvasWidth, // sourceWidth
-            sliceHeight, // sourceHeight
-            0, // destX
-            0, // destY
-            canvasWidth, // destWidth
-            sliceHeight // destHeight
-          );
-
-          if (canvasPosition > 0) {
+      while (currentY < contentHeight) {
+        if (pageNumber > 1) {
             pdf.addPage();
-          }
-
-          const imgData = sliceCanvas.toDataURL('image/png');
-          const renderedSliceHeight = (sliceHeight * contentWidth) / canvasWidth;
-          pdf.addImage(imgData, 'PNG', margin, margin, contentWidth, renderedSliceHeight);
         }
 
-        canvasPosition += pageCanvasHeight;
+        const remainingHeight = contentHeight - currentY;
+        const pageHeightOnPdf = pdfPageHeight - (margin * 2);
+        const sourceHeightOnCanvas = (pageHeightOnPdf * canvasWidth) / contentWidth;
+
+        const sliceCanvas = document.createElement('canvas');
+        sliceCanvas.width = canvasWidth;
+        sliceCanvas.height = Math.min(sourceHeightOnCanvas, canvasHeight - (currentY * canvasWidth / contentWidth));
+
+        const sliceContext = sliceCanvas.getContext('2d');
+        if (sliceContext) {
+            sliceContext.drawImage(
+                canvas,
+                0, // sourceX
+                currentY * canvasWidth / contentWidth, // sourceY
+                canvasWidth, // sourceWidth
+                sliceCanvas.height, // sourceHeight
+                0, // destX
+                0, // destY
+                canvasWidth, // destWidth
+                sliceCanvas.height // destHeight
+            );
+
+            const imgData = sliceCanvas.toDataURL('image/png');
+            const renderedSliceHeight = (sliceCanvas.height * contentWidth) / canvasWidth;
+            pdf.addImage(imgData, 'PNG', margin, margin, contentWidth, renderedSliceHeight);
+        }
+
+        currentY += pageHeightOnPdf;
+        pageNumber++;
       }
   
       pdf.save(fileName);
@@ -1001,7 +1000,9 @@ export default function AdminPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>
-                      Indirizzo Completo di Residenza/Sede *
+                      {proformaForm.watch('customerType') === 'privato'
+                        ? 'Indirizzo Completo di Residenza *'
+                        : 'Indirizzo Completo Sede Legale *'}
                     </FormLabel>
                     <FormControl>
                       <Input
