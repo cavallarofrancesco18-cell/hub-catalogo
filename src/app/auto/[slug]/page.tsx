@@ -318,36 +318,61 @@ export default function VehiclePage() {
         scale: 2,
         useCORS: true,
       });
-  
-      const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
         format: 'a4',
       });
-  
-      const margin = 15; // Increased margin to prevent text cutoff at the bottom
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
-      const contentWidth = pdfWidth - margin * 2;
-      const pageContentHeight = pdfHeight - margin * 2;
+
+      const margin = 15;
+      const pdfPageWidth = pdf.internal.pageSize.getWidth();
+      const pdfPageHeight = pdf.internal.pageSize.getHeight();
+
+      const contentWidth = pdfPageWidth - margin * 2;
+      const contentHeight = pdfPageHeight - margin * 2;
       
-      const imgProps = pdf.getImageProperties(imgData);
-      const totalImgHeightInPdf = (imgProps.height * contentWidth) / imgProps.width;
-  
-      let heightLeft = totalImgHeightInPdf;
-      let position = 0; // Tracks the total vertical shift for the image
-  
-      // Add the first page
-      pdf.addImage(imgData, 'PNG', margin, margin, contentWidth, totalImgHeightInPdf);
-      heightLeft -= pageContentHeight;
-  
-      // Add subsequent pages if the content is taller than one page
-      while (heightLeft > 0) {
-        position -= pageContentHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, 'PNG', margin, position + margin, contentWidth, totalImgHeightInPdf);
-        heightLeft -= pageContentHeight;
+      const canvasWidth = canvas.width;
+      const canvasHeight = canvas.height;
+      
+      // Calculate the height of the canvas content that fits on one PDF page
+      const pageCanvasHeight = (canvasWidth / contentWidth) * contentHeight;
+      
+      let canvasPosition = 0;
+
+      while (canvasPosition < canvasHeight) {
+        const remainingCanvasHeight = canvasHeight - canvasPosition;
+        const sliceHeight = Math.min(pageCanvasHeight, remainingCanvasHeight);
+
+        // Create a temporary canvas to hold the slice
+        const sliceCanvas = document.createElement('canvas');
+        sliceCanvas.width = canvasWidth;
+        sliceCanvas.height = sliceHeight;
+        const sliceContext = sliceCanvas.getContext('2d');
+
+        if (sliceContext) {
+          // Draw the slice from the main canvas onto the temporary canvas
+          sliceContext.drawImage(
+            canvas,
+            0, // sourceX
+            canvasPosition, // sourceY
+            canvasWidth, // sourceWidth
+            sliceHeight, // sourceHeight
+            0, // destX
+            0, // destY
+            canvasWidth, // destWidth
+            sliceHeight // destHeight
+          );
+
+          if (canvasPosition > 0) {
+            pdf.addPage();
+          }
+
+          const imgData = sliceCanvas.toDataURL('image/png');
+          const renderedSliceHeight = (sliceHeight * contentWidth) / canvasWidth;
+          pdf.addImage(imgData, 'PNG', margin, margin, contentWidth, renderedSliceHeight);
+        }
+
+        canvasPosition += pageCanvasHeight;
       }
   
       pdf.save(fileName);
