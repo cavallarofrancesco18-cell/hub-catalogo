@@ -371,7 +371,6 @@ export default function AdminPage() {
         scale: 2,
         useCORS: true,
         letterRendering: true,
-        allowTaint: false,
       });
 
       const imgData = canvas.toDataURL('image/png');
