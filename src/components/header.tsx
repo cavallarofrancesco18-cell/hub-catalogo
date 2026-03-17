@@ -32,7 +32,7 @@ export function Header() {
               alt={`${companyName} Logo`}
               width={240}
               height={60}
-              className="h-24 w-auto"
+              className="h-16 w-auto object-contain"
               priority
             />
           ) : (

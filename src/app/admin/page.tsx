@@ -79,7 +79,6 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { format } from 'date-fns';
 import { getBranding } from '@/lib/branding';
-import { imageUrlToDataUri } from '@/ai/flows/image-to-data-uri-flow';
 
 const proformaSchema = z
   .object({
@@ -227,7 +226,6 @@ export default function AdminPage() {
   const [proformaCustomerData, setProformaCustomerData] =
     useState<ProformaFormValues | null>(null);
   const [isGeneratingProforma, setIsGeneratingProforma] = useState(false);
-  const [logoDataUri, setLogoDataUri] = useState<string | null>(null);
   const [isBooking, setIsBooking] = useState<string | null>(null);
   const [existingContract, setExistingContract] = useState<Contract | null>(
     null
@@ -371,8 +369,7 @@ export default function AdminPage() {
     try {
       const canvas = await html2canvas(ref.current, {
         scale: 2,
-        useCORS: true, 
-        letterRendering: true,
+        useCORS: true,
       });
 
       const imgData = canvas.toDataURL('image/png');
@@ -473,13 +470,6 @@ export default function AdminPage() {
     setIsBooking(vehicle.id);
     
     try {
-        const branding = getBranding(roleData);
-        const dataUri = await imageUrlToDataUri(branding.logoUrl);
-        if (!dataUri) {
-          throw new Error('Impossibile convertire il logo in Data URI.');
-        }
-        setLogoDataUri(dataUri);
-
         setVehicleForContract(vehicle);
     
         const contractRef = doc(firestore, 'contracts', vehicle.id);
@@ -1302,7 +1292,7 @@ export default function AdminPage() {
               ref={proformaSheetRef}
               className="w-[800px] mx-auto my-8 shadow-2xl"
             >
-              {proformaCustomerData && vehicleForContract && logoDataUri && (
+              {proformaCustomerData && vehicleForContract && (
                 <PrintableProforma
                   vehicle={vehicleForContract}
                   customer={proformaCustomerData}
@@ -1329,7 +1319,7 @@ export default function AdminPage() {
                   withdrawal={proformaCustomerData.withdrawal || ''}
                   date={format(new Date(), 'dd/MM/yyyy')}
                   branding={getBranding(roleData)}
-                  logoUrl={logoDataUri}
+                  logoUrl={getBranding(roleData).logoUrl}
                 />
               )}
             </div>

@@ -65,7 +65,6 @@ import {
 } from '@/components/ui/select';
 import { getBranding } from '@/lib/branding';
 import { useToast } from '@/hooks/use-toast';
-import { imageUrlToDataUri } from '@/ai/flows/image-to-data-uri-flow';
 
 const proformaSchema = z
   .object({
@@ -252,8 +251,6 @@ export default function VehiclePage() {
     null
   );
   const [showContractSuccess, setShowContractSuccess] = useState(false);
-  const [logoDataUri, setLogoDataUri] = useState<string | null>(null);
-  const [isPreparingPdf, setIsPreparingPdf] = useState(false);
 
   const proformaForm = useForm<ProformaFormValues>({
     resolver: zodResolver(proformaSchema),
@@ -316,8 +313,7 @@ export default function VehiclePage() {
     try {
       const canvas = await html2canvas(ref.current, {
         scale: 2,
-        useCORS: true, 
-        letterRendering: true,
+        useCORS: true,
       });
 
       const imgData = canvas.toDataURL('image/png');
@@ -378,28 +374,10 @@ export default function VehiclePage() {
 
   const handlePrintClick = async () => {
     if (vehicle) {
-      setIsPreparingPdf(true);
-      try {
-        const dataUri = await imageUrlToDataUri(branding.logoUrl);
-        if (!dataUri) {
-          throw new Error('Impossibile convertire il logo in Data URI.');
-        }
-        setLogoDataUri(dataUri);
-
-        priceSheetForm.reset({
-          price: (vehicle.prezzo ?? 0) + (vehicle.garanzia_legale_prezzo ?? 0),
-        });
-        setIsPriceSheetEditorOpen(true);
-      } catch (error) {
-        toast({
-          variant: 'destructive',
-          title: 'Errore',
-          description: 'Impossibile preparare la scheda. Riprova tra poco.',
-        });
-        console.error("Error preparing vehicle sheet:", error);
-      } finally {
-        setIsPreparingPdf(false);
-      }
+      priceSheetForm.reset({
+        price: (vehicle.prezzo ?? 0) + (vehicle.garanzia_legale_prezzo ?? 0),
+      });
+      setIsPriceSheetEditorOpen(true);
     }
   };
 
@@ -452,15 +430,8 @@ export default function VehiclePage() {
     if (!vehicle || !firestore || !user) return;
 
     setIsBooking(true);
-    setIsPreparingPdf(true);
 
     try {
-      const dataUri = await imageUrlToDataUri(branding.logoUrl);
-      if (!dataUri) {
-        throw new Error('Impossibile convertire il logo in Data URI.');
-      }
-      setLogoDataUri(dataUri);
-      
       const contractRef = doc(firestore, 'contracts', vehicle.id);
       const contractSnap = await getDoc(contractRef);
 
@@ -540,7 +511,6 @@ export default function VehiclePage() {
       });
     } finally {
       setIsBooking(false);
-      setIsPreparingPdf(false);
     }
   };
 
@@ -606,8 +576,8 @@ export default function VehiclePage() {
           onProformaClick={showProformaForm}
           disabled={isLoadingRole || !user}
           editPath={editPath}
-          isBooking={isBooking || isPreparingPdf}
-          isPrinting={isPrinting || isPreparingPdf}
+          isBooking={isBooking}
+          isPrinting={isPrinting}
           isProformaButtonDisabled={false}
           currentUserUid={user?.uid}
           role={role}
@@ -791,12 +761,12 @@ export default function VehiclePage() {
               ref={printableSheetRef}
               className="w-[800px] mx-auto my-8 shadow-2xl"
             >
-              {finalSheetPrice !== null && logoDataUri && (
+              {finalSheetPrice !== null && (
                 <PrintableVehicleSheet
                   vehicle={vehicle}
                   price={finalSheetPrice}
                   branding={branding}
-                  logoUrl={logoDataUri}
+                  logoUrl={branding.logoUrl}
                 />
               )}
             </div>
@@ -1339,7 +1309,7 @@ export default function VehiclePage() {
               ref={proformaSheetRef}
               className="w-[800px] mx-auto my-8 shadow-2xl"
             >
-              {proformaCustomerData && vehicle && logoDataUri && (
+              {proformaCustomerData && vehicle && (
                 <PrintableProforma
                   vehicle={vehicle}
                   customer={proformaCustomerData}
@@ -1366,7 +1336,7 @@ export default function VehiclePage() {
                   withdrawal={proformaCustomerData.withdrawal || ''}
                   date={format(new Date(), 'dd/MM/yyyy')}
                   branding={branding}
-                  logoUrl={logoDataUri}
+                  logoUrl={branding.logoUrl}
                 />
               )}
             </div>
