@@ -65,6 +65,7 @@ import {
 } from '@/components/ui/select';
 import { getBranding } from '@/lib/branding';
 import { useToast } from '@/hooks/use-toast';
+import { imageUrlToDataUri } from '@/ai/flows/image-to-data-uri-flow';
 
 const proformaSchema = z
   .object({
@@ -251,6 +252,7 @@ export default function VehiclePage() {
     null
   );
   const [showContractSuccess, setShowContractSuccess] = useState(false);
+  const [logoDataUri, setLogoDataUri] = useState<string>('');
 
   const proformaForm = useForm<ProformaFormValues>({
     resolver: zodResolver(proformaSchema),
@@ -307,8 +309,9 @@ export default function VehiclePage() {
   ) => {
     if (!ref.current) return;
 
-    setIsPrinting(true);
-    setIsGeneratingProforma(true);
+    // Use a shared state for the final generation step
+    const finalGenerationStateSetter = isPreviewing ? setIsPrinting : setIsGeneratingProforma;
+    finalGenerationStateSetter(true);
 
     try {
       const canvas = await html2canvas(ref.current, {
@@ -367,17 +370,30 @@ export default function VehiclePage() {
           description: "Impossibile generare il PDF. Controlla la console per i dettagli.",
       });
     } finally {
-      setIsPrinting(false);
-      setIsGeneratingProforma(false);
+        finalGenerationStateSetter(false);
     }
   };
 
   const handlePrintClick = async () => {
     if (vehicle) {
-      priceSheetForm.reset({
-        price: (vehicle.prezzo ?? 0) + (vehicle.garanzia_legale_prezzo ?? 0),
-      });
-      setIsPriceSheetEditorOpen(true);
+      setIsPrinting(true);
+      try {
+        const dataUri = await imageUrlToDataUri(branding.logoUrl);
+        setLogoDataUri(dataUri);
+        priceSheetForm.reset({
+          price: (vehicle.prezzo ?? 0) + (vehicle.garanzia_legale_prezzo ?? 0),
+        });
+        setIsPriceSheetEditorOpen(true);
+      } catch (e) {
+        console.error("Failed to prepare logo for PDF", e);
+        toast({
+          variant: "destructive",
+          title: "Errore PDF",
+          description: "Impossibile caricare il logo per la stampa.",
+        });
+      } finally {
+        setIsPrinting(false);
+      }
     }
   };
 
@@ -432,6 +448,9 @@ export default function VehiclePage() {
     setIsBooking(true);
 
     try {
+      const dataUri = await imageUrlToDataUri(branding.logoUrl);
+      setLogoDataUri(dataUri);
+
       const contractRef = doc(firestore, 'contracts', vehicle.id);
       const contractSnap = await getDoc(contractRef);
 
@@ -766,7 +785,7 @@ export default function VehiclePage() {
                   vehicle={vehicle}
                   price={finalSheetPrice}
                   branding={branding}
-                  logoUrl={branding.logoUrl}
+                  logoUrl={logoDataUri}
                 />
               )}
             </div>
@@ -1336,7 +1355,7 @@ export default function VehiclePage() {
                   withdrawal={proformaCustomerData.withdrawal || ''}
                   date={format(new Date(), 'dd/MM/yyyy')}
                   branding={branding}
-                  logoUrl={branding.logoUrl}
+                  logoUrl={logoDataUri}
                 />
               )}
             </div>

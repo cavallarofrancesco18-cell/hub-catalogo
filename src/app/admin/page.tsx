@@ -79,6 +79,7 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { format } from 'date-fns';
 import { getBranding } from '@/lib/branding';
+import { imageUrlToDataUri } from '@/ai/flows/image-to-data-uri-flow';
 
 const proformaSchema = z
   .object({
@@ -231,6 +232,7 @@ export default function AdminPage() {
     null
   );
   const [showContractSuccess, setShowContractSuccess] = useState(false);
+  const [logoDataUri, setLogoDataUri] = useState<string>('');
 
   const proformaForm = useForm<ProformaFormValues>({
     resolver: zodResolver(proformaSchema),
@@ -470,6 +472,9 @@ export default function AdminPage() {
     setIsBooking(vehicle.id);
     
     try {
+        const dataUri = await imageUrlToDataUri(getBranding(roleData).logoUrl);
+        setLogoDataUri(dataUri);
+
         setVehicleForContract(vehicle);
     
         const contractRef = doc(firestore, 'contracts', vehicle.id);
@@ -1319,7 +1324,7 @@ export default function AdminPage() {
                   withdrawal={proformaCustomerData.withdrawal || ''}
                   date={format(new Date(), 'dd/MM/yyyy')}
                   branding={getBranding(roleData)}
-                  logoUrl={getBranding(roleData).logoUrl}
+                  logoUrl={logoDataUri}
                 />
               )}
             </div>

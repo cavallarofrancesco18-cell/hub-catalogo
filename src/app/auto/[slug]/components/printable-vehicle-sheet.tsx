@@ -38,7 +38,6 @@ export function PrintableVehicleSheet({ vehicle, price, branding, logoUrl }: Pri
           {logoUrl ? (
              <img
               src={logoUrl}
-              crossOrigin="anonymous"
               alt={`${companyName} Logo`}
               style={{ width: '200px', height: 'auto', maxHeight: '64px' }}
             />
