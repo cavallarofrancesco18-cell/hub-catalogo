@@ -12,10 +12,10 @@ interface PrintableVehicleSheetProps {
   vehicle: Vehicle;
   price: number;
   branding: BrandingProfile;
-  logoDataUri: string;
+  logoUrl: string;
 }
 
-export function PrintableVehicleSheet({ vehicle, price, branding, logoDataUri }: PrintableVehicleSheetProps) {
+export function PrintableVehicleSheet({ vehicle, price, branding, logoUrl }: PrintableVehicleSheetProps) {
   const { companyName, companyAddress, companyContact } = branding;
   const imageUrl = vehicle.immagini && vehicle.immagini.length > 0 ? getDirectImageUrl(vehicle.immagini[0]) : '';
   const otherImages = (vehicle.immagini || []).slice(1, 5).map(getDirectImageUrl).filter(Boolean);
@@ -35,11 +35,12 @@ export function PrintableVehicleSheet({ vehicle, price, branding, logoDataUri }:
       {/* Header */}
       <header className="flex justify-between items-center pb-4 border-b-2 border-gray-200" style={{ breakInside: 'avoid' }}>
         <div className="flex items-center gap-4">
-          {logoDataUri ? (
+          {logoUrl ? (
              <img
-              src={logoDataUri}
+              src={logoUrl}
               alt={`${companyName} Logo`}
               style={{ width: '200px', height: 'auto', maxHeight: '64px' }}
+              crossOrigin="anonymous"
             />
           ) : (
             <h1 className="text-xl font-bold">{companyName}</h1>

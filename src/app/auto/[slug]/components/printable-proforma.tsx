@@ -29,14 +29,14 @@ interface PrintableProformaProps {
   withdrawal: string;
   date: string;
   branding: BrandingProfile;
-  logoDataUri: string;
+  logoUrl: string;
   financingCompany?: string;
   numberOfInstallments?: number;
   installmentAmount?: number;
   totalFinancedAmount?: number;
 }
 
-export function PrintableProforma({ vehicle, customer, price, costoVultura, customerType, paymentMethod, warranty, insurance, wearAndTear, documentation, withdrawal, date, branding, logoDataUri, financingCompany, numberOfInstallments, installmentAmount, totalFinancedAmount }: PrintableProformaProps) {
+export function PrintableProforma({ vehicle, customer, price, costoVultura, customerType, paymentMethod, warranty, insurance, wearAndTear, documentation, withdrawal, date, branding, logoUrl, financingCompany, numberOfInstallments, installmentAmount, totalFinancedAmount }: PrintableProformaProps) {
   
   const { companyName, companyAddress, companyContact } = branding;
   const totalPrice = price + costoVultura;
@@ -52,11 +52,12 @@ export function PrintableProforma({ vehicle, customer, price, costoVultura, cust
     <div className="bg-white text-black p-6 text-sm" style={{ fontFamily: 'Arial, Helvetica, sans-serif', lineHeight: '1.4' }}>
       <header className="flex justify-between items-start pb-4 mb-6 border-b-2 border-gray-300" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
         <div className="flex items-center gap-4">
-          {logoDataUri ? (
+          {logoUrl ? (
              <img
-              src={logoDataUri}
+              src={logoUrl}
               alt={`${companyName} Logo`}
               style={{ width: '200px', height: 'auto', maxHeight: '64px' }}
+              crossOrigin="anonymous"
             />
           ) : (
             <h1 className="text-xl font-bold">{companyName}</h1>

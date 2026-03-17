@@ -252,9 +252,6 @@ export default function VehiclePage() {
   );
   const [showContractSuccess, setShowContractSuccess] = useState(false);
 
-  const [logoDataUri, setLogoDataUri] = useState('');
-  const [isPreparingPrint, setIsPreparingPrint] = useState(false);
-
   const proformaForm = useForm<ProformaFormValues>({
     resolver: zodResolver(proformaSchema),
     defaultValues: {
@@ -371,33 +368,10 @@ export default function VehiclePage() {
 
   const handlePrintClick = async () => {
     if (vehicle) {
-      setIsPreparingPrint(true);
-      try {
-        const response = await fetch(branding.logoUrl);
-        if (!response.ok) throw new Error('Network response was not ok');
-        const blob = await response.blob();
-        const dataUri = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(blob);
-        });
-
-        setLogoDataUri(dataUri);
-        priceSheetForm.reset({
-          price: (vehicle.prezzo ?? 0) + (vehicle.garanzia_legale_prezzo ?? 0),
-        });
-        setIsPriceSheetEditorOpen(true);
-      } catch (error) {
-        console.error("Error preparing print:", error);
-        toast({
-          variant: "destructive",
-          title: "Errore Stampa",
-          description: "Impossibile caricare il logo per la stampa. Riprova.",
-        });
-      } finally {
-        setIsPreparingPrint(false);
-      }
+      priceSheetForm.reset({
+        price: (vehicle.prezzo ?? 0) + (vehicle.garanzia_legale_prezzo ?? 0),
+      });
+      setIsPriceSheetEditorOpen(true);
     }
   };
 
@@ -452,18 +426,6 @@ export default function VehiclePage() {
     setIsBooking(true);
 
     try {
-      const response = await fetch(branding.logoUrl);
-      if (!response.ok) throw new Error('Network response was not ok');
-      const blob = await response.blob();
-      const dataUri = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(blob);
-      });
-
-      setLogoDataUri(dataUri);
-
       const contractRef = doc(firestore, 'contracts', vehicle.id);
       const contractSnap = await getDoc(contractRef);
 
@@ -539,7 +501,7 @@ export default function VehiclePage() {
       toast({
         variant: "destructive",
         title: "Errore Contratto",
-        description: "Impossibile caricare il logo o creare il contratto. Riprova.",
+        description: "Impossibile creare il contratto. Riprova.",
       });
     } finally {
       setIsBooking(false);
@@ -611,7 +573,7 @@ export default function VehiclePage() {
           disabled={isLoadingRole || !user}
           editPath={editPath}
           isBooking={isBooking}
-          isPrinting={isPreparingPrint}
+          isPrinting={isPrinting}
           isProformaButtonDisabled={false}
           currentUserUid={user?.uid}
           role={role}
@@ -800,7 +762,7 @@ export default function VehiclePage() {
                   vehicle={vehicle}
                   price={finalSheetPrice}
                   branding={branding}
-                  logoDataUri={logoDataUri}
+                  logoUrl={branding.logoUrl}
                 />
               )}
             </div>
@@ -1370,7 +1332,7 @@ export default function VehiclePage() {
                   withdrawal={proformaCustomerData.withdrawal || ''}
                   date={format(new Date(), 'dd/MM/yyyy')}
                   branding={branding}
-                  logoDataUri={logoDataUri}
+                  logoUrl={branding.logoUrl}
                 />
               )}
             </div>

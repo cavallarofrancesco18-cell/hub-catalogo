@@ -231,7 +231,6 @@ export default function AdminPage() {
     null
   );
   const [showContractSuccess, setShowContractSuccess] = useState(false);
-  const [logoDataUri, setLogoDataUri] = useState('');
 
   const proformaForm = useForm<ProformaFormValues>({
     resolver: zodResolver(proformaSchema),
@@ -471,28 +470,7 @@ export default function AdminPage() {
     
     setIsBooking(vehicle.id);
     setVehicleForContract(vehicle);
-    
-    // Fetch and convert logo to Data URI
-    const branding = getBranding(roleData);
-    try {
-      const response = await fetch(branding.logoUrl);
-      if (!response.ok) throw new Error('Network response was not ok');
-      const blob = await response.blob();
-      const dataUri = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      });
-      setLogoDataUri(dataUri);
-    } catch (error) {
-      console.error("Error preparing contract logo:", error);
-      toast({ variant: "destructive", title: "Errore Logo", description: "Impossibile caricare il logo per il contratto." });
-      setIsBooking(null);
-      return;
-    }
 
-    // Check for an existing contract for this vehicle
     const contractRef = doc(firestore, 'contracts', vehicle.id);
     const contractSnap = await getDoc(contractRef);
 
@@ -1342,7 +1320,7 @@ export default function AdminPage() {
                   withdrawal={proformaCustomerData.withdrawal || ''}
                   date={format(new Date(), 'dd/MM/yyyy')}
                   branding={getBranding(roleData)}
-                  logoDataUri={logoDataUri}
+                  logoUrl={getBranding(roleData).logoUrl}
                 />
               )}
             </div>
