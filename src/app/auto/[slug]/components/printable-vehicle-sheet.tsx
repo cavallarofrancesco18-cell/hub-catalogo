@@ -69,7 +69,6 @@ export function PrintableVehicleSheet({ vehicle, price, branding, logoUrl }: Pri
               width={800}
               height={600}
               className="w-full object-cover rounded-lg border border-gray-200"
-              crossOrigin="anonymous"
             />
           ) : (
             <div className="w-full aspect-[4/3] bg-gray-100 flex items-center justify-center text-gray-500 rounded-lg border">
@@ -176,7 +175,6 @@ export function PrintableVehicleSheet({ vehicle, price, branding, logoUrl }: Pri
                   width={200}
                   height={112}
                   className="w-full h-auto object-cover"
-                  crossOrigin="anonymous"
                 />
               </div>
             ))}

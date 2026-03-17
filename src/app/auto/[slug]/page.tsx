@@ -311,6 +311,7 @@ export default function VehiclePage() {
     if (!ref.current) return;
 
     setIsPrinting(true);
+    setIsGeneratingProforma(true);
 
     try {
       const canvas = await html2canvas(ref.current, {
@@ -364,8 +365,14 @@ export default function VehiclePage() {
       pdf.save(fileName);
     } catch (error) {
       console.error('Errore durante la creazione del PDF:', error);
+      toast({
+          variant: "destructive",
+          title: "Errore PDF",
+          description: "Impossibile generare il PDF. Controlla la console per i dettagli.",
+      });
     } finally {
       setIsPrinting(false);
+      setIsGeneratingProforma(false);
     }
   };
 
@@ -373,10 +380,12 @@ export default function VehiclePage() {
     if (vehicle) {
       setIsPreparingPdf(true);
       try {
-        if (!logoDataUri) {
-          const dataUri = await imageUrlToDataUri(branding.logoUrl);
-          setLogoDataUri(dataUri);
+        const dataUri = await imageUrlToDataUri(branding.logoUrl);
+        if (!dataUri) {
+          throw new Error('Impossibile convertire il logo in Data URI.');
         }
+        setLogoDataUri(dataUri);
+
         priceSheetForm.reset({
           price: (vehicle.prezzo ?? 0) + (vehicle.garanzia_legale_prezzo ?? 0),
         });
@@ -387,6 +396,7 @@ export default function VehiclePage() {
           title: 'Errore',
           description: 'Impossibile preparare la scheda. Riprova tra poco.',
         });
+        console.error("Error preparing vehicle sheet:", error);
       } finally {
         setIsPreparingPdf(false);
       }
@@ -445,10 +455,11 @@ export default function VehiclePage() {
     setIsPreparingPdf(true);
 
     try {
-      if (!logoDataUri) {
-        const dataUri = await imageUrlToDataUri(branding.logoUrl);
-        setLogoDataUri(dataUri);
+      const dataUri = await imageUrlToDataUri(branding.logoUrl);
+      if (!dataUri) {
+        throw new Error('Impossibile convertire il logo in Data URI.');
       }
+      setLogoDataUri(dataUri);
       
       const contractRef = doc(firestore, 'contracts', vehicle.id);
       const contractSnap = await getDoc(contractRef);
@@ -540,12 +551,10 @@ export default function VehiclePage() {
 
   const handleConfirmProformaPrint = async () => {
     if (vehicle) {
-      setIsGeneratingProforma(true);
       await handleGeneratePdf(
         proformaSheetRef,
         `contratto-vendita-${vehicle.slug}.pdf`
       );
-      setIsGeneratingProforma(false);
     }
     hideProformaPreview();
   };

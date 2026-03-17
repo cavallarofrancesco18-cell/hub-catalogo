@@ -473,10 +473,12 @@ export default function AdminPage() {
     setIsBooking(vehicle.id);
     
     try {
-        if (!logoDataUri) {
-            const dataUri = await imageUrlToDataUri(getBranding(roleData).logoUrl);
-            setLogoDataUri(dataUri);
+        const branding = getBranding(roleData);
+        const dataUri = await imageUrlToDataUri(branding.logoUrl);
+        if (!dataUri) {
+          throw new Error('Impossibile convertire il logo in Data URI.');
         }
+        setLogoDataUri(dataUri);
 
         setVehicleForContract(vehicle);
     
@@ -553,6 +555,7 @@ export default function AdminPage() {
           title: 'Errore',
           description: 'Impossibile preparare il contratto. Riprova tra poco.',
         });
+        console.error("Error preparing proforma:", error);
     } finally {
         setIsBooking(null);
     }
