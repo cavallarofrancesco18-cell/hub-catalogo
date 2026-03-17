@@ -65,6 +65,7 @@ import {
 } from '@/components/ui/select';
 import { getBranding } from '@/lib/branding';
 import { useToast } from '@/hooks/use-toast';
+import { imageUrlToDataUri } from '@/ai/flows/image-to-data-uri-flow';
 
 const proformaSchema = z
   .object({
@@ -251,6 +252,8 @@ export default function VehiclePage() {
     null
   );
   const [showContractSuccess, setShowContractSuccess] = useState(false);
+  const [logoDataUri, setLogoDataUri] = useState<string | null>(null);
+  const [isPreparingPdf, setIsPreparingPdf] = useState(false);
 
   const proformaForm = useForm<ProformaFormValues>({
     resolver: zodResolver(proformaSchema),
@@ -312,7 +315,7 @@ export default function VehiclePage() {
     try {
       const canvas = await html2canvas(ref.current, {
         scale: 2,
-        useCORS: true,
+        useCORS: true, 
         letterRendering: true,
       });
 
@@ -368,10 +371,25 @@ export default function VehiclePage() {
 
   const handlePrintClick = async () => {
     if (vehicle) {
-      priceSheetForm.reset({
-        price: (vehicle.prezzo ?? 0) + (vehicle.garanzia_legale_prezzo ?? 0),
-      });
-      setIsPriceSheetEditorOpen(true);
+      setIsPreparingPdf(true);
+      try {
+        if (!logoDataUri) {
+          const dataUri = await imageUrlToDataUri(branding.logoUrl);
+          setLogoDataUri(dataUri);
+        }
+        priceSheetForm.reset({
+          price: (vehicle.prezzo ?? 0) + (vehicle.garanzia_legale_prezzo ?? 0),
+        });
+        setIsPriceSheetEditorOpen(true);
+      } catch (error) {
+        toast({
+          variant: 'destructive',
+          title: 'Errore',
+          description: 'Impossibile preparare la scheda. Riprova tra poco.',
+        });
+      } finally {
+        setIsPreparingPdf(false);
+      }
     }
   };
 
@@ -424,8 +442,14 @@ export default function VehiclePage() {
     if (!vehicle || !firestore || !user) return;
 
     setIsBooking(true);
+    setIsPreparingPdf(true);
 
     try {
+      if (!logoDataUri) {
+        const dataUri = await imageUrlToDataUri(branding.logoUrl);
+        setLogoDataUri(dataUri);
+      }
+      
       const contractRef = doc(firestore, 'contracts', vehicle.id);
       const contractSnap = await getDoc(contractRef);
 
@@ -505,6 +529,7 @@ export default function VehiclePage() {
       });
     } finally {
       setIsBooking(false);
+      setIsPreparingPdf(false);
     }
   };
 
@@ -572,8 +597,8 @@ export default function VehiclePage() {
           onProformaClick={showProformaForm}
           disabled={isLoadingRole || !user}
           editPath={editPath}
-          isBooking={isBooking}
-          isPrinting={isPrinting}
+          isBooking={isBooking || isPreparingPdf}
+          isPrinting={isPrinting || isPreparingPdf}
           isProformaButtonDisabled={false}
           currentUserUid={user?.uid}
           role={role}
@@ -757,12 +782,12 @@ export default function VehiclePage() {
               ref={printableSheetRef}
               className="w-[800px] mx-auto my-8 shadow-2xl"
             >
-              {finalSheetPrice !== null && (
+              {finalSheetPrice !== null && logoDataUri && (
                 <PrintableVehicleSheet
                   vehicle={vehicle}
                   price={finalSheetPrice}
                   branding={branding}
-                  logoUrl={branding.logoUrl}
+                  logoUrl={logoDataUri}
                 />
               )}
             </div>
@@ -1305,7 +1330,7 @@ export default function VehiclePage() {
               ref={proformaSheetRef}
               className="w-[800px] mx-auto my-8 shadow-2xl"
             >
-              {proformaCustomerData && vehicle && (
+              {proformaCustomerData && vehicle && logoDataUri && (
                 <PrintableProforma
                   vehicle={vehicle}
                   customer={proformaCustomerData}
@@ -1332,7 +1357,7 @@ export default function VehiclePage() {
                   withdrawal={proformaCustomerData.withdrawal || ''}
                   date={format(new Date(), 'dd/MM/yyyy')}
                   branding={branding}
-                  logoUrl={branding.logoUrl}
+                  logoUrl={logoDataUri}
                 />
               )}
             </div>

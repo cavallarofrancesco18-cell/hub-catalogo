@@ -79,6 +79,7 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { format } from 'date-fns';
 import { getBranding } from '@/lib/branding';
+import { imageUrlToDataUri } from '@/ai/flows/image-to-data-uri-flow';
 
 const proformaSchema = z
   .object({
@@ -226,6 +227,7 @@ export default function AdminPage() {
   const [proformaCustomerData, setProformaCustomerData] =
     useState<ProformaFormValues | null>(null);
   const [isGeneratingProforma, setIsGeneratingProforma] = useState(false);
+  const [logoDataUri, setLogoDataUri] = useState<string | null>(null);
   const [isBooking, setIsBooking] = useState<string | null>(null);
   const [existingContract, setExistingContract] = useState<Contract | null>(
     null
@@ -369,7 +371,7 @@ export default function AdminPage() {
     try {
       const canvas = await html2canvas(ref.current, {
         scale: 2,
-        useCORS: true,
+        useCORS: true, 
         letterRendering: true,
       });
 
@@ -469,87 +471,91 @@ export default function AdminPage() {
     if (!firestore || !currentUser) return;
     
     setIsBooking(vehicle.id);
-    setVehicleForContract(vehicle);
-
-    const contractRef = doc(firestore, 'contracts', vehicle.id);
-    const contractSnap = await getDoc(contractRef);
-
-    if (contractSnap.exists()) {
-      // If contract exists, load its data into the form
-      setExistingContract(contractSnap.data() as Contract);
-      proformaForm.reset(contractSnap.data() as ProformaFormValues);
-      setIsProformaFormOpen(true);
-      toast({
-        title: 'Contratto caricato',
-        description: 'Modifica i dati del contratto esistente.',
-      });
-    } else {
-      // No contract exists, proceed with the creation logic
-      setExistingContract(null);
-      const openTheForm = () => {
-        proformaForm.reset({
-          name: '',
-          address: '',
-          cf: '',
-          docNumber: '',
-          birthDate: '',
-          birthPlace: '',
-          phone: '',
-          email: '',
-          customerType: 'privato',
-          paymentMethod: 'bonifico',
-          costoVultura: '',
-          warranty: 'Il veicolo viene venduto con garanzia legale di conformità per 12 mesi come da D.Lgs. 206/2005 (Codice del Consumo). L\'Acquirente si obbliga ad effettuare gli interventi di manutenzione ordinaria programmata dell\'AUTO, in conformità alle indicazioni e scadenze del libretto di manutenzione. In caso di interventi in garanzia, il venditore si obbliga ad utilizzare ricambi originali. La garanzia non opererà per quei guasti/avarie che siano stati causati dalla omessa manutenzione.',
-          insurance:
-            "L'acquirente si impegna a stipulare una polizza assicurativa RC auto prima del ritiro del veicolo.",
-          wearAndTear:
-            "L'acquirente dichiara di aver preso visione dello stato d'uso del veicolo e di accettarlo nelle condizioni in cui si trova, tenuto conto della normale usura pregressa in base all'anno di immatricolazione e al chilometraggio.",
-          documentation: 'Il veicolo viene consegnato completo di carta di circolazione, certificato di proprietà (o D.U.) e n.2 chiavi. Il passaggio di proprietà avverrà a seguito del saldo completo.',
-          withdrawal:
-            "Per i contratti conclusi a distanza, l'acquirente consumatore ha diritto di recedere dal contratto, senza alcuna penalità e senza specificarne il motivo, entro il termine di 14 giorni dalla presa in consegna del veicolo.",
-          price:
-            (vehicle.prezzo ?? 0) + (vehicle.garanzia_legale_prezzo ?? 0),
-          financingCompany: '',
-          numberOfInstallments: '',
-          installmentAmount: '',
-          totalFinancedAmount: '',
-        });
-        setIsProformaFormOpen(true);
-      };
-
-      if (vehicle.stato === 'In vendita') {
-        const vehicleRef = doc(firestore, 'vehicles', vehicle.id);
-        try {
-          await updateDocumentNonBlocking(vehicleRef, {
-            stato: 'Prenotato',
-            updatedAt: serverTimestamp(),
-            statusChangedBy: currentUser.uid,
-          });
-          toast({
-            title: 'Veicolo Prenotato!',
-            description:
-              'Il veicolo è stato prenotato. Compila i dati per il contratto.',
-          });
-          openTheForm();
-        } catch (error) {
-           toast({
-              variant: 'destructive',
-              title: 'Prenotazione Fallita',
-              description:
-                'Impossibile prenotare il veicolo. Controlla la console per i dettagli.',
-            });
+    
+    try {
+        if (!logoDataUri) {
+            const dataUri = await imageUrlToDataUri(getBranding(roleData).logoUrl);
+            setLogoDataUri(dataUri);
         }
-      } else if (canCreateContract(vehicle)) {
-        openTheForm();
-      } else {
+
+        setVehicleForContract(vehicle);
+    
+        const contractRef = doc(firestore, 'contracts', vehicle.id);
+        const contractSnap = await getDoc(contractRef);
+    
+        if (contractSnap.exists()) {
+          setExistingContract(contractSnap.data() as Contract);
+          proformaForm.reset(contractSnap.data() as ProformaFormValues);
+          setIsProformaFormOpen(true);
+          toast({
+            title: 'Contratto caricato',
+            description: 'Modifica i dati del contratto esistente.',
+          });
+        } else {
+          setExistingContract(null);
+          const openTheForm = () => {
+            proformaForm.reset({
+              name: '',
+              address: '',
+              cf: '',
+              docNumber: '',
+              birthDate: '',
+              birthPlace: '',
+              phone: '',
+              email: '',
+              customerType: 'privato',
+              paymentMethod: 'bonifico',
+              costoVultura: '',
+              warranty: 'Il veicolo viene venduto con garanzia legale di conformità per 12 mesi come da D.Lgs. 206/2005 (Codice del Consumo). L\'Acquirente si obbliga ad effettuare gli interventi di manutenzione ordinaria programmata dell\'AUTO, in conformità alle indicazioni e scadenze del libretto di manutenzione. In caso di interventi in garanzia, il venditore si obbliga ad utilizzare ricambi originali. La garanzia non opererà per quei guasti/avarie che siano stati causati dalla omessa manutenzione.',
+              insurance:
+                "L'acquirente si impegna a stipulare una polizza assicurativa RC auto prima del ritiro del veicolo.",
+              wearAndTear:
+                "L'acquirente dichiara di aver preso visione dello stato d'uso del veicolo e di accettarlo nelle condizioni in cui si trova, tenuto conto della normale usura pregressa in base all'anno di immatricolazione e al chilometraggio.",
+              documentation: 'Il veicolo viene consegnato completo di carta di circolazione, certificato di proprietà (o D.U.) e n.2 chiavi. Il passaggio di proprietà avverrà a seguito del saldo completo.',
+              withdrawal:
+                "Per i contratti conclusi a distanza, l'acquirente consumatore ha diritto di recedere dal contratto, senza alcuna penalità e senza specificarne il motivo, entro il termine di 14 giorni dalla presa in consegna del veicolo.",
+              price:
+                (vehicle.prezzo ?? 0) + (vehicle.garanzia_legale_prezzo ?? 0),
+              financingCompany: '',
+              numberOfInstallments: '',
+              installmentAmount: '',
+              totalFinancedAmount: '',
+            });
+            setIsProformaFormOpen(true);
+          };
+    
+          if (vehicle.stato === 'In vendita') {
+            const vehicleRef = doc(firestore, 'vehicles', vehicle.id);
+            await updateDocumentNonBlocking(vehicleRef, {
+                stato: 'Prenotato',
+                updatedAt: serverTimestamp(),
+                statusChangedBy: currentUser.uid,
+            });
+            toast({
+                title: 'Veicolo Prenotato!',
+                description:
+                  'Il veicolo è stato prenotato. Compila i dati per il contratto.',
+            });
+            openTheForm();
+          } else if (canCreateContract(vehicle)) {
+            openTheForm();
+          } else {
+            toast({
+              variant: 'destructive',
+              title: 'Azione non consentita',
+              description: `Lo stato attuale del veicolo (${vehicle.stato}) non permette di creare un nuovo contratto, oppure non sei l'utente che ha effettuato l'ultima modifica.`,
+            });
+          }
+        }
+    } catch (error) {
         toast({
           variant: 'destructive',
-          title: 'Azione non consentita',
-          description: `Lo stato attuale del veicolo (${vehicle.stato}) non permette di creare un nuovo contratto, oppure non sei l'utente che ha effettuato l'ultima modifica.`,
+          title: 'Errore',
+          description: 'Impossibile preparare il contratto. Riprova tra poco.',
         });
-      }
+    } finally {
+        setIsBooking(null);
     }
-    setIsBooking(null);
   };
 
   const canCreateContract = (vehicle: Vehicle) => {
@@ -1293,7 +1299,7 @@ export default function AdminPage() {
               ref={proformaSheetRef}
               className="w-[800px] mx-auto my-8 shadow-2xl"
             >
-              {proformaCustomerData && vehicleForContract && (
+              {proformaCustomerData && vehicleForContract && logoDataUri && (
                 <PrintableProforma
                   vehicle={vehicleForContract}
                   customer={proformaCustomerData}
@@ -1320,7 +1326,7 @@ export default function AdminPage() {
                   withdrawal={proformaCustomerData.withdrawal || ''}
                   date={format(new Date(), 'dd/MM/yyyy')}
                   branding={getBranding(roleData)}
-                  logoUrl={getBranding(roleData).logoUrl}
+                  logoUrl={logoDataUri}
                 />
               )}
             </div>
