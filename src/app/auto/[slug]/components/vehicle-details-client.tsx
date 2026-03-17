@@ -18,12 +18,13 @@ interface VehicleDetailsClientProps {
   disabled: boolean;
   editPath: string | null;
   isBooking: boolean;
+  isPrinting: boolean;
   isProformaButtonDisabled?: boolean;
   currentUserUid?: string;
   role?: 'admin' | 'seller' | null;
 }
 
-export function VehicleDetailsClient({ vehicle, onPrintClick, onProformaClick, disabled, editPath, isBooking, isProformaButtonDisabled, currentUserUid, role }: VehicleDetailsClientProps) {
+export function VehicleDetailsClient({ vehicle, onPrintClick, onProformaClick, disabled, editPath, isBooking, isPrinting, isProformaButtonDisabled, currentUserUid, role }: VehicleDetailsClientProps) {
   const validImageUrls = useMemo(
     () => (vehicle.immagini || []).map(getDirectImageUrl).filter(Boolean),
     [vehicle.immagini]
@@ -146,9 +147,9 @@ export function VehicleDetailsClient({ vehicle, onPrintClick, onProformaClick, d
                     </Link>
                   </Button>
                 )}
-                 <Button onClick={onPrintClick} className="w-full" size="lg" variant="outline" disabled={disabled}>
-                    <Printer className="mr-2 h-5 w-5" />
-                    Anteprima Scheda
+                 <Button onClick={onPrintClick} className="w-full" size="lg" variant="outline" disabled={disabled || isPrinting}>
+                    {isPrinting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Printer className="mr-2 h-5 w-5" />}
+                    {isPrinting ? 'Preparazione...' : 'Anteprima Scheda'}
                 </Button>
                  <Button onClick={onProformaClick} className="w-full" size="lg" variant="default" disabled={isProformaButtonDisabled || disabled || isBooking || !canCreateContract}>
                     {isBooking ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <FileSignature className="mr-2 h-5 w-5" />}

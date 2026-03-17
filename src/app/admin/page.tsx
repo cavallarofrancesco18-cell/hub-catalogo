@@ -231,6 +231,7 @@ export default function AdminPage() {
     null
   );
   const [showContractSuccess, setShowContractSuccess] = useState(false);
+  const [logoDataUri, setLogoDataUri] = useState('');
 
   const proformaForm = useForm<ProformaFormValues>({
     resolver: zodResolver(proformaSchema),
@@ -467,7 +468,29 @@ export default function AdminPage() {
 
   const handleCreateContractClick = async (vehicle: Vehicle) => {
     if (!firestore || !currentUser) return;
+    
+    setIsBooking(vehicle.id);
     setVehicleForContract(vehicle);
+    
+    // Fetch and convert logo to Data URI
+    const branding = getBranding(roleData);
+    try {
+      const response = await fetch(branding.logoUrl);
+      if (!response.ok) throw new Error('Network response was not ok');
+      const blob = await response.blob();
+      const dataUri = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+      setLogoDataUri(dataUri);
+    } catch (error) {
+      console.error("Error preparing contract logo:", error);
+      toast({ variant: "destructive", title: "Errore Logo", description: "Impossibile caricare il logo per il contratto." });
+      setIsBooking(null);
+      return;
+    }
 
     // Check for an existing contract for this vehicle
     const contractRef = doc(firestore, 'contracts', vehicle.id);
@@ -517,33 +540,27 @@ export default function AdminPage() {
       };
 
       if (vehicle.stato === 'In vendita') {
-        setIsBooking(vehicle.id);
         const vehicleRef = doc(firestore, 'vehicles', vehicle.id);
-
-        updateDocumentNonBlocking(vehicleRef, {
-          stato: 'Prenotato',
-          updatedAt: serverTimestamp(),
-          statusChangedBy: currentUser.uid,
-        })
-          .then(() => {
-            toast({
-              title: 'Veicolo Prenotato!',
-              description:
-                'Il veicolo è stato prenotato. Compila i dati per il contratto.',
-            });
-            openTheForm();
-          })
-          .catch(error => {
-            toast({
+        try {
+          await updateDocumentNonBlocking(vehicleRef, {
+            stato: 'Prenotato',
+            updatedAt: serverTimestamp(),
+            statusChangedBy: currentUser.uid,
+          });
+          toast({
+            title: 'Veicolo Prenotato!',
+            description:
+              'Il veicolo è stato prenotato. Compila i dati per il contratto.',
+          });
+          openTheForm();
+        } catch (error) {
+           toast({
               variant: 'destructive',
               title: 'Prenotazione Fallita',
               description:
                 'Impossibile prenotare il veicolo. Controlla la console per i dettagli.',
             });
-          })
-          .finally(() => {
-            setIsBooking(null);
-          });
+        }
       } else if (canCreateContract(vehicle)) {
         openTheForm();
       } else {
@@ -554,6 +571,7 @@ export default function AdminPage() {
         });
       }
     }
+    setIsBooking(null);
   };
 
   const canCreateContract = (vehicle: Vehicle) => {
@@ -1324,6 +1342,7 @@ export default function AdminPage() {
                   withdrawal={proformaCustomerData.withdrawal || ''}
                   date={format(new Date(), 'dd/MM/yyyy')}
                   branding={getBranding(roleData)}
+                  logoDataUri={logoDataUri}
                 />
               )}
             </div>

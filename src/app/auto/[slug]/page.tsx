@@ -252,6 +252,9 @@ export default function VehiclePage() {
   );
   const [showContractSuccess, setShowContractSuccess] = useState(false);
 
+  const [logoDataUri, setLogoDataUri] = useState('');
+  const [isPreparingPrint, setIsPreparingPrint] = useState(false);
+
   const proformaForm = useForm<ProformaFormValues>({
     resolver: zodResolver(proformaSchema),
     defaultValues: {
@@ -366,12 +369,35 @@ export default function VehiclePage() {
     }
   };
 
-  const showPriceSheetEditor = () => {
+  const handlePrintClick = async () => {
     if (vehicle) {
-      priceSheetForm.reset({
-        price: (vehicle.prezzo ?? 0) + (vehicle.garanzia_legale_prezzo ?? 0),
-      });
-      setIsPriceSheetEditorOpen(true);
+      setIsPreparingPrint(true);
+      try {
+        const response = await fetch(branding.logoUrl);
+        if (!response.ok) throw new Error('Network response was not ok');
+        const blob = await response.blob();
+        const dataUri = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+
+        setLogoDataUri(dataUri);
+        priceSheetForm.reset({
+          price: (vehicle.prezzo ?? 0) + (vehicle.garanzia_legale_prezzo ?? 0),
+        });
+        setIsPriceSheetEditorOpen(true);
+      } catch (error) {
+        console.error("Error preparing print:", error);
+        toast({
+          variant: "destructive",
+          title: "Errore Stampa",
+          description: "Impossibile caricare il logo per la stampa. Riprova.",
+        });
+      } finally {
+        setIsPreparingPrint(false);
+      }
     }
   };
 
@@ -423,96 +449,100 @@ export default function VehiclePage() {
   const showProformaForm = async () => {
     if (!vehicle || !firestore || !user) return;
 
-    const contractRef = doc(firestore, 'contracts', vehicle.id);
-    const contractSnap = await getDoc(contractRef);
+    setIsBooking(true);
 
-    if (contractSnap.exists()) {
-      setExistingContract(contractSnap.data() as Contract);
-      proformaForm.reset(contractSnap.data() as ProformaFormValues);
-      setIsProformaFormOpen(true);
-      toast({
-        title: 'Contratto caricato',
-        description: 'Modifica i dati del contratto esistente.',
+    try {
+      const response = await fetch(branding.logoUrl);
+      if (!response.ok) throw new Error('Network response was not ok');
+      const blob = await response.blob();
+      const dataUri = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
       });
-      return;
-    }
 
-    setExistingContract(null);
-    const openTheForm = () => {
-      proformaForm.reset({
-        name: '',
-        address: '',
-        cf: '',
-        docNumber: '',
-        birthDate: '',
-        birthPlace: '',
-        phone: '',
-        email: '',
-        customerType: 'privato',
-        paymentMethod: 'bonifico',
-        costoVultura: '',
-        warranty: 'Il veicolo viene venduto con garanzia legale di conformità per 12 mesi come da D.Lgs. 206/2005 (Codice del Consumo). L\'Acquirente si obbliga ad effettuare gli interventi di manutenzione ordinaria programmata dell\'AUTO, in conformità alle indicazioni e scadenze del libretto di manutenzione. In caso di interventi in garanzia, il venditore si obbliga ad utilizzare ricambi originali. La garanzia non opererà per quei guasti/avarie che siano stati causati dalla omessa manutenzione.',
-        insurance:
-          "L'acquirente si impegna a stipulare una polizza assicurativa RC auto prima del ritiro del veicolo.",
-        wearAndTear:
-          "L'acquirente dichiara di aver preso visione dello stato d'uso del veicolo e di accettarlo nelle condizioni in cui si trova, tenuto conto della normale usura pregressa in base all'anno di immatricolazione e al chilometraggio.",
-        documentation: 'Il veicolo viene consegnato completo di carta di circolazione, certificato di proprietà (o D.U.) e n.2 chiavi. Il passaggio di proprietà avverrà a seguito del saldo completo.',
-        withdrawal:
-          "Per i contratti conclusi a distanza, l'acquirente consumatore ha diritto di recedere dal contratto, senza alcuna penalità e senza specificarne il motivo, entro il termine di 14 giorni dalla presa in consegna del veicolo.",
-        price:
-          (vehicle.prezzo ?? 0) + (vehicle.garanzia_legale_prezzo ?? 0),
-        financingCompany: '',
-        numberOfInstallments: '',
-        installmentAmount: '',
-        totalFinancedAmount: '',
-      });
-      setIsProformaFormOpen(true);
-    };
+      setLogoDataUri(dataUri);
 
-    // If it's for sale, book it and open form
-    if (vehicle.stato === 'In vendita') {
-      setIsBooking(true);
-      const vehicleRef = doc(firestore, 'vehicles', vehicle.id);
+      const contractRef = doc(firestore, 'contracts', vehicle.id);
+      const contractSnap = await getDoc(contractRef);
 
-      updateDocumentNonBlocking(vehicleRef, {
-        stato: 'Prenotato',
-        updatedAt: serverTimestamp(),
-        statusChangedBy: user.uid,
-      })
-        .then(() => {
+      if (contractSnap.exists()) {
+        setExistingContract(contractSnap.data() as Contract);
+        proformaForm.reset(contractSnap.data() as ProformaFormValues);
+        setIsProformaFormOpen(true);
+        toast({
+          title: 'Contratto caricato',
+          description: 'Modifica i dati del contratto esistente.',
+        });
+      } else {
+        setExistingContract(null);
+        const openTheForm = () => {
+          proformaForm.reset({
+            name: '',
+            address: '',
+            cf: '',
+            docNumber: '',
+            birthDate: '',
+            birthPlace: '',
+            phone: '',
+            email: '',
+            customerType: 'privato',
+            paymentMethod: 'bonifico',
+            costoVultura: '',
+            warranty: 'Il veicolo viene venduto con garanzia legale di conformità per 12 mesi come da D.Lgs. 206/2005 (Codice del Consumo). L\'Acquirente si obbliga ad effettuare gli interventi di manutenzione ordinaria programmata dell\'AUTO, in conformità alle indicazioni e scadenze del libretto di manutenzione. In caso di interventi in garanzia, il venditore si obbliga ad utilizzare ricambi originali. La garanzia non opererà per quei guasti/avarie che siano stati causati dalla omessa manutenzione.',
+            insurance:
+              "L'acquirente si impegna a stipulare una polizza assicurativa RC auto prima del ritiro del veicolo.",
+            wearAndTear:
+              "L'acquirente dichiara di aver preso visione dello stato d'uso del veicolo e di accettarlo nelle condizioni in cui si trova, tenuto conto della normale usura pregressa in base all'anno di immatricolazione e al chilometraggio.",
+            documentation: 'Il veicolo viene consegnato completo di carta di circolazione, certificato di proprietà (o D.U.) e n.2 chiavi. Il passaggio di proprietà avverrà a seguito del saldo completo.',
+            withdrawal:
+              "Per i contratti conclusi a distanza, l'acquirente consumatore ha diritto di recedere dal contratto, senza alcuna penalità e senza specificarne il motivo, entro il termine di 14 giorni dalla presa in consegna del veicolo.",
+            price:
+              (vehicle.prezzo ?? 0) + (vehicle.garanzia_legale_prezzo ?? 0),
+            financingCompany: '',
+            numberOfInstallments: '',
+            installmentAmount: '',
+            totalFinancedAmount: '',
+          });
+          setIsProformaFormOpen(true);
+        };
+
+        if (vehicle.stato === 'In vendita') {
+          const vehicleRef = doc(firestore, 'vehicles', vehicle.id);
+          await updateDocumentNonBlocking(vehicleRef, {
+            stato: 'Prenotato',
+            updatedAt: serverTimestamp(),
+            statusChangedBy: user.uid,
+          });
           toast({
             title: 'Veicolo Prenotato!',
             description:
               'Il veicolo è stato prenotato con successo. Compila i dati per il contratto.',
           });
           openTheForm();
-        })
-        .catch(error => {
+        } else if (
+          (vehicle.stato === 'Prenotato' || vehicle.stato === 'Venduto') &&
+          vehicle.statusChangedBy === user.uid
+        ) {
+          openTheForm();
+        } else {
           toast({
             variant: 'destructive',
-            title: 'Prenotazione Fallita',
-            description:
-              'Impossibile prenotare il veicolo. Controlla la console per i dettagli.',
+            title: 'Azione non consentita',
+            description: `Lo stato attuale del veicolo (${vehicle.stato}) non permette di creare un nuovo contratto.`,
           });
-        })
-        .finally(() => {
-          setIsBooking(false);
-        });
-    }
-    // If it's already booked or sold BY THE CURRENT USER, just open the form.
-    else if (
-      (vehicle.stato === 'Prenotato' || vehicle.stato === 'Venduto') &&
-      vehicle.statusChangedBy === user.uid
-    ) {
-      openTheForm();
-    }
-    // Otherwise, it's not available.
-    else {
+        }
+      }
+    } catch (error) {
+      console.error("Error preparing proforma:", error);
       toast({
-        variant: 'destructive',
-        title: 'Azione non consentita',
-        description: `Lo stato attuale del veicolo (${vehicle.stato}) non permette di creare un nuovo contratto.`,
+        variant: "destructive",
+        title: "Errore Contratto",
+        description: "Impossibile caricare il logo o creare il contratto. Riprova.",
       });
+    } finally {
+      setIsBooking(false);
     }
   };
 
@@ -576,11 +606,12 @@ export default function VehiclePage() {
 
         <VehicleDetailsClient
           vehicle={vehicle}
-          onPrintClick={showPriceSheetEditor}
+          onPrintClick={handlePrintClick}
           onProformaClick={showProformaForm}
           disabled={isLoadingRole || !user}
           editPath={editPath}
           isBooking={isBooking}
+          isPrinting={isPreparingPrint}
           isProformaButtonDisabled={false}
           currentUserUid={user?.uid}
           role={role}
@@ -769,6 +800,7 @@ export default function VehiclePage() {
                   vehicle={vehicle}
                   price={finalSheetPrice}
                   branding={branding}
+                  logoDataUri={logoDataUri}
                 />
               )}
             </div>
@@ -1338,6 +1370,7 @@ export default function VehiclePage() {
                   withdrawal={proformaCustomerData.withdrawal || ''}
                   date={format(new Date(), 'dd/MM/yyyy')}
                   branding={branding}
+                  logoDataUri={logoDataUri}
                 />
               )}
             </div>
