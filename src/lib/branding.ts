@@ -10,8 +10,8 @@ export type BrandingProfile = {
 };
 
 const HUB_LOGO_URL = 'https://firebasestorage.googleapis.com/v0/b/studio-3074982188-44660.appspot.com/o/HUB%20-%20logo%20tutti%20formati_Tavola%20disegno%201%20copia%204%20(4).png?alt=media';
-const EXPRESS_LOGO_URL = 'https://firebasestorage.googleapis.com/v0/b/studio-3074982188-44660.appspot.com/o/LOGHI%2FEXPRESS.jpeg?alt=media';
-const MGV_LOGO_URL = 'https://firebasestorage.googleapis.com/v0/b/studio-3074982188-44660.appspot.com/o/Logo-1%20trasparente.png?alt=media';
+const EXPRESS_LOGO_URL = 'https://firebasestorage.googleapis.com/v0/b/studio-3074982188-44660.appspot.com/o/logo-restart-mobility-white-300x154.png?alt=media';
+const MGV_LOGO_URL = 'https://firebasestorage.googleapis.com/v0/b/studio-3074982188-44660.firebasestorage.app/o/Logo-1%20trasparente.png?alt=media&token=a28e26de-7700-4b5e-a0d0-8c230d838c77';
 
 
 export const brandingProfiles: { default: BrandingProfile; express: BrandingProfile, mgv: BrandingProfile } = {
