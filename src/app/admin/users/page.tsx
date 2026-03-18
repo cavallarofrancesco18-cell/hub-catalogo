@@ -8,8 +8,9 @@ import {
   useCollection,
   deleteDocumentNonBlocking,
   updateDocumentNonBlocking,
+  setDocumentNonBlocking
 } from '@/firebase';
-import { collection, doc } from 'firebase/firestore';
+import { collection, doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import {
   Table,
   TableBody,
@@ -21,7 +22,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { Trash2, Loader2 } from 'lucide-react';
+import { format } from 'date-fns';
+import { Trash2, Loader2, UserPlus } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,6 +41,40 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+    DialogClose,
+  } from '@/components/ui/dialog';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import {
+    Form,
+    FormControl,
+    FormField,
+    FormItem,
+    FormLabel,
+    FormMessage,
+} from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import { firebaseConfig } from '@/firebase/config';
+import { initializeApp, deleteApp } from 'firebase/app';
+import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
+
+
+const registerSchema = z.object({
+    name: z.string().min(1, 'Il nome è obbligatorio.'),
+    email: z.string().email('Inserisci un indirizzo email valido.'),
+    password: z.string().min(6, 'La password deve contenere almeno 6 caratteri.'),
+});
+type RegisterFormValues = z.infer<typeof registerSchema>;
+
 
 export default function UsersPage() {
   const firestore = useFirestore();
@@ -52,6 +88,17 @@ export default function UsersPage() {
   const [sellerToDelete, setSellerToDelete] = useState<UserData | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isUpdating, setIsUpdating] = useState<string | null>(null);
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+
+  const registrationForm = useForm<RegisterFormValues>({
+    resolver: zodResolver(registerSchema),
+    defaultValues: {
+      name: '',
+      email: '',
+      password: '',
+    },
+  });
 
   useEffect(() => {
     if (error) {
@@ -63,6 +110,50 @@ export default function UsersPage() {
         console.error("Firestore Error:", error);
     }
   }, [error, toast]);
+
+  async function onRegisterSubmit(data: RegisterFormValues) {
+    setIsRegistering(true);
+    const tempAppName = `auth-worker-${Date.now()}`;
+    const tempApp = initializeApp(firebaseConfig, tempAppName);
+    const tempAuth = getAuth(tempApp);
+
+    try {
+        const userCredential = await createUserWithEmailAndPassword(tempAuth, data.email, data.password);
+        const user = userCredential.user;
+
+        const userDocRef = doc(firestore, 'seller', user.uid);
+        
+        await setDoc(userDocRef, {
+            name: data.name,
+            email: user.email,
+            createdAt: serverTimestamp(),
+            id: user.uid,
+            sellerType: null,
+        });
+
+        toast({
+            title: 'Venditore registrato!',
+            description: `L'utente ${data.email} è stato creato e aggiunto alla lista.`,
+        });
+
+        registrationForm.reset();
+        setIsDialogOpen(false);
+
+    } catch (error: any) {
+        let description = 'Si è verificato un errore imprevisto.';
+        if (error.code === 'auth/email-already-in-use') {
+            description = 'Questo indirizzo email è già stato registrato.';
+        }
+        toast({
+            variant: 'destructive',
+            title: 'Registrazione fallita',
+            description,
+        });
+    } finally {
+        setIsRegistering(false);
+        await deleteApp(tempApp);
+    }
+  }
 
   const handleDeleteConfirm = async () => {
     if (!sellerToDelete) return;
@@ -116,6 +207,76 @@ export default function UsersPage() {
           <h1 className="text-3xl font-bold font-headline">
             Gestione Venditori
           </h1>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+                <Button>
+                    <UserPlus className="mr-2 h-4 w-4" />
+                    Aggiungi Venditore
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                    <DialogTitle>Registra Nuovo Venditore</DialogTitle>
+                    <DialogDescription>
+                        Crea un nuovo account per un venditore. Verrà aggiunto alla lista e potrà accedere.
+                    </DialogDescription>
+                </DialogHeader>
+                <Form {...registrationForm}>
+                    <form onSubmit={registrationForm.handleSubmit(onRegisterSubmit)} className="space-y-4 py-4">
+                    <FormField
+                        control={registrationForm.control}
+                        name="name"
+                        render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Nome Completo</FormLabel>
+                            <FormControl>
+                            <Input placeholder="Mario Rossi" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                        </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={registrationForm.control}
+                        name="email"
+                        render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Email</FormLabel>
+                            <FormControl>
+                            <Input placeholder="nome@example.com" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                        </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={registrationForm.control}
+                        name="password"
+                        render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Password</FormLabel>
+                            <FormControl>
+                            <Input type="password" placeholder="Minimo 6 caratteri" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                        </FormItem>
+                        )}
+                    />
+                    <DialogFooter>
+                        <DialogClose asChild>
+                            <Button type="button" variant="outline" disabled={isRegistering}>
+                                Annulla
+                            </Button>
+                        </DialogClose>
+                        <Button type="submit" disabled={isRegistering}>
+                            {isRegistering && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Registra
+                        </Button>
+                    </DialogFooter>
+                    </form>
+                </Form>
+            </DialogContent>
+          </Dialog>
         </div>
 
         <div className="rounded-lg border">
@@ -124,6 +285,7 @@ export default function UsersPage() {
               <TableRow>
                 <TableHead>ID</TableHead>
                 <TableHead>Email</TableHead>
+                <TableHead>Data Registrazione</TableHead>
                 <TableHead>Tipo Venditore</TableHead>
                 <TableHead className="w-[100px] text-right">Azioni</TableHead>
               </TableRow>
@@ -139,6 +301,9 @@ export default function UsersPage() {
                       <Skeleton className="h-4 w-48" />
                     </TableCell>
                     <TableCell>
+                      <Skeleton className="h-4 w-32" />
+                    </TableCell>
+                    <TableCell>
                       <Skeleton className="h-10 w-28" />
                     </TableCell>
                     <TableCell>
@@ -148,7 +313,7 @@ export default function UsersPage() {
                 ))}
               {!isLoading && error && (
                   <TableRow>
-                    <TableCell colSpan={4} className="h-24 text-center text-destructive">
+                    <TableCell colSpan={5} className="h-24 text-center text-destructive">
                       Si è verificato un errore nel caricamento dei venditori.
                     </TableCell>
                   </TableRow>
@@ -158,6 +323,11 @@ export default function UsersPage() {
                   <TableRow key={seller.id}>
                     <TableCell className="font-mono text-xs">{seller.id}</TableCell>
                     <TableCell className="font-medium">{seller.email || '(Email non specificata)'}</TableCell>
+                    <TableCell>
+                      {seller.createdAt?.toDate
+                        ? format(seller.createdAt.toDate(), 'dd/MM/yyyy')
+                        : 'N/A'}
+                    </TableCell>
                     <TableCell>
                         {isUpdating === seller.id ? (
                             <Loader2 className="h-5 w-5 animate-spin" />
@@ -193,7 +363,7 @@ export default function UsersPage() {
               ) : (
                 !isLoading && !error && (
                   <TableRow>
-                    <TableCell colSpan={4} className="h-24 text-center">
+                    <TableCell colSpan={5} className="h-24 text-center">
                       Nessun venditore trovato.
                     </TableCell>
                   </TableRow>
