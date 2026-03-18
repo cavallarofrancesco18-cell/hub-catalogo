@@ -78,8 +78,7 @@ import { PrintableProforma } from '@/app/auto/[slug]/components/printable-profor
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { format } from 'date-fns';
-import { getBranding } from '@/lib/branding';
-import { imageUrlToDataUri } from '@/ai/flows/image-to-data-uri-flow';
+import { getBranding, brandingProfiles } from '@/lib/branding';
 
 const proformaSchema = z
   .object({
@@ -232,7 +231,6 @@ export default function AdminPage() {
     null
   );
   const [showContractSuccess, setShowContractSuccess] = useState(false);
-  const [logoDataUri, setLogoDataUri] = useState<string>('');
 
   const proformaForm = useForm<ProformaFormValues>({
     resolver: zodResolver(proformaSchema),
@@ -398,13 +396,19 @@ export default function AdminPage() {
             pdf.addPage();
         }
 
-        const remainingHeight = contentHeight - currentY;
+        const remainingHeightOnCanvas = canvasHeight - (currentY * canvasWidth / contentWidth);
         const pageHeightOnPdf = pdfPageHeight - (margin * 2);
-        const sourceHeightOnCanvas = (pageHeightOnPdf * canvasWidth) / contentWidth;
+        
+        const sourceHeightOnCanvas = Math.min(
+            (pageHeightOnPdf * canvasWidth) / contentWidth,
+            remainingHeightOnCanvas
+        );
+
+        if (sourceHeightOnCanvas <= 0) break;
 
         const sliceCanvas = document.createElement('canvas');
         sliceCanvas.width = canvasWidth;
-        sliceCanvas.height = Math.min(sourceHeightOnCanvas, canvasHeight - (currentY * canvasWidth / contentWidth));
+        sliceCanvas.height = sourceHeightOnCanvas;
 
         const sliceContext = sliceCanvas.getContext('2d');
         if (sliceContext) {
@@ -413,15 +417,15 @@ export default function AdminPage() {
                 0, // sourceX
                 currentY * canvasWidth / contentWidth, // sourceY
                 canvasWidth, // sourceWidth
-                sliceCanvas.height, // sourceHeight
+                sourceHeightOnCanvas, // sourceHeight
                 0, // destX
                 0, // destY
                 canvasWidth, // destWidth
-                sliceCanvas.height // destHeight
+                sourceHeightOnCanvas // destHeight
             );
 
             const imgData = sliceCanvas.toDataURL('image/png');
-            const renderedSliceHeight = (sliceCanvas.height * contentWidth) / canvasWidth;
+            const renderedSliceHeight = (sourceHeightOnCanvas * contentWidth) / canvasWidth;
             pdf.addImage(imgData, 'PNG', margin, margin, contentWidth, renderedSliceHeight);
         }
 
@@ -485,9 +489,6 @@ export default function AdminPage() {
     setIsBooking(vehicle.id);
     
     try {
-        const dataUri = await imageUrlToDataUri(getBranding(roleData).logoUrl);
-        setLogoDataUri(dataUri);
-
         setVehicleForContract(vehicle);
     
         const contractRef = doc(firestore, 'contracts', vehicle.id);
@@ -1339,7 +1340,7 @@ export default function AdminPage() {
                   withdrawal={proformaCustomerData.withdrawal || ''}
                   date={format(new Date(), 'dd/MM/yyyy')}
                   branding={getBranding(roleData)}
-                  logoUrl={logoDataUri}
+                  logoUrl={brandingProfiles.default.logoUrl}
                 />
               )}
             </div>

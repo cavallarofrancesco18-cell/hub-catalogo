@@ -63,9 +63,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { getBranding } from '@/lib/branding';
+import { getBranding, brandingProfiles } from '@/lib/branding';
 import { useToast } from '@/hooks/use-toast';
-import { imageUrlToDataUri } from '@/ai/flows/image-to-data-uri-flow';
 
 const proformaSchema = z
   .object({
@@ -252,7 +251,6 @@ export default function VehiclePage() {
     null
   );
   const [showContractSuccess, setShowContractSuccess] = useState(false);
-  const [logoDataUri, setLogoDataUri] = useState<string>('');
 
   const proformaForm = useForm<ProformaFormValues>({
     resolver: zodResolver(proformaSchema),
@@ -343,13 +341,19 @@ export default function VehiclePage() {
             pdf.addPage();
         }
 
-        const remainingHeight = contentHeight - currentY;
+        const remainingHeightOnCanvas = canvasHeight - (currentY * canvasWidth / contentWidth);
         const pageHeightOnPdf = pdfPageHeight - (margin * 2);
-        const sourceHeightOnCanvas = (pageHeightOnPdf * canvasWidth) / contentWidth;
+        
+        const sourceHeightOnCanvas = Math.min(
+            (pageHeightOnPdf * canvasWidth) / contentWidth,
+            remainingHeightOnCanvas
+        );
+
+        if (sourceHeightOnCanvas <= 0) break;
 
         const sliceCanvas = document.createElement('canvas');
         sliceCanvas.width = canvasWidth;
-        sliceCanvas.height = Math.min(sourceHeightOnCanvas, canvasHeight - (currentY * canvasWidth / contentWidth));
+        sliceCanvas.height = sourceHeightOnCanvas;
 
         const sliceContext = sliceCanvas.getContext('2d');
         if (sliceContext) {
@@ -358,15 +362,15 @@ export default function VehiclePage() {
                 0, // sourceX
                 currentY * canvasWidth / contentWidth, // sourceY
                 canvasWidth, // sourceWidth
-                sliceCanvas.height, // sourceHeight
+                sourceHeightOnCanvas, // sourceHeight
                 0, // destX
                 0, // destY
                 canvasWidth, // destWidth
-                sliceCanvas.height // destHeight
+                sourceHeightOnCanvas // destHeight
             );
 
             const imgData = sliceCanvas.toDataURL('image/png');
-            const renderedSliceHeight = (sliceCanvas.height * contentWidth) / canvasWidth;
+            const renderedSliceHeight = (sourceHeightOnCanvas * contentWidth) / canvasWidth;
             pdf.addImage(imgData, 'PNG', margin, margin, contentWidth, renderedSliceHeight);
         }
 
@@ -387,26 +391,12 @@ export default function VehiclePage() {
     }
   };
 
-  const handlePrintClick = async () => {
+  const handlePrintClick = () => {
     if (vehicle) {
-      setIsPrinting(true);
-      try {
-        const dataUri = await imageUrlToDataUri(branding.logoUrl);
-        setLogoDataUri(dataUri);
-        priceSheetForm.reset({
-          price: (vehicle.prezzo ?? 0) + (vehicle.garanzia_legale_prezzo ?? 0),
-        });
-        setIsPriceSheetEditorOpen(true);
-      } catch (e) {
-        console.error("Failed to prepare logo for PDF", e);
-        toast({
-          variant: "destructive",
-          title: "Errore PDF",
-          description: "Impossibile caricare il logo per la stampa.",
-        });
-      } finally {
-        setIsPrinting(false);
-      }
+      priceSheetForm.reset({
+        price: (vehicle.prezzo ?? 0) + (vehicle.garanzia_legale_prezzo ?? 0),
+      });
+      setIsPriceSheetEditorOpen(true);
     }
   };
 
@@ -461,9 +451,6 @@ export default function VehiclePage() {
     setIsBooking(true);
 
     try {
-      const dataUri = await imageUrlToDataUri(branding.logoUrl);
-      setLogoDataUri(dataUri);
-
       const contractRef = doc(firestore, 'contracts', vehicle.id);
       const contractSnap = await getDoc(contractRef);
 
@@ -798,7 +785,7 @@ export default function VehiclePage() {
                   vehicle={vehicle}
                   price={finalSheetPrice}
                   branding={branding}
-                  logoUrl={logoDataUri}
+                  logoUrl={branding.logoUrl}
                 />
               )}
             </div>
@@ -1370,7 +1357,7 @@ export default function VehiclePage() {
                   withdrawal={proformaCustomerData.withdrawal || ''}
                   date={format(new Date(), 'dd/MM/yyyy')}
                   branding={branding}
-                  logoUrl={logoDataUri}
+                  logoUrl={brandingProfiles.default.logoUrl}
                 />
               )}
             </div>
