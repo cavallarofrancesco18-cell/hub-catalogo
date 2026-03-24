@@ -10,6 +10,8 @@ const withPWA = withPWAInit({
 
 const nextConfig: NextConfig = {
   /* config options here */
+  output: 'export',
+  trailingSlash: true,
   typescript: {
     ignoreBuildErrors: true,
   },

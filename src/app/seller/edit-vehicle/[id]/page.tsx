@@ -1,6 +1,7 @@
-'use client';
+export function generateStaticParams() {
+  return [];
+}
 
-// This page has been disabled.
-export default function SellerEditVehiclePage() {
-  return null;
+export default function Page() {
+  return <div>Disabled</div>;
 }
