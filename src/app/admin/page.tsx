@@ -7,6 +7,7 @@ import { useCollection } from '@/firebase/firestore/use-collection';
 import { collection, doc, serverTimestamp, getDoc } from 'firebase/firestore';
 import type { Vehicle, Contract, User as UserData } from '@/lib/types';
 import { Button } from '@/components/ui/button';
+import * as XLSX from 'xlsx';
 import {
   Table,
   TableBody,
@@ -357,6 +358,29 @@ export default function AdminPage() {
     }
   };
 
+  const handleExportExcel = () => {
+    if (!vehicles) return;
+
+    // Filtra solo veicoli in vendita
+    const vehiclesForSale = vehicles.filter(vehicle => vehicle.stato === 'In vendita');
+
+    // Estrai i campi necessari
+    const data = vehiclesForSale.map(vehicle => ({
+      Modello: vehicle.modello,
+      Targa: vehicle.targa || '',
+      Km: vehicle.chilometraggio,
+      Prezzo: vehicle.prezzo,
+    }));
+
+    // Crea il workbook
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Veicoli in Vendita');
+
+    // Scarica il file
+    XLSX.writeFile(wb, 'veicoli_in_vendita.xlsx');
+  };
+
   // --- Contract Creation Functions ---
   const handleGeneratePdf = async (
     ref: React.RefObject<HTMLDivElement>,
@@ -582,9 +606,14 @@ export default function AdminPage() {
       <div className="container mx-auto px-4 py-8">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold font-headline">Gestione Veicoli</h1>
-          <Button asChild>
-            <Link href="/admin/add-vehicle">Aggiungi Veicolo</Link>
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={handleExportExcel} variant="outline">
+              Esporta Excel
+            </Button>
+            <Button asChild>
+              <Link href="/admin/add-vehicle">Aggiungi Veicolo</Link>
+            </Button>
+          </div>
         </div>
 
         <div className="rounded-lg border">
