@@ -317,18 +317,20 @@ export default function AutoPage() {
         </Sheet>
       </div>
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-4">
-        <FilterSidebar
-          brands={brands}
-          models={models}
-          filters={filters}
-          setFilters={setFilters}
-          sortBy={sortBy}
-          setSortBy={setSortBy}
-          priceRange={initialPriceRange}
-          mileageRange={initialMileageRange}
-          disabled={isLoading}
-          className="hidden lg:block"
-        />
+        <div className="sticky top-4 h-fit">
+          <FilterSidebar
+            brands={brands}
+            models={models}
+            filters={filters}
+            setFilters={setFilters}
+            sortBy={sortBy}
+            setSortBy={setSortBy}
+            priceRange={initialPriceRange}
+            mileageRange={initialMileageRange}
+            disabled={isLoading}
+            className="hidden lg:block"
+          />
+        </div>
         <div className="lg:col-span-3">
           {isLoading ? (
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
