@@ -1,6 +1,5 @@
 import { Metadata } from 'next';
 import { buildPageMetadata } from '@/lib/site';
-import { LayoutShell } from '@/components/layout-shell';
 import { TraderForm } from './components/trader-form';
 
 export const metadata: Metadata = buildPageMetadata({
@@ -11,10 +10,8 @@ export const metadata: Metadata = buildPageMetadata({
 
 export default function TraderPage() {
   return (
-    <LayoutShell>
-      <div className="flex min-h-screen items-center justify-center px-4 py-8">
-        <TraderForm />
-      </div>
-    </LayoutShell>
+    <div className="flex min-h-screen items-center justify-center px-4 py-8">
+      <TraderForm />
+    </div>
   );
 }
