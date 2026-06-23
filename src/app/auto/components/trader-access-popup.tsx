@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useState, useEffect } from 'react';
-import { Loader2, X } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -11,7 +11,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogClose,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -138,16 +137,6 @@ export function TraderAccessPopup() {
           <DialogContent className="w-[95vw] max-w-lg">
             <DialogHeader>
               <DialogTitle>Sei un commerciante?</DialogTitle>
-              <DialogClose asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="absolute right-4 top-4 h-6 w-6 p-0"
-                >
-                  <X className="h-4 w-4" />
-                  <span className="sr-only">Chiudi</span>
-                </Button>
-              </DialogClose>
               <DialogDescription>
                 Se vuoi accedere ai prezzi esclusivi e collaborare con noi, compila il form con i tuoi dati e allega la
                 visura camerale. Verrai ricontattato per ricevere i dati di accesso dedicati.
