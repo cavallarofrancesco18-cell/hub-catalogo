@@ -20,7 +20,6 @@ import { useUser } from '@/firebase';
 type SubmitState = 'idle' | 'submitting' | 'success' | 'error';
 
 const MAX_FILE_SIZE_MB = 8;
-const SESSION_STORAGE_KEY = 'trader_popup_shown_auto';
 
 export function TraderAccessPopup() {
   const { toast } = useToast();
@@ -34,7 +33,7 @@ export function TraderAccessPopup() {
     setIsMounted(true);
   }, []);
 
-  // Show popup on mount if not logged in and not yet shown
+  // Show popup on mount for users who are not logged in
   useEffect(() => {
     if (!isMounted) return;
 
@@ -44,18 +43,7 @@ export function TraderAccessPopup() {
     // If user is logged in, don't show
     if (user) return;
 
-    // Check for debug mode (show popup regardless of sessionStorage)
-    const urlParams = new URLSearchParams(window.location.search);
-    const debugPopup = urlParams.get('debug-popup') === '1';
-
-    // Check if popup was already shown in this session
-    const alreadyShown = sessionStorage.getItem(SESSION_STORAGE_KEY);
-    if (!alreadyShown || debugPopup) {
-      setIsDialogOpen(true);
-      if (!debugPopup) {
-        sessionStorage.setItem(SESSION_STORAGE_KEY, 'true');
-      }
-    }
+    setIsDialogOpen(true);
   }, [isMounted, isUserLoading, user]);
 
   const [submitState, setSubmitState] = useState<SubmitState>('idle');
