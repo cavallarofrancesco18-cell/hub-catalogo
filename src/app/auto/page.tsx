@@ -269,8 +269,8 @@ export default function AutoPage() {
       ) : incomingVehicles && incomingVehicles.length > 0 ? (
         <section className="mb-8">
           <h2 className="mb-4 text-xl font-bold font-headline sm:text-2xl">Auto in Arrivo - HUB</h2>
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
-            {incomingVehicles.slice(0, 6).map(vehicle => (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            {incomingVehicles.slice(0, 10).map(vehicle => (
               <VehicleCard key={vehicle.id} vehicle={vehicle} />
             ))}
           </div>
