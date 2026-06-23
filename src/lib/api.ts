@@ -10,6 +10,7 @@ import {
 import { getFirestore } from 'firebase/firestore';
 import type { Vehicle } from './types';
 import { initializeFirebase } from '@/firebase';
+import { getCanonicalBrandLabels } from '@/lib/brand-utils';
 
 function getDb() {
   return getFirestore(initializeFirebase().firebaseApp);
@@ -55,8 +56,7 @@ export async function getVehicleBySlug(slug: string): Promise<Vehicle | null> {
 
 export async function getUniqueBrands(): Promise<string[]> {
   const allVehicles = await getVehicles();
-  const brands = new Set(allVehicles.map(v => v.marca));
-  return Array.from(brands).sort();
+  return getCanonicalBrandLabels(allVehicles.map(v => v.marca));
 }
 
 export async function getPriceRange(): Promise<[number, number]> {

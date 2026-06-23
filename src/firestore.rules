@@ -38,6 +38,14 @@ service cloud.firestore {
         return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', null) == 'seller';
     }
 
+    function isAgent() {
+      return isSignedIn() && exists(/databases/$(database)/documents/agents/$(request.auth.uid));
+    }
+
+    function canWriteContracts() {
+      return (isAdmin() || isSeller()) && request.auth.token.email != 'gp@gruppodinamica.com';
+    }
+
     /**
      * @description
      *   Rules for the primary collection of vehicle listings.
@@ -65,7 +73,7 @@ service cloud.firestore {
       
       // Any signed in user can also change the status from 'In vendita' to 'Prenotato'.
       allow update: if isSignedIn()
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stato', 'updatedAt', 'statusChangedBy'])
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stato', 'updatedAt', 'statusChangedBy', 'statusChangedByName', 'statusChangedByEmail', 'reservationCreatedAt', 'reservationExpiresAt'])
                     && resource.data.stato == 'In vendita'
                     && request.resource.data.stato == 'Prenotato'
                     && request.resource.data.updatedAt == request.time;
@@ -100,6 +108,40 @@ service cloud.firestore {
 
     /**
      * @description
+     *   Shared HUB documents available to admins and seller users with sellerType HUB.
+     * @path
+     *   /hubDocuments/{documentId}
+     */
+    match /hubDocuments/{documentId} {
+      function isHubSeller() {
+        return isSignedIn()
+          && exists(/databases/$(database)/documents/seller/$(request.auth.uid))
+          && (
+            get(/databases/$(database)/documents/seller/$(request.auth.uid)).data.sellerType == 'HUB'
+            || get(/databases/$(database)/documents/seller/$(request.auth.uid)).data.sellerType == 'hub'
+          );
+      }
+
+      allow get, list: if isAdmin() || isHubSeller();
+      allow create, update, delete: if isAdmin() || isHubSeller();
+    }
+
+    match /hubDocumentFolders/{folderId} {
+      function isHubSellerForFolders() {
+        return isSignedIn()
+          && exists(/databases/$(database)/documents/seller/$(request.auth.uid))
+          && (
+            get(/databases/$(database)/documents/seller/$(request.auth.uid)).data.sellerType == 'HUB'
+            || get(/databases/$(database)/documents/seller/$(request.auth.uid)).data.sellerType == 'hub'
+          );
+      }
+
+      allow get, list: if isAdmin() || isHubSellerForFolders();
+      allow create, update, delete: if isAdmin() || isHubSellerForFolders();
+    }
+
+    /**
+     * @description
      *   Rules for the user profiles collection.
      * @path
      *   /users/{userId}
@@ -117,24 +159,69 @@ service cloud.firestore {
 
     /**
      * @description
+     *   Rules for agent profiles managed by admins.
+     * @path
+     *   /agents/{agentId}
+     */
+    match /agents/{agentId} {
+      allow write: if isAdmin();
+      allow create: if isSignedIn() && request.auth.uid == agentId;
+      allow get: if isAdmin() || (isSignedIn() && request.auth.uid == agentId);
+      allow list: if isAdmin();
+    }
+
+    /**
+     * @description
+     *   Reports submitted by agents for damaged vehicles.
+     * @path
+     *   /agentVehicleReports/{reportId}
+     */
+    match /agentVehicleReports/{reportId} {
+      allow create: if isAgent() && request.resource.data.agentId == request.auth.uid;
+      allow get: if isAdmin() || (isAgent() && resource.data.agentId == request.auth.uid);
+      allow list: if isAdmin();
+      allow update: if isAdmin()
+        || (isAgent()
+          && resource.data.agentId == request.auth.uid
+          && request.resource.data.agentId == resource.data.agentId);
+      allow delete: if isAdmin();
+    }
+
+    /**
+     * @description
      *   Rules for the contracts collection.
      *   The contractId is the same as the vehicleId.
      * @path
      *   /contracts/{contractId}
      */
     match /contracts/{contractId} {
-      // An Admin can do anything.
-      allow read, write: if isAdmin();
+      // Admins can always read contracts.
+      allow read: if isAdmin();
       
-      // Any signed-in user can create a contract, ensuring they set themselves as the creator.
-      allow create: if isSignedIn() && request.resource.data.creatorId == request.auth.uid;
+      // Admins and sellers except the blocked account can create contracts.
+      allow create: if canWriteContracts()
+                    && request.resource.data.creatorId == request.auth.uid;
       
-      // A user can read or update a contract they created.
-      allow get, update: if isSignedIn() && resource.data.creatorId == request.auth.uid;
+      // Admins can always read contracts.
+      allow get: if isAdmin();
+
+      // Admins and sellers except the blocked account can update contracts.
+      allow update: if canWriteContracts();
+
       
       // No one can list all contracts except admins (covered by first rule).
       allow list: if isAdmin();
       allow delete: if isAdmin();
+    }
+
+    /**
+     * @description
+     *   Rules for saved customer company profiles used in admin contract creation.
+     * @path
+     *   /customerCompanies/{companyId}
+     */
+    match /customerCompanies/{companyId} {
+      allow get, list, create, update, delete: if isAdmin();
     }
   }
 }

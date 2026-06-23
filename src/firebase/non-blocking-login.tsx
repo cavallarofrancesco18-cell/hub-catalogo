@@ -10,7 +10,7 @@ import {
 /** Initiate anonymous sign-in (non-blocking). */
 export function initiateAnonymousSignIn(authInstance: Auth): Promise<void> {
   // CRITICAL: Call signInAnonymously directly. Do NOT use 'await signInAnonymously(...)'.
-  return signInAnonymously(authInstance);
+  return signInAnonymously(authInstance).then(() => undefined);
 }
 
 /** Initiate email/password sign-up (non-blocking). */

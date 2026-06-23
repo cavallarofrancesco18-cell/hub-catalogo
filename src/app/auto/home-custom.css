@@ -1,0 +1,49 @@
+/* Stili custom per la home e le card veicoli */
+
+/* Sfondi filtri blu piu scuro */
+.home-filter-card {
+  background: linear-gradient(135deg, #cfe8ff 0%, #a9d4fb 100%);
+  border: 1px solid #60a5fa;
+  box-shadow: 0 10px 30px -18px rgba(37, 99, 235, 0.38);
+}
+
+.home-filter-toolbar {
+  background: linear-gradient(135deg, rgba(2, 6, 23, 0.97) 0%, rgba(23, 37, 84, 0.96) 52%, rgba(15, 23, 42, 0.96) 100%);
+  border: 1px solid rgba(100, 116, 139, 0.42);
+  box-shadow: 0 20px 34px -28px rgba(2, 6, 23, 0.72);
+  backdrop-filter: blur(10px);
+}
+
+/* Hover card veicolo: ombra blu chiaro più accentuata */
+.vehicle-card {
+  transition: transform 0.25s cubic-bezier(.4, 0, .2, 1), box-shadow 0.25s cubic-bezier(.4, 0, .2, 1);
+}
+
+.vehicle-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 18px 42px -20px rgba(37, 99, 235, 0.42), 0 10px 24px -18px rgba(56, 189, 248, 0.28);
+}
+
+.vehicle-card-media {
+  overflow: hidden;
+  background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+}
+
+.vehicle-card-image {
+  transition: transform 0.3s cubic-bezier(.4, 0, .2, 1), opacity 0.3s cubic-bezier(.4, 0, .2, 1);
+}
+
+.vehicle-card-fallback {
+  background: #e5e7eb;
+  transition: background 0.25s cubic-bezier(.4, 0, .2, 1);
+}
+
+.vehicle-card:hover .vehicle-card-media,
+.vehicle-card:hover .vehicle-card-fallback {
+  background: linear-gradient(135deg, #cfe8ff 0%, #a9d4fb 100%);
+}
+
+.vehicle-card:hover .vehicle-card-image {
+  transform: scale(1.035);
+  opacity: 0.9;
+}

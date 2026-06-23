@@ -17,6 +17,23 @@ service cloud.firestore {
         return isSignedIn() && exists(/databases/$(database)/documents/seller/$(request.auth.uid));
     }
 
+    function isAgent() {
+      return isSignedIn() && exists(/databases/$(database)/documents/agents/$(request.auth.uid));
+    }
+
+    function isHubSeller() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/seller/$(request.auth.uid))
+        && (
+          get(/databases/$(database)/documents/seller/$(request.auth.uid)).data.sellerType == 'HUB'
+          || get(/databases/$(database)/documents/seller/$(request.auth.uid)).data.sellerType == 'hub'
+        );
+    }
+
+    function canWriteContracts() {
+      return (isAdmin() || isSeller()) && request.auth.token.email != 'gp@gruppodinamica.com';
+    }
+
     match /vehicles/{vehicleId} {
       allow get: if true;
       allow list: if true;
@@ -27,15 +44,24 @@ service cloud.firestore {
       // Any signed in user can book a vehicle. Admins can update anything.
       allow update: if isAdmin() || 
                     (isSignedIn()
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stato', 'updatedAt', 'statusChangedBy'])
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stato', 'updatedAt', 'statusChangedBy', 'statusChangedByName', 'statusChangedByEmail', 'reservationCreatedAt', 'reservationExpiresAt'])
                     && resource.data.stato == 'In vendita'
                     && request.resource.data.stato == 'Prenotato'
-                    && request.resource.data.statusChangedBy == request.auth.uid);
+                    && request.resource.data.statusChangedBy == request.auth.uid) ||
+                    (isHubSeller()
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['prezzo', 'prezzoPrivati', 'updatedAt'])
+                    && request.resource.data.prezzo is number
+                    && request.resource.data.prezzoPrivati is number);
     }
 
     match /forms/{formId} {
-      allow get, list: if isAdmin() || isSeller();
+      allow get, list: if isAdmin() || isSeller() || isAgent();
       allow create, update, delete: if isAdmin();
+    }
+
+    match /hubDocuments/{documentId} {
+      allow get, list: if isAdmin() || isHubSeller();
+      allow create, update, delete: if isAdmin() || isHubSeller();
     }
     
     match /seller/{sellerId} {
@@ -52,9 +78,73 @@ service cloud.firestore {
       allow get: if (isSignedIn() && request.auth.uid == sellerId) || isAdmin();
     }
 
+    match /agents/{agentId} {
+      // Allow a user to be created in the agents collection during registration.
+      allow create: if isSignedIn() && request.auth.uid == agentId;
+
+      // Admins can list and delete agents.
+      allow list, delete: if isAdmin();
+
+      // An agent can update their own document, and an admin can update any document.
+      allow update: if (isSignedIn() && request.auth.uid == agentId) || isAdmin();
+
+      // An agent can read their own document, and an admin can read any agent document.
+      allow get: if (isSignedIn() && request.auth.uid == agentId) || isAdmin();
+    }
+
+    match /agentVehicleReports/{reportId} {
+      allow create: if isAgent() && request.resource.data.agentId == request.auth.uid;
+      allow get: if isAdmin() || (isAgent() && resource.data.agentId == request.auth.uid);
+      allow list: if isAdmin();
+      allow update: if isAdmin()
+        || (isAgent()
+          && resource.data.agentId == request.auth.uid
+          && request.resource.data.agentId == resource.data.agentId);
+      allow delete: if isAdmin();
+    }
+
     match /contracts/{contractId} {
-      // Any authenticated user can read or write to any contract.
-      allow read, write: if request.auth != null;
+      // Any authenticated user can read contracts.
+      allow read: if isSignedIn();
+
+      // Admins and sellers except the blocked account can create contracts.
+      allow create: if canWriteContracts()
+                    && request.resource.data.creatorId == request.auth.uid;
+
+      // Admins and sellers except the blocked account can update contracts.
+      allow update: if canWriteContracts();
+
+      allow delete: if isAdmin();
+    }
+
+    match /customerCompanies/{companyId} {
+      allow get, list, create, update, delete: if isAdmin();
+    }
+
+    match /hubDocuments/{documentId} {
+      function isHubSellerDoc() {
+        return isSignedIn()
+          && exists(/databases/$(database)/documents/seller/$(request.auth.uid))
+          && (
+            get(/databases/$(database)/documents/seller/$(request.auth.uid)).data.sellerType == 'HUB'
+            || get(/databases/$(database)/documents/seller/$(request.auth.uid)).data.sellerType == 'hub'
+          );
+      }
+      allow get, list: if isAdmin() || isHubSellerDoc();
+      allow create, update, delete: if isAdmin() || isHubSellerDoc();
+    }
+
+    match /hubDocumentFolders/{folderId} {
+      function isHubSellerFolder() {
+        return isSignedIn()
+          && exists(/databases/$(database)/documents/seller/$(request.auth.uid))
+          && (
+            get(/databases/$(database)/documents/seller/$(request.auth.uid)).data.sellerType == 'HUB'
+            || get(/databases/$(database)/documents/seller/$(request.auth.uid)).data.sellerType == 'hub'
+          );
+      }
+      allow get, list: if isAdmin() || isHubSellerFolder();
+      allow create, update, delete: if isAdmin() || isHubSellerFolder();
     }
   }
 }

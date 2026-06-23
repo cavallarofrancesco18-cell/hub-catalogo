@@ -127,7 +127,7 @@ export default function UsersPage() {
             email: user.email,
             createdAt: serverTimestamp(),
             id: user.uid,
-            sellerType: null,
+          sellerType: 'standard',
         });
 
         toast({
@@ -341,7 +341,7 @@ export default function UsersPage() {
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="standard">Standard</SelectItem>
-                                    <SelectItem value="HUB">HUB</SelectItem>
+                                  <SelectItem value="HUB">HUB</SelectItem>
                                     <SelectItem value="EXPRESS">EXPRESS</SelectItem>
                                     <SelectItem value="MGV">MGV</SelectItem>
                                 </SelectContent>

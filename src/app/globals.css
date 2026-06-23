@@ -1,13 +1,28 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+@import 'photo-sphere-viewer/dist/photo-sphere-viewer.css';
 
 body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+html,
+body {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+html {
+  color-scheme: light;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 @layer base {
   :root {
+    --site-header-height: 88px;
     --background: 228 14% 98%;
     --foreground: 260 2% 20%;
     --card: 0 0% 100%;
@@ -90,5 +105,496 @@ body {
 @media print {
   body {
     -webkit-print-color-adjust: exact;
+  }
+}
+
+@keyframes splash-progress {
+  0% {
+    transform: translateX(-100%);
+  }
+  10% {
+    transform: translateX(-90%);
+  }
+  28% {
+    transform: translateX(-62%);
+  }
+  58% {
+    transform: translateX(-28%);
+  }
+  82% {
+    transform: translateX(-9%);
+  }
+  100% {
+    transform: translateX(0%);
+  }
+}
+
+@keyframes splash-float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(0, -18px, 0) scale(1.05);
+  }
+}
+
+@keyframes splash-stage {
+  0% {
+    opacity: 0.25;
+    transform: translateY(8px);
+  }
+  12%,
+  26% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0.55;
+    transform: translateY(0);
+  }
+}
+
+@keyframes splash-reveal {
+  0%,
+  12% {
+    opacity: 0;
+    transform: translateY(14px) scale(0.96);
+  }
+  22%,
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes splash-frame-build {
+  0%,
+  8% {
+    opacity: 0;
+    transform: translateX(-50%) scaleX(0.2);
+  }
+  20%,
+  100% {
+    opacity: 1;
+    transform: translateX(-50%) scaleX(1);
+  }
+}
+
+@keyframes splash-body-build {
+  0%,
+  22% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(18px) scale(0.88);
+  }
+  36%,
+  100% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+}
+
+@keyframes splash-cabin-build {
+  0%,
+  34% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(12px) scale(0.9);
+  }
+  48%,
+  100% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+}
+
+@keyframes splash-wheel-build {
+  0%,
+  46% {
+    opacity: 0;
+    transform: scale(0.35) rotate(-180deg);
+  }
+  60%,
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+@keyframes splash-arm-move-left {
+  0%,
+  10% {
+    transform: translate3d(0, -18px, 0) rotate(0deg);
+    opacity: 0;
+  }
+  18%,
+  30% {
+    transform: translate3d(14px, 6px, 0) rotate(24deg);
+    opacity: 1;
+  }
+  42%,
+  58% {
+    transform: translate3d(4px, -6px, 0) rotate(10deg);
+    opacity: 0.85;
+  }
+  100% {
+    transform: translate3d(0, -18px, 0) rotate(0deg);
+    opacity: 0.35;
+  }
+}
+
+@keyframes splash-arm-move-right {
+  0%,
+  10% {
+    transform: translate3d(0, -18px, 0) rotate(0deg);
+    opacity: 0;
+  }
+  18%,
+  30% {
+    transform: translate3d(-14px, 6px, 0) rotate(-24deg);
+    opacity: 1;
+  }
+  42%,
+  58% {
+    transform: translate3d(-4px, -6px, 0) rotate(-10deg);
+    opacity: 0.85;
+  }
+  100% {
+    transform: translate3d(0, -18px, 0) rotate(0deg);
+    opacity: 0.35;
+  }
+}
+
+@keyframes splash-beam-pulse {
+  0%,
+  18% {
+    opacity: 0;
+  }
+  26%,
+  72% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.25;
+  }
+}
+
+@keyframes splash-headlight-pulse {
+  0%,
+  68% {
+    opacity: 0;
+  }
+  78%,
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes hero-showcase-shift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.55;
+  }
+  50% {
+    transform: translate3d(2%, -3%, 0) scale(1.08);
+    opacity: 0.85;
+  }
+}
+
+@keyframes hero-showcase-sheen {
+  0% {
+    transform: translateX(-140%) skewX(-18deg);
+    opacity: 0;
+  }
+  14% {
+    opacity: 0;
+  }
+  32% {
+    opacity: 0.35;
+  }
+  58% {
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(160%) skewX(-18deg);
+    opacity: 0;
+  }
+}
+
+@keyframes hero-showcase-rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 18px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes hero-chip-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -4px, 0);
+  }
+}
+
+.hero-showcase {
+  isolation: isolate;
+  transition: transform 260ms ease, border-color 260ms ease, box-shadow 260ms ease, background-color 260ms ease;
+}
+
+.hero-showcase::before {
+  content: '';
+  position: absolute;
+  inset: -32% auto auto -18%;
+  width: 24rem;
+  height: 24rem;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgba(125, 211, 252, 0.3) 0%, rgba(56, 189, 248, 0.12) 40%, transparent 72%);
+  filter: blur(12px);
+  opacity: 0.75;
+  animation: hero-showcase-shift 12s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.hero-showcase::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -18%;
+  width: 18%;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.16) 50%, transparent 100%);
+  filter: blur(4px);
+  opacity: 0;
+  animation: hero-showcase-sheen 7.8s ease-in-out infinite;
+  pointer-events: none;
+  transition: opacity 220ms ease;
+}
+
+.hero-showcase:hover {
+  transform: translateY(-4px);
+  border-color: rgba(125, 211, 252, 0.38);
+  box-shadow: 0 28px 80px rgba(15, 23, 42, 0.34);
+  background-color: rgba(15, 23, 42, 0.94);
+}
+
+.hero-showcase:hover::before {
+  opacity: 0.92;
+}
+
+.hero-showcase:hover::after {
+  opacity: 0.5;
+}
+
+.hero-showcase__headline,
+.hero-showcase__copy,
+.hero-feature-panel,
+.hero-showcase__note {
+  opacity: 0;
+  animation: hero-showcase-rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.hero-showcase__headline {
+  animation-delay: 0.04s;
+  transition: transform 220ms ease, text-shadow 220ms ease, color 220ms ease;
+}
+
+.hero-showcase__copy {
+  animation-delay: 0.1s;
+  transition: transform 220ms ease, color 220ms ease;
+}
+
+.hero-feature-panel {
+  position: relative;
+  overflow: hidden;
+  transition: transform 220ms ease, border-color 220ms ease, box-shadow 220ms ease, background-color 220ms ease;
+  animation-delay: 0.22s;
+}
+
+.hero-feature-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, transparent 42%, rgba(56, 189, 248, 0.12) 100%);
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+.hero-feature-panel:hover {
+  transform: translateY(-2px);
+  border-color: rgba(125, 211, 252, 0.28);
+  box-shadow: 0 18px 60px rgba(15, 23, 42, 0.28);
+}
+
+.hero-showcase__note {
+  animation-delay: 0.34s;
+  transition: transform 220ms ease, color 220ms ease;
+}
+
+.hero-showcase:hover .hero-showcase__headline {
+  transform: translateY(-2px);
+  color: #f8fbff;
+  text-shadow: 0 0 24px rgba(125, 211, 252, 0.22);
+}
+
+.hero-showcase:hover .hero-showcase__copy,
+.hero-showcase:hover .hero-showcase__note {
+  transform: translateY(-1px);
+  color: rgba(241, 245, 249, 0.98);
+}
+
+.hero-feature-chip {
+  position: relative;
+  transition: transform 180ms ease, border-color 180ms ease, background-color 180ms ease, box-shadow 180ms ease;
+  animation: hero-showcase-rise 0.55s ease forwards, hero-chip-drift 5.5s ease-in-out infinite;
+}
+
+.hero-feature-chip:hover {
+  transform: translateY(-3px) scale(1.03);
+  border-color: rgba(125, 211, 252, 0.42);
+  background-color: rgba(148, 163, 184, 0.2);
+  box-shadow: 0 10px 24px rgba(8, 47, 73, 0.28);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-showcase::before,
+  .hero-showcase::after,
+  .hero-showcase__headline,
+  .hero-showcase__copy,
+  .hero-feature-panel,
+  .hero-showcase__note,
+  .hero-feature-chip {
+    animation: none !important;
+    opacity: 1;
+    transform: none !important;
+  }
+}
+
+@keyframes splash-road-shift {
+  0% {
+    transform: scaleX(0.72);
+    opacity: 0.4;
+  }
+  50% {
+    transform: scaleX(1);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scaleX(0.85);
+    opacity: 0.55;
+  }
+}
+
+.splash-progress {
+  width: 100%;
+  transform: translateX(-100%);
+  animation: splash-progress var(--splash-duration, 5.2s) cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.splash-orb {
+  animation: splash-float 6s ease-in-out infinite;
+}
+
+.splash-grid {
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.08) 1px, transparent 1px);
+  background-size: 42px 42px;
+  mask-image: radial-gradient(circle at center, black, transparent 78%);
+}
+
+.splash-panel {
+  animation: splash-float 5.5s ease-in-out infinite;
+}
+
+.splash-photo-wrap {
+  transform: translateZ(0);
+  animation: splash-float 6.4s ease-in-out infinite;
+}
+
+.splash-photo {
+  animation: splash-photo-pan var(--splash-duration, 5.2s) ease-in-out forwards;
+}
+
+.splash-stage {
+  animation: splash-stage var(--splash-duration, 5.2s) ease-out both;
+}
+
+.splash-flare {
+  animation: splash-headlight-pulse 2.6s ease-in-out infinite;
+}
+
+.splash-step {
+  opacity: 0;
+  animation: splash-reveal var(--splash-duration, 5.2s) ease-out both;
+}
+
+.splash-frame {
+  opacity: 0;
+  animation: splash-frame-build 5.2s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.splash-body,
+.splash-bumper,
+.splash-window {
+  opacity: 0;
+  animation: splash-body-build 5.2s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.splash-cabin {
+  opacity: 0;
+  animation: splash-cabin-build 5.2s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.splash-wheel {
+  opacity: 0;
+  animation: splash-wheel-build 5.2s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.splash-arm-left {
+  transform-origin: center top;
+  animation: splash-arm-move-left 5.2s ease-in-out infinite;
+}
+
+.splash-arm-right {
+  transform-origin: center top;
+  animation: splash-arm-move-right 5.2s ease-in-out infinite;
+}
+
+.splash-beam {
+  opacity: 0;
+  animation: splash-beam-pulse 5.2s ease-in-out infinite;
+}
+
+.splash-headlight {
+  opacity: 0;
+  animation: splash-headlight-pulse 5.2s ease-out forwards;
+}
+
+.splash-road {
+  animation: splash-road-shift 5.2s ease-in-out infinite;
+}
+
+.splash-assembly-glow {
+  animation: splash-float 4.6s ease-in-out infinite;
+}
+
+@keyframes splash-photo-pan {
+  0% {
+    transform: scale(1.06) translate3d(0, 0, 0);
+    filter: saturate(0.94) contrast(1.02);
+  }
+  45% {
+    transform: scale(1.03) translate3d(0, -1.6%, 0);
+    filter: saturate(1) contrast(1.04);
+  }
+  100% {
+    transform: scale(1.01) translate3d(0, -2.2%, 0);
+    filter: saturate(1.04) contrast(1.05);
   }
 }

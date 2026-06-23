@@ -37,6 +37,24 @@ const registerSchema = z.object({
 
 type RegisterFormValues = z.infer<typeof registerSchema>;
 
+async function sendSellerWelcomeEmail(idToken: string, email: string, name: string, password: string) {
+  const response = await fetch('/api/admin/send-seller-welcome', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${idToken}`,
+    },
+    body: JSON.stringify({ email, name, password }),
+  });
+
+  if (!response.ok) {
+    const result = (await response.json().catch(() => null)) as
+      | { error?: string }
+      | null;
+    throw new Error(result?.error || 'EMAIL_SEND_FAILED');
+  }
+}
+
 export default function RegisterPage() {
   const router = useRouter();
   const auth = useAuth();
@@ -62,19 +80,34 @@ export default function RegisterPage() {
       const userDocRef = doc(firestore, 'seller', user.uid);
       
       await setDocumentNonBlocking(userDocRef, {
+        nome: data.name,
         name: data.name,
         email: user.email,
         createdAt: serverTimestamp(),
         id: user.uid,
-        sellerType: null,
+        sellerType: 'standard',
       }, {});
+
+      let emailSent = false;
+      let emailErrorMessage: string | null = null;
+
+      try {
+        const idToken = await user.getIdToken();
+        await sendSellerWelcomeEmail(idToken, data.email, data.name, data.password);
+        emailSent = true;
+      } catch (emailError) {
+        console.error('Invio email venditore fallito:', emailError);
+        emailErrorMessage = emailError instanceof Error ? emailError.message : 'EMAIL_SEND_FAILED';
+      }
 
       // Sign out the user immediately after registration so they have to log in.
       await signOut(auth);
 
       toast({
         title: 'Registrazione completata!',
-        description: 'Ora puoi effettuare il login con le tue credenziali.',
+        description: emailSent
+          ? 'Abbiamo inviato un’email automatica con i dati di accesso. Ora puoi effettuare il login con le tue credenziali.'
+          : `Account creato correttamente, ma l'email automatica non è stata inviata.${emailErrorMessage ? ` Motivo: ${emailErrorMessage}` : ''}`,
       });
       router.push('/admin/login');
 

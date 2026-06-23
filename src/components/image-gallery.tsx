@@ -4,15 +4,21 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { isFirebaseStorageUrl } from '@/lib/utils';
+import { BrandedLoader } from '@/components/branded-loader';
 
 interface ImageGalleryProps {
   imageUrls: string[];
   startIndex?: number;
   onClose: () => void;
+  fastMode?: boolean;
 }
 
-export function ImageGallery({ imageUrls, startIndex = 0, onClose }: ImageGalleryProps) {
+export function ImageGallery({ imageUrls, startIndex = 0, onClose, fastMode = true }: ImageGalleryProps) {
   const [currentIndex, setCurrentIndex] = useState(startIndex);
+  const [isMainImageLoading, setIsMainImageLoading] = useState(true);
+  const currentImageUrl = imageUrls[currentIndex] || '';
+  const currentImageUnoptimized = isFirebaseStorageUrl(currentImageUrl);
 
   const goToPrevious = () => {
     setCurrentIndex(prevIndex => (prevIndex === 0 ? imageUrls.length - 1 : prevIndex - 1));
@@ -40,6 +46,10 @@ export function ImageGallery({ imageUrls, startIndex = 0, onClose }: ImageGaller
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [imageUrls]);
 
+  useEffect(() => {
+    setIsMainImageLoading(Boolean(currentImageUrl));
+  }, [currentImageUrl]);
+
   if (!imageUrls || imageUrls.length === 0) {
     return null;
   }
@@ -64,14 +74,23 @@ export function ImageGallery({ imageUrls, startIndex = 0, onClose }: ImageGaller
         </button>
 
         <div className="relative h-full w-full max-h-[85vh] max-w-[85vw]">
+          {isMainImageLoading ? (
+            <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/35">
+              <BrandedLoader showLabel={false} imageClassName="h-16" />
+            </div>
+          ) : null}
           <Image
             key={currentIndex}
-            src={imageUrls[currentIndex]}
+            src={currentImageUrl}
             alt={`Immagine ${currentIndex + 1}`}
             fill
             className="object-contain"
             sizes="85vw"
             priority
+            decoding="async"
+            onLoad={() => setIsMainImageLoading(false)}
+            onError={() => setIsMainImageLoading(false)}
+            unoptimized={currentImageUnoptimized}
           />
         </div>
 
@@ -101,6 +120,9 @@ export function ImageGallery({ imageUrls, startIndex = 0, onClose }: ImageGaller
                   fill
                   className="object-cover"
                   sizes="10vw"
+                  loading="lazy"
+                  decoding="async"
+                  unoptimized={isFirebaseStorageUrl(url)}
                 />
               </button>
             ))}

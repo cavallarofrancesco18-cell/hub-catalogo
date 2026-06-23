@@ -5,9 +5,9 @@ import type { User as UserData } from '@/lib/types';
 import { useMemo } from 'react';
 import { useDoc } from '@/firebase/firestore/use-doc';
 import { doc } from 'firebase/firestore';
-import { useFirestore, useMemoFirebase } from '@/firebase';
+import { useAuth, useFirestore, useMemoFirebase } from '@/firebase';
 
-export type Role = 'admin' | 'seller' | null;
+export type Role = 'admin' | 'seller' | 'agent' | null;
 
 export interface UserRoleState {
   role: Role;
@@ -24,6 +24,7 @@ const ADMIN_UID = '4E6MSEuIXZeeo3j2taWIA7LbYcw2';
  */
 export function useUserRole(): UserRoleState {
   const { user, isUserLoading: isAuthLoading } = useUser();
+  const auth = useAuth();
   const firestore = useFirestore();
 
   const sellerDocRef = useMemoFirebase(() => {
@@ -33,8 +34,20 @@ export function useUserRole(): UserRoleState {
 
   const { data: sellerData, isLoading: isSellerDataLoading } = useDoc<UserData>(sellerDocRef);
 
+  const agentDocRef = useMemoFirebase(() => {
+    if (!user || !firestore) return null;
+    return doc(firestore, 'agents', user.uid);
+  }, [user, firestore]);
+
+  const { data: agentData, isLoading: isAgentDataLoading } = useDoc<UserData>(agentDocRef);
+
   const roleState = useMemo((): UserRoleState => {
-    const isLoading = isAuthLoading || (!!user && isSellerDataLoading);
+    // Right after sign-in, auth.currentUser may already exist while provider state is still syncing.
+    const isWaitingAuthSync = !isAuthLoading && !user && Boolean(auth.currentUser);
+    const isLoading =
+      isAuthLoading ||
+      isWaitingAuthSync ||
+      (!!user && (isSellerDataLoading || isAgentDataLoading));
 
     if (isLoading) {
       return { role: null, roleData: null, isLoading: true };
@@ -61,6 +74,10 @@ export function useUserRole(): UserRoleState {
       return { role: 'seller', roleData: sellerData, isLoading: false };
     }
 
+    if (agentData) {
+      return { role: 'agent', roleData: agentData, isLoading: false };
+    }
+
     // User is authenticated but has no specific role document.
     const basicUserData: UserData = {
         id: user.uid,
@@ -70,7 +87,7 @@ export function useUserRole(): UserRoleState {
     };
     return { role: null, roleData: basicUserData, isLoading: false };
 
-  }, [isAuthLoading, isSellerDataLoading, user, sellerData]);
+  }, [isAuthLoading, isSellerDataLoading, isAgentDataLoading, user, sellerData, agentData, auth]);
 
   return roleState;
 }

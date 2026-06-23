@@ -4,7 +4,7 @@ import withPWAInit from '@ducanh2912/next-pwa';
 const withPWA = withPWAInit({
   dest: 'public',
   register: true,
-  disable: process.env.NODE_ENV === 'development',
+  disable: true,
 });
 
 const nextConfig: NextConfig = {
@@ -16,6 +16,7 @@ const nextConfig: NextConfig = {
     ignoreDuringBuilds: true,
   },
   images: {
+    qualities: [28, 35, 42, 45, 50, 55, 65, 68, 80],
     remotePatterns: [
       {
         protocol: 'https',

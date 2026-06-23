@@ -44,3 +44,7 @@ next-env.d.ts
 firebase-debug.log
 firestore-debug.log
 .vercel
+
+# local secrets and debug snapshots
+service-account.json
+.git-head-*.tsx

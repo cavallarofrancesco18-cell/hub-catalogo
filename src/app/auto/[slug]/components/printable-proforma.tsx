@@ -1,7 +1,9 @@
 'use client';
 
+import { useEffect, useState } from 'react';
+
 import type { Vehicle } from '@/lib/types';
-import { formatCurrency, formatNumber } from '@/lib/utils';
+import { formatCurrency, formatNumber, formatVehicleReference } from '@/lib/utils';
 import type { BrandingProfile } from '@/lib/branding';
 
 interface CustomerData {
@@ -38,8 +40,44 @@ interface PrintableProformaProps {
 
 export function PrintableProforma({ vehicle, customer, price, costoVultura, customerType, paymentMethod, warranty, insurance, wearAndTear, documentation, withdrawal, date, branding, logoUrl, financingCompany, numberOfInstallments, installmentAmount, totalFinancedAmount }: PrintableProformaProps) {
   
-  const { companyName, companyAddress, companyContact } = branding;
+  const { companyName, companyAddress, companyContact, printLogoWidth = 200, printLogoMaxHeight = 64 } = branding;
   const totalPrice = price + costoVultura;
+  const [resolvedLogoUrl, setResolvedLogoUrl] = useState(logoUrl);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    const loadLogoAsDataUrl = async () => {
+      if (!logoUrl) {
+        setResolvedLogoUrl('');
+        return;
+      }
+
+      try {
+        const response = await fetch(logoUrl, { mode: 'cors' });
+        const blob = await response.blob();
+        const reader = new FileReader();
+
+        reader.onloadend = () => {
+          if (!isCancelled && typeof reader.result === 'string') {
+            setResolvedLogoUrl(reader.result);
+          }
+        };
+
+        reader.readAsDataURL(blob);
+      } catch {
+        if (!isCancelled) {
+          setResolvedLogoUrl(logoUrl);
+        }
+      }
+    };
+
+    loadLogoAsDataUrl();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [logoUrl]);
 
   const DetailRow = ({ label, value }: { label: string, value: React.ReactNode }) => (
     <tr className="border-b border-gray-200">
@@ -52,11 +90,18 @@ export function PrintableProforma({ vehicle, customer, price, costoVultura, cust
     <div className="bg-white text-black p-6 text-sm" style={{ fontFamily: 'Arial, Helvetica, sans-serif', lineHeight: '1.4' }}>
       <header className="flex justify-between items-start pb-4 mb-6 border-b-2 border-gray-300">
         <div className="flex items-center gap-4">
-          {logoUrl ? (
+          {resolvedLogoUrl ? (
              <img
-              src={logoUrl}
+              src={resolvedLogoUrl}
               alt={`${companyName} Logo`}
-              style={{ width: '200px', height: 'auto', maxHeight: '64px' }}
+              style={{
+                display: 'block',
+                width: 'auto',
+                maxWidth: `${printLogoWidth}px`,
+                height: 'auto',
+                maxHeight: `${printLogoMaxHeight}px`,
+                objectFit: 'contain',
+              }}
               crossOrigin="anonymous"
             />
           ) : (
@@ -100,6 +145,12 @@ export function PrintableProforma({ vehicle, customer, price, costoVultura, cust
         <p className="mb-3">Il VENDITORE vende e cede all'ACQUIRENTE, che accetta, il seguente autoveicolo usato:</p>
         <table className="w-full text-left">
             <tbody>
+                <DetailRow
+                  label="Numero riferimento"
+                  value={
+                    formatVehicleReference(vehicle, { includePrefix: false })
+                  }
+                />
                 <DetailRow label="Marca" value={vehicle.marca} />
                 <DetailRow label="Modello" value={vehicle.modello} />
                 <DetailRow label="Versione" value={vehicle.versione} />

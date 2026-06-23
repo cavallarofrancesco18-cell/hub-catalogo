@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import type { User as UserData } from '@/lib/types';
 import {
   useFirestore,
@@ -8,9 +9,9 @@ import {
   useCollection,
   deleteDocumentNonBlocking,
   updateDocumentNonBlocking,
-  setDocumentNonBlocking
+  useUser,
 } from '@/firebase';
-import { collection, doc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { collection, doc } from 'firebase/firestore';
 import {
   Table,
   TableBody,
@@ -22,7 +23,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { format } from 'date-fns';
 import { Trash2, Loader2, UserPlus } from 'lucide-react';
 import {
   AlertDialog,
@@ -34,6 +34,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   Select,
   SelectContent,
@@ -64,8 +65,6 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { firebaseConfig } from '@/firebase/config';
-import { initializeApp, deleteApp } from 'firebase/app';
-import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 
 
 const registerSchema = z.object({
@@ -77,11 +76,14 @@ type RegisterFormValues = z.infer<typeof registerSchema>;
 
 
 export default function UsersPage() {
+  const router = useRouter();
   const firestore = useFirestore();
+  const { user: currentUser } = useUser();
   const { toast } = useToast();
+  const [showRegistrationNotice, setShowRegistrationNotice] = useState(false);
 
   const sellersRef = useMemoFirebase(
-    () => collection(firestore, 'seller'),
+    () => (firestore ? collection(firestore, 'seller') : null),
     [firestore]
   );
   const { data: sellers, isLoading, error } = useCollection<UserData>(sellersRef);
@@ -111,39 +113,155 @@ export default function UsersPage() {
     }
   }, [error, toast]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const pendingNotice = sessionStorage.getItem('seller-created');
+    if (pendingNotice === 'true') {
+      setShowRegistrationNotice(true);
+      sessionStorage.removeItem('seller-created');
+    }
+  }, []);
+
+  async function createSellerAccount(email: string, password: string) {
+    const response = await fetch(
+      `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${firebaseConfig.apiKey}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          password,
+          returnSecureToken: true,
+        }),
+      }
+    );
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result?.error?.message || 'UNKNOWN_ERROR');
+    }
+
+    return result as { localId: string; email: string; idToken: string };
+  }
+
+  async function createSellerProfile(
+    user: { localId: string; email: string; idToken: string },
+    name: string
+  ) {
+    const response = await fetch(
+      `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/seller?documentId=${user.localId}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${user.idToken}`,
+        },
+        body: JSON.stringify({
+          fields: {
+            id: { stringValue: user.localId },
+            email: { stringValue: user.email },
+            nome: { stringValue: name },
+            name: { stringValue: name },
+            sellerType: { stringValue: 'standard' },
+            createdAt: { timestampValue: new Date().toISOString() },
+          },
+        }),
+      }
+    );
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result?.error?.message || 'FIRESTORE_PROFILE_CREATE_FAILED');
+    }
+
+    return result;
+  }
+
+  async function sendSellerWelcomeEmail(email: string, name: string, password: string) {
+    if (!currentUser) {
+      throw new Error('ADMIN_NOT_AUTHENTICATED');
+    }
+
+    const adminIdToken = await currentUser.getIdToken();
+    const response = await fetch('/api/admin/send-seller-welcome', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminIdToken}`,
+      },
+      body: JSON.stringify({ email, name, password }),
+    });
+
+    if (!response.ok) {
+      const result = (await response.json().catch(() => null)) as
+        | { error?: string }
+        | null;
+      throw new Error(result?.error || 'EMAIL_SEND_FAILED');
+    }
+  }
+
   async function onRegisterSubmit(data: RegisterFormValues) {
     setIsRegistering(true);
-    const tempAppName = `auth-worker-${Date.now()}`;
-    const tempApp = initializeApp(firebaseConfig, tempAppName);
-    const tempAuth = getAuth(tempApp);
 
     try {
-        const userCredential = await createUserWithEmailAndPassword(tempAuth, data.email, data.password);
-        const user = userCredential.user;
+        const user = await createSellerAccount(data.email, data.password);
+        await createSellerProfile(user, data.name);
 
-        const userDocRef = doc(firestore, 'seller', user.uid);
-        
-        await setDoc(userDocRef, {
-            name: data.name,
-            email: user.email,
-            createdAt: serverTimestamp(),
-            id: user.uid,
-            sellerType: null,
-        });
+        let emailSent = false;
+        let emailErrorMessage: string | null = null;
+        try {
+          await sendSellerWelcomeEmail(data.email, data.name, data.password);
+          emailSent = true;
+        } catch (emailError) {
+          console.error('Invio email venditore fallito:', emailError);
+          emailErrorMessage = emailError instanceof Error ? emailError.message : 'EMAIL_SEND_FAILED';
+        }
 
         toast({
             title: 'Venditore registrato!',
-            description: `L'utente ${data.email} è stato creato e aggiunto alla lista.`,
+            description: emailSent
+              ? `L'utente ${data.email} è stato creato, aggiunto alla lista e ha ricevuto l'email con link e credenziali di accesso.`
+            : `L'utente ${data.email} è stato creato e aggiunto alla lista, ma l'email automatica non è stata inviata.${emailErrorMessage ? ` Motivo: ${emailErrorMessage}` : ''}`,
         });
 
         registrationForm.reset();
         setIsDialogOpen(false);
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('seller-created', 'true');
+        }
+        router.replace('/admin/users');
+        router.refresh();
 
     } catch (error: any) {
-        let description = 'Si è verificato un errore imprevisto.';
-        if (error.code === 'auth/email-already-in-use') {
+        console.error('Registrazione venditore fallita:', error);
+
+        let description = 'Si è verificato un errore imprevisto. Controlla la console per dettagli.';
+
+      const errorCode = error?.code || error?.message;
+
+      if (errorCode === 'auth/email-already-in-use' || errorCode === 'EMAIL_EXISTS') {
             description = 'Questo indirizzo email è già stato registrato.';
+      } else if (errorCode === 'auth/invalid-email' || errorCode === 'INVALID_EMAIL') {
+            description = "L'indirizzo email non è valido.";
+      } else if (errorCode === 'auth/weak-password' || String(errorCode).startsWith('WEAK_PASSWORD')) {
+            description = 'La password è troppo debole. Inserisci almeno 6 caratteri.';
+      } else if (errorCode === 'OPERATION_NOT_ALLOWED') {
+        description = 'La registrazione email/password non è abilitata nel progetto Firebase.';
+      } else if (errorCode === 'TOO_MANY_ATTEMPTS_TRY_LATER') {
+        description = 'Troppi tentativi. Riprova tra qualche minuto.';
+      } else if (errorCode === 'PERMISSION_DENIED') {
+        description = 'L’account è stato creato ma il profilo venditore non è stato salvato per un problema di permessi.';
+      } else if (error?.message) {
+        description = error.message;
         }
+
         toast({
             variant: 'destructive',
             title: 'Registrazione fallita',
@@ -151,7 +269,6 @@ export default function UsersPage() {
         });
     } finally {
         setIsRegistering(false);
-        await deleteApp(tempApp);
     }
   }
 
@@ -179,7 +296,7 @@ export default function UsersPage() {
       });
   };
 
-  const handleSellerTypeChange = (sellerId: string, newType: 'HUB' | 'EXPRESS' | 'MGV' | 'standard') => {
+  const handleSellerTypeChange = (sellerId: string, newType: 'hub' | 'express' | 'mgv' | 'tantibuonikm' | 'gruppodinamica' | 'standard') => {
     if (!firestore) return;
     setIsUpdating(sellerId);
     
@@ -214,7 +331,7 @@ export default function UsersPage() {
                     Aggiungi Venditore
                 </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
+            <DialogContent className="w-[95vw] max-w-[425px] sm:max-w-[425px]">
                 <DialogHeader>
                     <DialogTitle>Registra Nuovo Venditore</DialogTitle>
                     <DialogDescription>
@@ -279,15 +396,23 @@ export default function UsersPage() {
           </Dialog>
         </div>
 
-        <div className="rounded-lg border">
+        {showRegistrationNotice && (
+          <Alert className="mb-6 border-primary/30 bg-primary/5">
+            <AlertTitle>Venditore creato correttamente</AlertTitle>
+            <AlertDescription>
+              Il nuovo utente e stato aggiunto all'elenco. Ora seleziona il tipo seller dalla colonna dedicata.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        <div className="rounded-lg border overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>ID</TableHead>
+                <TableHead>Nome Completo</TableHead>
                 <TableHead>Email</TableHead>
-                <TableHead>Data Registrazione</TableHead>
                 <TableHead>Tipo Venditore</TableHead>
-                <TableHead className="w-[100px] text-right">Azioni</TableHead>
+                <TableHead className="min-w-[90px] text-right">Azioni</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -321,30 +446,27 @@ export default function UsersPage() {
               {!isLoading && !error && sellers && sellers.length > 0 ? (
                 sellers.map(seller => (
                   <TableRow key={seller.id}>
-                    <TableCell className="font-mono text-xs">{seller.id}</TableCell>
+                    <TableCell className="font-medium">{seller.nome || seller.name || '(Nome non specificato)'}</TableCell>
                     <TableCell className="font-medium">{seller.email || '(Email non specificata)'}</TableCell>
-                    <TableCell>
-                      {seller.createdAt?.toDate
-                        ? format(seller.createdAt.toDate(), 'dd/MM/yyyy')
-                        : 'N/A'}
-                    </TableCell>
                     <TableCell>
                         {isUpdating === seller.id ? (
                             <Loader2 className="h-5 w-5 animate-spin" />
                         ) : (
                             <Select
-                                value={seller.sellerType || 'standard'}
-                                onValueChange={(value: 'HUB' | 'EXPRESS' | 'MGV' | 'standard') => handleSellerTypeChange(seller.id, value)}
+                                value={seller.sellerType ? seller.sellerType.toLowerCase() : 'standard'}
+                                onValueChange={(value: 'hub' | 'express' | 'mgv' | 'tantibuonikm' | 'gruppodinamica' | 'standard') => handleSellerTypeChange(seller.id, value)}
                                 disabled={isUpdating === seller.id}
                             >
-                                <SelectTrigger className="w-[120px]">
+                              <SelectTrigger className="w-full min-w-[150px] sm:w-[180px]">
                                     <SelectValue placeholder="Seleziona tipo" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="standard">Standard</SelectItem>
-                                    <SelectItem value="HUB">HUB</SelectItem>
-                                    <SelectItem value="EXPRESS">EXPRESS</SelectItem>
-                                    <SelectItem value="MGV">MGV</SelectItem>
+                                  <SelectItem value="standard">Standard</SelectItem>
+                                  <SelectItem value="hub">HUB</SelectItem>
+                                  <SelectItem value="express">EXPRESS</SelectItem>
+                                  <SelectItem value="mgv">MGV</SelectItem>
+                                  <SelectItem value="tantibuonikm">tantibuonikm</SelectItem>
+                                  <SelectItem value="gruppodinamica">gruppodinamica</SelectItem>
                                 </SelectContent>
                             </Select>
                         )}

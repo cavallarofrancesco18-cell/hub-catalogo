@@ -35,13 +35,23 @@ const prompt = ai.definePrompt({
     name: 'generateVehicleDescriptionPrompt',
     input: { schema: GenerateVehicleDescriptionInputSchema },
     output: { format: 'text' },
-    prompt: `Sei un esperto di automobili. Il tuo compito è analizzare le immagini fornite di un veicolo e scrivere un testo che elenchi gli optional, gli allestimenti e le caratteristiche speciali che sono chiaramente visibili nelle foto.
+  prompt: `Sei un copywriter automotive senior. Scrivi una descrizione in stile annuncio moderno, elegante e commerciale, basata sui dati veicolo e su cio che e visibile nelle immagini.
 
-Focalizzati esclusivamente su ciò che puoi osservare. Non fare supposizioni o aggiungere informazioni non visibili.
+Regole fondamentali:
+- Non inventare optional, accessori o condizioni non verificabili.
+- Se un elemento non e chiaramente visibile, non citarlo come certo.
+- Tono professionale, scorrevole e orientato alla vendita, senza esagerazioni.
+- Nessun elenco puntato: testo in paragrafi brevi.
 
-Usa i dati del veicolo solo come riferimento per il contesto, ma basa la tua descrizione principalmente sull'analisi visiva delle immagini.
+Struttura richiesta:
+1) Apertura d'impatto con modello/versione e posizionamento del veicolo.
+2) Paragrafo su estetica e abitacolo (solo elementi confermati da immagini/dati).
+3) Paragrafo su utilizzo quotidiano e vantaggi pratici (es. comfort, versatilita, tecnologia visibile).
+4) Chiusura con call-to-action sobria.
 
-Dati del veicolo per contesto:
+Lunghezza target: 120-180 parole.
+
+Dati del veicolo:
 Marca: {{{marca}}}
 Modello: {{{modello}}}
 Versione: {{{versione}}}
@@ -51,6 +61,7 @@ Carburante: {{{carburante}}}
 Cambio: {{{cambio}}}
 Potenza: {{{potenza}}} CV
 Colore Esterno: {{{colore_esterno}}}
+{{#if prezzo}}Prezzo: {{{prezzo}}}{{/if}}
 
 {{#if immagini}}
 Immagini da analizzare:
@@ -59,7 +70,7 @@ Immagini da analizzare:
 {{/each}}
 {{/if}}
 
-Il risultato deve essere una descrizione concisa che mette in evidenza solo gli optional e le dotazioni visibili. Esempio: "Dotata di tetto panoramico apribile, cerchi in lega da 19 pollici, interni in pelle nera, sistema di infotainment con schermo touchscreen e fari Full LED."
+Restituisci solo il testo finale della descrizione, pronto per la scheda annuncio.
 `,
 });
 

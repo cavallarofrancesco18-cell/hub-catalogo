@@ -58,7 +58,9 @@ export default function AdminLoginPage() {
       if (role === 'admin') {
         router.replace('/admin');
       } else if (role === 'seller') {
-        router.replace('/auto');
+        router.replace('/seller');
+      } else if (role === 'agent') {
+        router.replace('/agent');
       }
     }
   }, [isRoleLoading, role, router]);
@@ -71,15 +73,18 @@ export default function AdminLoginPage() {
 
       const sellerDocRef = doc(firestore, 'seller', user.uid);
       let sellerDocSnap = await getDoc(sellerDocRef);
+      const agentDocRef = doc(firestore, 'agents', user.uid);
+      const agentDocSnap = await getDoc(agentDocRef);
 
       // Special logic to create a seller document on login if it doesn't exist for the hardcoded user
       if (user.uid === 'GNLawN0m1nN2mQdHBM7KlUPzQ222' && !sellerDocSnap.exists()) {
         await setDocumentNonBlocking(sellerDocRef, {
           id: user.uid,
           email: user.email,
+          nome: user.displayName || user.email,
           name: user.displayName || user.email,
           createdAt: serverTimestamp(),
-          sellerType: null,
+          sellerType: 'standard',
         }, {});
         // Re-fetch the document to confirm creation
         sellerDocSnap = await getDoc(sellerDocRef);
@@ -96,7 +101,13 @@ export default function AdminLoginPage() {
       // If not admin, check if they are a seller
       if (sellerDocSnap.exists()) {
         toast({ title: 'Accesso riuscito!', description: 'Verrai reindirizzato a breve.' });
-        router.replace('/auto');
+        router.replace('/seller');
+        return;
+      }
+
+      if (agentDocSnap.exists()) {
+        toast({ title: 'Accesso riuscito!', description: 'Verrai reindirizzato a breve.' });
+        router.replace('/agent');
         return;
       }
 
@@ -124,7 +135,7 @@ export default function AdminLoginPage() {
   }
   
   // Show a loader while checking auth status or if the user is already logged in and being redirected.
-  if (isRoleLoading || (role && (role === 'admin' || role === 'seller'))) {
+  if (isRoleLoading || (role && (role === 'admin' || role === 'seller' || role === 'agent'))) {
     return (
       <div className="flex h-screen w-full items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" />

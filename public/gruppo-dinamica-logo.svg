@@ -1,0 +1,31 @@
+<svg width="920" height="180" viewBox="0 0 920 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="logoFill" x1="460" y1="26" x2="460" y2="144" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F3F4F6" />
+      <stop offset="0.28" stop-color="#A3A8B3" />
+      <stop offset="0.55" stop-color="#191C23" />
+      <stop offset="1" stop-color="#06070A" />
+    </linearGradient>
+    <filter id="outerGlow" x="-40" y="-24" width="1000" height="228" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feOffset dy="2" />
+      <feGaussianBlur stdDeviation="3.5" />
+      <feColorMatrix type="matrix" values="0 0 0 0 0.85 0 0 0 0 0.87 0 0 0 0 0.92 0 0 0 0.8 0" />
+      <feBlend mode="normal" in2="SourceGraphic" result="effect1_dropShadow" />
+    </filter>
+  </defs>
+  <g filter="url(#outerGlow)">
+    <text
+      x="460"
+      y="118"
+      text-anchor="middle"
+      font-family="Times New Roman, Georgia, serif"
+      font-size="78"
+      font-weight="700"
+      letter-spacing="-1.5"
+      fill="url(#logoFill)"
+      stroke="#EEF2F7"
+      stroke-width="2.2"
+      paint-order="stroke fill"
+    >GRUPPO DINAMICA</text>
+  </g>
+</svg>

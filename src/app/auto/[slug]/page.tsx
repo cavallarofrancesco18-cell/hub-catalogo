@@ -1,30 +1,40 @@
 'use client';
 
-import { formatNumber } from '@/lib/utils';
-import { notFound, useParams } from 'next/navigation';
+import {
+  formatNumber,
+  formatVehicleReference,
+  getVehicleAddedAt,
+} from '@/lib/utils';
+import { useParams, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { VehicleDetailsClient } from './components/vehicle-details-client';
 import { Badge } from '@/components/ui/badge';
 import { useMemo, useRef, useState, useEffect } from 'react';
 import type { Vehicle, Contract, User as UserData } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
+import { BrandedLoader } from '@/components/branded-loader';
 import { useCollection } from '@/firebase/firestore/use-collection';
 import {
   collection,
   query,
   where,
   limit,
+  documentId,
   doc,
+  setDoc,
+  updateDoc,
   serverTimestamp,
   getDoc,
 } from 'firebase/firestore';
 import {
   useFirestore,
+  useDoc,
   useMemoFirebase,
   useUserRole,
-  updateDocumentNonBlocking,
   useUser,
-  setDocumentNonBlocking,
+  useFirebaseApp,
 } from '@/firebase';
+import { getStorage, ref, getDownloadURL, uploadBytes } from 'firebase/storage';
 import { format } from 'date-fns';
 import { PrintableVehicleSheet } from './components/printable-vehicle-sheet';
 import jsPDF from 'jspdf';
@@ -63,8 +73,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { getBranding, brandingProfiles } from '@/lib/branding';
+import { getBranding } from '@/lib/branding';
 import { useToast } from '@/hooks/use-toast';
+import { addFavoriteId } from '@/lib/favorites';
+import { canManageContracts, isContractCreationBlocked } from '@/lib/contract-permissions';
+import {
+  buildVehicleReservationMetadata,
+  isVehicleReservationExpired,
+  releaseExpiredVehicleReservations,
+} from '@/lib/vehicle-reservations';
 
 const proformaSchema = z
   .object({
@@ -81,6 +98,12 @@ const proformaSchema = z
     price: z.coerce
       .number()
       .positive('Il prezzo deve essere un numero positivo.'),
+    vehiclePublicPrice: z.coerce
+      .number()
+      .nonnegative('Il prezzo pubblico non può essere negativo.'),
+    vehicleMerchantPrice: z.coerce
+      .number()
+      .nonnegative('Il prezzo commerciante non può essere negativo.'),
     costoVultura: z.coerce
       .number()
       .nonnegative('Il costo non può essere negativo.')
@@ -191,8 +214,14 @@ type PriceSheetFormValues = z.infer<typeof priceSheetSchema>;
 
 export default function VehiclePage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const slug = params.slug as string;
   const { toast } = useToast();
+  const [hasMounted, setHasMounted] = useState(false);
+
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
 
   const decodedSlug = useMemo(() => {
     try {
@@ -204,29 +233,190 @@ export default function VehiclePage() {
   }, [slug]);
 
   const firestore = useFirestore();
+  const app = useFirebaseApp();
+  const storage = useMemo(
+    () => getStorage(app, 'gs://studio-3074982188-44660.firebasestorage.app'),
+    [app]
+  );
   const { user, isUserLoading } = useUser();
   const { role, roleData, isLoading: isLoadingRole } = useUserRole();
+  const [currentUserToken, setCurrentUserToken] = useState<string | null>(null);
 
   const branding = useMemo(() => {
     return getBranding(roleData);
   }, [roleData]);
 
+  const vehicleIdFromSlug = useMemo(() => {
+    const slugParts = decodedSlug.split('-');
+    return slugParts[slugParts.length - 1] || null;
+  }, [decodedSlug]);
+
+  const canAccessReservedVehicle = role === 'admin' || role === 'seller';
+  const normalizedSellerType = (roleData?.sellerType ?? '').trim().toUpperCase();
+  const canEditVehiclePrices = role === 'admin' || (role === 'seller' && normalizedSellerType === 'HUB');
+  const canViewPeriziaPdf = role === 'admin' || role === 'seller';
+  const canViewSignedContract = role === 'admin' || role === 'seller';
+  const [periziaPdfResolvedUrl, setPeriziaPdfResolvedUrl] = useState<string | null>(null);
+  const [signedContractResolvedUrl, setSignedContractResolvedUrl] = useState<string | null>(null);
+  const [isUploadingSignedContract, setIsUploadingSignedContract] = useState(false);
+  const isQrMobileView = useMemo(() => {
+    const src = searchParams.get('src');
+    const view = searchParams.get('view');
+    return src === 'qr' || view === 'mobile';
+  }, [searchParams]);
+
   const vehicleQuery = useMemoFirebase(() => {
     if (!decodedSlug || !firestore) return null;
-    return query(
-      collection(firestore, 'vehicles'),
+
+    const conditions = [
       where('slug', '==', decodedSlug),
-      limit(1)
-    );
-  }, [firestore, decodedSlug]);
+      ...(canAccessReservedVehicle
+        ? []
+        : [where('stato', '==', 'In vendita')]),
+      limit(1),
+    ];
+
+    return query(collection(firestore, 'vehicles'), ...conditions);
+  }, [firestore, decodedSlug, canAccessReservedVehicle]);
+
+  const fallbackVehicleQuery = useMemoFirebase(() => {
+    if (!vehicleIdFromSlug || !firestore) return null;
+
+    const conditions = [
+      where(documentId(), '==', vehicleIdFromSlug),
+      ...(canAccessReservedVehicle
+        ? []
+        : [where('stato', '==', 'In vendita')]),
+      limit(1),
+    ];
+
+    return query(collection(firestore, 'vehicles'), ...conditions);
+  }, [firestore, vehicleIdFromSlug, canAccessReservedVehicle]);
 
   const { data: vehicles, isLoading: loading } =
     useCollection<Vehicle>(vehicleQuery);
+  const { data: fallbackVehicles, isLoading: fallbackLoading } =
+    useCollection<Vehicle>(fallbackVehicleQuery);
 
-  const vehicle = useMemo(() => vehicles?.[0], [vehicles]);
+  const vehicle = useMemo(
+    () => vehicles?.[0] ?? fallbackVehicles?.[0],
+    [vehicles, fallbackVehicles]
+  );
+  const contractDocRef = useMemoFirebase(
+    () => (firestore && vehicle?.id && canViewSignedContract ? doc(firestore, 'contracts', vehicle.id) : null),
+    [firestore, vehicle?.id, canViewSignedContract]
+  );
+  const { data: contractData } = useDoc<Contract>(contractDocRef);
+  const hasExpiredReservation = isVehicleReservationExpired(vehicle);
+  const isVehicleLoading =
+    loading ||
+    fallbackLoading ||
+    (vehicleQuery != null && vehicles === null) ||
+    (fallbackVehicleQuery != null && fallbackVehicles === null);
   const registrationDate = vehicle?.data_immatricolazione
     ? format(new Date(vehicle.data_immatricolazione), 'dd/MM/yyyy')
     : vehicle?.anno;
+  const addedDate = vehicle ? getVehicleAddedAt(vehicle) : null;
+  const formattedAddedDate = addedDate ? format(addedDate, 'dd/MM/yyyy') : null;
+  const periziaAsset = useMemo(
+    () => vehicle?.mediaAssets?.find(
+      asset => asset.category === 'dettaglio-danni'
+        && typeof asset.url === 'string'
+        && asset.url.toLowerCase().endsWith('.pdf')
+    ),
+    [vehicle?.mediaAssets]
+  );
+  const periziaPdfStoragePath = vehicle?.periziaPdfStoragePath || periziaAsset?.storagePath || null;
+  const legacyPeriziaPdfUrl = vehicle?.periziaPdfUrl || periziaAsset?.url || null;
+  const signedContractStoragePath = contractData?.signedContractStoragePath || null;
+  const signedContractName = contractData?.signedContractName || null;
+  const legacySignedContractUrl = contractData?.signedContractUrl || null;
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    if (!user) {
+      setCurrentUserToken(null);
+      return;
+    }
+
+    user
+      .getIdToken()
+      .then(token => {
+        if (!isCancelled) {
+          setCurrentUserToken(token);
+        }
+      })
+      .catch(() => {
+        if (!isCancelled) {
+          setCurrentUserToken(null);
+        }
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [user]);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    if (!canViewPeriziaPdf) {
+      setPeriziaPdfResolvedUrl(null);
+      return;
+    }
+
+    if (!periziaPdfStoragePath) {
+      setPeriziaPdfResolvedUrl(legacyPeriziaPdfUrl);
+      return;
+    }
+
+    getDownloadURL(ref(storage, periziaPdfStoragePath))
+      .then(url => {
+        if (!isCancelled) {
+          setPeriziaPdfResolvedUrl(url);
+        }
+      })
+      .catch(() => {
+        if (!isCancelled) {
+          setPeriziaPdfResolvedUrl(legacyPeriziaPdfUrl);
+        }
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [canViewPeriziaPdf, periziaPdfStoragePath, legacyPeriziaPdfUrl, storage]);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    if (!canViewSignedContract) {
+      setSignedContractResolvedUrl(null);
+      return;
+    }
+
+    if (!signedContractStoragePath) {
+      setSignedContractResolvedUrl(legacySignedContractUrl);
+      return;
+    }
+
+    getDownloadURL(ref(storage, signedContractStoragePath))
+      .then(url => {
+        if (!isCancelled) {
+          setSignedContractResolvedUrl(url);
+        }
+      })
+      .catch(() => {
+        if (!isCancelled) {
+          setSignedContractResolvedUrl(legacySignedContractUrl);
+        }
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [canViewSignedContract, signedContractStoragePath, legacySignedContractUrl, storage]);
 
   let editPath: string | null = null;
   if (!isLoadingRole && role === 'admin' && vehicle) {
@@ -247,10 +437,28 @@ export default function VehiclePage() {
     useState<ProformaFormValues | null>(null);
   const [isGeneratingProforma, setIsGeneratingProforma] = useState(false);
   const [isBooking, setIsBooking] = useState(false);
+  const [isSavingContract, setIsSavingContract] = useState(false);
   const [existingContract, setExistingContract] = useState<Contract | null>(
     null
   );
   const [showContractSuccess, setShowContractSuccess] = useState(false);
+  const [isReleasingExpiredReservation, setIsReleasingExpiredReservation] =
+    useState(false);
+
+  useEffect(() => {
+    if (!decodedSlug) {
+      return;
+    }
+
+    setIsReleasingExpiredReservation(true);
+    void releaseExpiredVehicleReservations(vehicleIdFromSlug ?? undefined)
+      .catch(error => {
+        console.error('Failed to release expired reservation for vehicle page.', error);
+      })
+      .finally(() => {
+        setIsReleasingExpiredReservation(false);
+      });
+  }, [decodedSlug, vehicleIdFromSlug]);
 
   const proformaForm = useForm<ProformaFormValues>({
     resolver: zodResolver(proformaSchema),
@@ -262,6 +470,8 @@ export default function VehiclePage() {
       price: 0,
       customerType: 'privato',
       paymentMethod: 'bonifico',
+      vehiclePublicPrice: 0,
+      vehicleMerchantPrice: 0,
       costoVultura: '',
       warranty: 'Il veicolo viene venduto con garanzia legale di conformità per 12 mesi come da D.Lgs. 206/2005 (Codice del Consumo). L\'Acquirente si obbliga ad effettuare gli interventi di manutenzione ordinaria programmata dell\'AUTO, in conformità alle indicazioni e scadenze del libretto di manutenzione. In caso di interventi in garanzia, il venditore si obbliga ad utilizzare ricambi originali. La garanzia non opererà per quei guasti/avarie che siano stati causati dalla omessa manutenzione.',
       insurance:
@@ -302,8 +512,11 @@ export default function VehiclePage() {
   }, [numberOfInstallments, installmentAmount, paymentMethod, proformaForm]);
 
   const handleGeneratePdf = async (
-    ref: React.RefObject<HTMLDivElement>,
-    fileName: string
+    ref: React.RefObject<HTMLDivElement | null>,
+    fileName: string,
+    options?: {
+      pageMarginMm?: number;
+    }
   ) => {
     if (!ref.current) return;
   
@@ -312,6 +525,39 @@ export default function VehiclePage() {
     finalGenerationStateSetter(true);
   
     try {
+      const images = Array.from(ref.current.querySelectorAll('img'));
+      await Promise.all(
+        images.map(
+          image =>
+            new Promise<void>(resolve => {
+              const decodeIfSupported = async () => {
+                try {
+                  if (typeof image.decode === 'function') {
+                    await image.decode();
+                  }
+                } catch {
+                  // Ignore decode failures and proceed with fallback.
+                }
+                resolve();
+              };
+
+              if (image.complete) {
+                void decodeIfSupported();
+                return;
+              }
+
+              const finish = () => {
+                image.removeEventListener('load', finish);
+                image.removeEventListener('error', finish);
+                void decodeIfSupported();
+              };
+
+              image.addEventListener('load', finish, { once: true });
+              image.addEventListener('error', finish, { once: true });
+            })
+        )
+      );
+
       const canvas = await html2canvas(ref.current, {
         scale: 2,
         useCORS: true,
@@ -322,62 +568,24 @@ export default function VehiclePage() {
         format: 'a4',
       });
 
-      const margin = 15;
+      const margin = options?.pageMarginMm ?? 10;
       const pdfPageWidth = pdf.internal.pageSize.getWidth();
       const pdfPageHeight = pdf.internal.pageSize.getHeight();
-
       const contentWidth = pdfPageWidth - margin * 2;
-      
+      const contentHeight = pdfPageHeight - margin * 2;
+
       const canvasWidth = canvas.width;
       const canvasHeight = canvas.height;
-      
-      const contentHeight = (canvasHeight * contentWidth) / canvasWidth;
-      
-      let currentY = 0;
-      let pageNumber = 1;
+      const widthRatio = contentWidth / canvasWidth;
+      const heightRatio = contentHeight / canvasHeight;
+      const scale = Math.min(widthRatio, heightRatio);
+      const renderedWidth = canvasWidth * scale;
+      const renderedHeight = canvasHeight * scale;
+      const xOffset = margin + (contentWidth - renderedWidth) / 2;
+      const yOffset = margin + (contentHeight - renderedHeight) / 2;
 
-      while (currentY < contentHeight) {
-        if (pageNumber > 1) {
-            pdf.addPage();
-        }
-
-        const remainingHeightOnCanvas = canvasHeight - (currentY * canvasWidth / contentWidth);
-        const pageHeightOnPdf = pdfPageHeight - (margin * 2);
-        
-        const sourceHeightOnCanvas = Math.min(
-            (pageHeightOnPdf * canvasWidth) / contentWidth,
-            remainingHeightOnCanvas
-        );
-
-        if (sourceHeightOnCanvas <= 0) break;
-
-        const sliceCanvas = document.createElement('canvas');
-        sliceCanvas.width = canvasWidth;
-        sliceCanvas.height = sourceHeightOnCanvas;
-
-        const sliceContext = sliceCanvas.getContext('2d');
-        if (sliceContext) {
-            sliceContext.drawImage(
-                canvas,
-                0, // sourceX
-                currentY * canvasWidth / contentWidth, // sourceY
-                canvasWidth, // sourceWidth
-                sourceHeightOnCanvas, // sourceHeight
-                0, // destX
-                0, // destY
-                canvasWidth, // destWidth
-                sourceHeightOnCanvas // destHeight
-            );
-
-            const imgData = sliceCanvas.toDataURL('image/png');
-            const renderedSliceHeight = (sourceHeightOnCanvas * contentWidth) / canvasWidth;
-            pdf.addImage(imgData, 'PNG', margin, margin, contentWidth, renderedSliceHeight);
-        }
-
-        currentY += pageHeightOnPdf;
-        pageNumber++;
-      }
-  
+      const imgData = canvas.toDataURL('image/png');
+      pdf.addImage(imgData, 'PNG', xOffset, yOffset, renderedWidth, renderedHeight);
       pdf.save(fileName);
     } catch (error) {
       console.error('Errore durante la creazione del PDF:', error);
@@ -418,19 +626,25 @@ export default function VehiclePage() {
     if (vehicle) {
       await handleGeneratePdf(
         printableSheetRef,
-        `scheda-veicolo-${vehicle.slug}.pdf`
+        `scheda-veicolo-${vehicle.slug}.pdf`,
+        { pageMarginMm: 0 }
       );
     }
     hidePreview();
   };
 
-  function onProformaSubmit(values: ProformaFormValues) {
-    if (!vehicle || !user) return;
+  async function onProformaSubmit(values: ProformaFormValues) {
+    if (!vehicle || !user || !firestore) return;
 
     const contractRef = doc(firestore, 'contracts', vehicle.id);
+    const {
+      vehiclePublicPrice,
+      vehicleMerchantPrice,
+      ...contractValues
+    } = values;
 
     const dataToSave = {
-      ...values,
+      ...contractValues,
       id: vehicle.id,
       vehicleId: vehicle.id,
       creatorId: user.uid,
@@ -438,15 +652,61 @@ export default function VehiclePage() {
       ...(existingContract ? {} : { createdAt: serverTimestamp() }),
     };
 
-    setDocumentNonBlocking(contractRef, dataToSave, { merge: true });
+    setIsSavingContract(true);
 
-    setProformaCustomerData(values);
-    setShowContractSuccess(true);
-    setIsProformaFormOpen(false);
+    try {
+      if (canEditVehiclePrices) {
+        const vehicleRef = doc(firestore, 'vehicles', vehicle.id);
+        await updateDoc(vehicleRef, {
+          prezzo: Number(vehiclePublicPrice),
+          prezzoPrivati: Number(vehicleMerchantPrice),
+          updatedAt: serverTimestamp(),
+        });
+      }
+
+      await setDoc(contractRef, dataToSave, { merge: true });
+
+      setProformaCustomerData(values);
+      setShowContractSuccess(true);
+      setIsProformaFormOpen(false);
+      toast({
+        title: existingContract ? 'Contratto aggiornato' : 'Contratto creato',
+        description: canEditVehiclePrices
+          ? 'Anteprima pronta. Prezzo pubblico e commerciante aggiornati.'
+          : 'L\'anteprima del contratto è pronta.',
+      });
+    } catch (error) {
+      console.error('Error saving contract:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Salvataggio contratto fallito',
+        description: 'Impossibile salvare il contratto. Riprova.',
+      });
+    } finally {
+      setIsSavingContract(false);
+    }
   }
 
   const showProformaForm = async () => {
     if (!vehicle || !firestore || !user) return;
+
+    if (!canManageContracts(role)) {
+      toast({
+        variant: 'destructive',
+        title: 'Azione non consentita',
+        description: 'Solo admin e seller possono creare o modificare contratti.',
+      });
+      return;
+    }
+
+    if (isContractCreationBlocked(user.email)) {
+      toast({
+        variant: 'destructive',
+        title: 'Azione non consentita',
+        description: 'Questo utente non puo creare contratti.',
+      });
+      return;
+    }
 
     setIsBooking(true);
 
@@ -456,7 +716,12 @@ export default function VehiclePage() {
 
       if (contractSnap.exists()) {
         setExistingContract(contractSnap.data() as Contract);
-        proformaForm.reset(contractSnap.data() as ProformaFormValues);
+        const contractData = contractSnap.data() as Partial<ProformaFormValues>;
+        proformaForm.reset({
+          ...contractData,
+          vehiclePublicPrice: vehicle.prezzo ?? 0,
+          vehicleMerchantPrice: vehicle.prezzoPrivati ?? vehicle.prezzo ?? 0,
+        } as ProformaFormValues);
         setIsProformaFormOpen(true);
         toast({
           title: 'Contratto caricato',
@@ -476,6 +741,8 @@ export default function VehiclePage() {
             email: '',
             customerType: 'privato',
             paymentMethod: 'bonifico',
+            vehiclePublicPrice: vehicle.prezzo ?? 0,
+            vehicleMerchantPrice: vehicle.prezzoPrivati ?? vehicle.prezzo ?? 0,
             costoVultura: '',
             warranty: 'Il veicolo viene venduto con garanzia legale di conformità per 12 mesi come da D.Lgs. 206/2005 (Codice del Consumo). L\'Acquirente si obbliga ad effettuare gli interventi di manutenzione ordinaria programmata dell\'AUTO, in conformità alle indicazioni e scadenze del libretto di manutenzione. In caso di interventi in garanzia, il venditore si obbliga ad utilizzare ricambi originali. La garanzia non opererà per quei guasti/avarie che siano stati causati dalla omessa manutenzione.',
             insurance:
@@ -495,29 +762,37 @@ export default function VehiclePage() {
           setIsProformaFormOpen(true);
         };
 
-        if (vehicle.stato === 'In vendita') {
+        const effectiveVehicleStatus = hasExpiredReservation ? 'In vendita' : vehicle.stato;
+
+        if (hasExpiredReservation) {
+          await releaseExpiredVehicleReservations(vehicle.id);
+        }
+
+        if (effectiveVehicleStatus === 'In vendita') {
           const vehicleRef = doc(firestore, 'vehicles', vehicle.id);
-          await updateDocumentNonBlocking(vehicleRef, {
+          await updateDoc(vehicleRef, {
             stato: 'Prenotato',
             updatedAt: serverTimestamp(),
-            statusChangedBy: user.uid,
+            ...buildVehicleReservationMetadata({
+              uid: user.uid,
+              displayName: user.displayName,
+              email: user.email,
+            }),
           });
+          addFavoriteId(vehicle.id);
           toast({
             title: 'Veicolo Prenotato!',
             description:
               'Il veicolo è stato prenotato con successo. Compila i dati per il contratto.',
           });
           openTheForm();
-        } else if (
-          (vehicle.stato === 'Prenotato' || vehicle.stato === 'Venduto') &&
-          vehicle.statusChangedBy === user.uid
-        ) {
+        } else if (effectiveVehicleStatus === 'Prenotato' || effectiveVehicleStatus === 'Venduto') {
           openTheForm();
         } else {
           toast({
             variant: 'destructive',
             title: 'Azione non consentita',
-            description: `Lo stato attuale del veicolo (${vehicle.stato}) non permette di creare un nuovo contratto.`,
+            description: `Lo stato attuale del veicolo (${effectiveVehicleStatus}) non permette di creare un nuovo contratto.`,
           });
         }
       }
@@ -548,9 +823,115 @@ export default function VehiclePage() {
     hideProformaPreview();
   };
 
-  if (loading || isLoadingRole) {
+  const sanitizeFileName = (value: string) =>
+    value.replace(/[^a-zA-Z0-9-_\.]+/g, '_').replace(/^_+|_+$/g, '');
+
+  const handleSignedContractUpload = async (file: File) => {
+    if (!vehicle || !firestore || !user) {
+      return;
+    }
+
+    if (!canManageContracts(role)) {
+      toast({
+        variant: 'destructive',
+        title: 'Azione non consentita',
+        description: 'Solo admin e seller possono caricare il contratto firmato.',
+      });
+      return;
+    }
+
+    const isPdf =
+      file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+
+    if (!isPdf) {
+      toast({
+        variant: 'destructive',
+        title: 'Formato non valido',
+        description: 'Carica un file PDF del contratto firmato.',
+      });
+      return;
+    }
+
+    if (!contractData) {
+      toast({
+        variant: 'destructive',
+        title: 'Contratto non trovato',
+        description: 'Crea prima il contratto, poi carica la versione firmata.',
+      });
+      return;
+    }
+
+    setIsUploadingSignedContract(true);
+
+    try {
+      const normalizedName = sanitizeFileName(file.name) || `contratto-firmato-${vehicle.id}.pdf`;
+      const storagePath = `contracts/${vehicle.id}/signed/${Date.now()}-${normalizedName}`;
+      const storageRef = ref(storage, storagePath);
+
+      await uploadBytes(storageRef, file, { contentType: 'application/pdf' });
+      const downloadUrl = await getDownloadURL(storageRef);
+
+      const contractRef = doc(firestore, 'contracts', vehicle.id);
+      await setDoc(
+        contractRef,
+        {
+          id: vehicle.id,
+          vehicleId: vehicle.id,
+          creatorId: contractData.creatorId || user.uid,
+          signedContractName: file.name,
+          signedContractStoragePath: storagePath,
+          signedContractUrl: downloadUrl,
+          signedContractUploadedAt: serverTimestamp(),
+          signedContractUploadedBy: user.uid,
+          updatedAt: serverTimestamp(),
+          ...(contractData.createdAt ? {} : { createdAt: serverTimestamp() }),
+        },
+        { merge: true }
+      );
+
+      setSignedContractResolvedUrl(downloadUrl);
+      toast({
+        title: 'Contratto firmato caricato',
+        description: 'Il PDF è stato salvato e sarà disponibile in download nella scheda veicolo.',
+      });
+    } catch (error) {
+      console.error('Errore upload contratto firmato:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Upload fallito',
+        description: 'Impossibile caricare il contratto firmato. Riprova.',
+      });
+    } finally {
+      setIsUploadingSignedContract(false);
+    }
+  };
+
+  const handleSignedContractDownload = () => {
+    if (!signedContractResolvedUrl || !vehicle) {
+      toast({
+        variant: 'destructive',
+        title: 'File non disponibile',
+        description: 'Non c\'è ancora un contratto firmato da scaricare.',
+      });
+      return;
+    }
+
+    const link = document.createElement('a');
+    link.href = signedContractResolvedUrl;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.download = signedContractName || `contratto-firmato-${vehicle.slug}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  };
+
+  if (!hasMounted || !firestore || isVehicleLoading || (!vehicle && isLoadingRole) || (!vehicle && isReleasingExpiredReservation)) {
     return (
       <div className="container mx-auto px-4 py-8">
+        <div className="mb-8 flex justify-center">
+          <BrandedLoader label="Sto caricando il veicolo..." imageClassName="h-20" />
+        </div>
         <div className="mb-6">
           <Skeleton className="h-10 w-3/4" />
           <Skeleton className="h-6 w-1/2 mt-2" />
@@ -578,86 +959,145 @@ export default function VehiclePage() {
   }
 
   if (!vehicle) {
-    return notFound();
+    return (
+      <div className="container mx-auto px-4 py-12">
+        <div className="rounded-2xl border border-sky-100 bg-white p-8 text-center shadow-sm">
+          <h1 className="text-2xl font-bold text-slate-900">Annuncio non disponibile</h1>
+          <p className="mt-3 text-slate-600">
+            Il link potrebbe essere scaduto o non piu valido. Torna al catalogo per visualizzare i veicoli disponibili.
+          </p>
+          <div className="mt-6">
+            <Button asChild>
+              <Link href="/auto">Vai al catalogo</Link>
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
   }
+
+  const resolvedVehicle = vehicle;
 
   return (
     <>
-      <div className="container mx-auto px-4 py-8">
-        <div className="mb-6">
-          <h1 className="text-3xl md:text-4xl font-bold font-headline">{`${vehicle.marca} ${vehicle.modello}`}</h1>
-          <p className="text-lg text-muted-foreground">{vehicle.versione}</p>
+      <div className={isQrMobileView ? 'mx-auto max-w-md px-3 py-4 sm:px-4' : 'container mx-auto px-4 py-8'}>
+        <div className="relative overflow-hidden rounded-[2.25rem] border border-sky-100/80 bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.14),_transparent_22%),radial-gradient(circle_at_top_right,_rgba(14,165,233,0.12),_transparent_20%),linear-gradient(180deg,_rgba(255,255,255,0.98),_rgba(248,250,252,0.98))] px-5 py-8 shadow-[0_40px_120px_-70px_rgba(15,23,42,0.45)] md:px-8">
+          <div className="pointer-events-none absolute inset-0">
+            <div className="absolute -top-12 left-0 h-44 w-44 rounded-full bg-blue-300/20 blur-3xl" />
+            <div className="absolute right-0 top-0 h-52 w-52 rounded-full bg-sky-200/35 blur-3xl" />
+          </div>
+          <div className="relative mb-6">
+            <p className="text-xs font-semibold uppercase tracking-[0.4em] text-sky-700">Scheda veicolo</p>
+            <p className="mt-3 inline-flex rounded-full border border-sky-200 bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">
+              {formatVehicleReference(resolvedVehicle)}
+            </p>
+            <h1 className={isQrMobileView ? 'mt-3 text-3xl font-bold font-headline text-slate-950' : 'mt-3 text-3xl font-bold font-headline text-slate-950 md:text-5xl'}>{`${resolvedVehicle.marca} ${resolvedVehicle.modello}`}</h1>
+            <p className="mt-2 max-w-3xl text-lg text-slate-600">{resolvedVehicle.versione}</p>
+          </div>
+
+          <div>
+            <VehicleDetailsClient
+              vehicle={resolvedVehicle}
+              onPrintClick={handlePrintClick}
+              onProformaClick={showProformaForm}
+              onSignedContractUpload={handleSignedContractUpload}
+              onSignedContractDownload={handleSignedContractDownload}
+              disabled={isLoadingRole || !user}
+              editPath={editPath}
+              isBooking={isBooking}
+              isPrinting={isPrinting}
+              isUploadingSignedContract={isUploadingSignedContract}
+              signedContractAvailable={Boolean(signedContractResolvedUrl)}
+              canManageSignedContract={canManageContracts(role)}
+              isProformaButtonDisabled={false}
+              currentUserUid={user?.uid}
+              currentUserEmail={user?.email}
+              currentUserToken={currentUserToken}
+              role={role}
+              sellerType={roleData?.sellerType ?? null}
+            />
+          </div>
         </div>
 
-        <VehicleDetailsClient
-          vehicle={vehicle}
-          onPrintClick={handlePrintClick}
-          onProformaClick={showProformaForm}
-          disabled={isLoadingRole || !user}
-          editPath={editPath}
-          isBooking={isBooking}
-          isPrinting={isPrinting}
-          isProformaButtonDisabled={false}
-          currentUserUid={user?.uid}
-          role={role}
-        />
-
-        <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-8">
-          <div className="md:col-span-2">
-            <h2 className="text-2xl font-bold mb-4 font-headline">
-              Descrizione
+        <div className={isQrMobileView ? 'mt-8 grid grid-cols-1 gap-4' : 'mt-12 grid grid-cols-1 md:grid-cols-3 gap-8'}>
+          <div className="rounded-[2rem] border border-sky-100 bg-white/90 p-6 shadow-[0_30px_90px_-70px_rgba(15,23,42,0.6)] backdrop-blur-sm md:col-span-2">
+            <p className="text-xs font-semibold uppercase tracking-[0.32em] text-sky-700">Descrizione</p>
+            <h2 className="mb-4 mt-3 text-2xl font-bold font-headline text-slate-950">
+              Perizia e Note del Venditore
             </h2>
-            <p className="text-foreground/80 leading-relaxed whitespace-pre-wrap">
-              {vehicle.descrizione}
-            </p>
+            <div className="space-y-4">
+              <p className="text-base leading-8 text-slate-700 whitespace-pre-wrap md:text-[1.05rem]">
+                {resolvedVehicle.descrizione || 'Descrizione non disponibile.'}
+              </p>
+              {periziaPdfResolvedUrl && canViewPeriziaPdf ? (
+                <div className="inline-flex max-w-full flex-wrap items-center gap-3 rounded-xl border border-sky-100 bg-sky-50/60 px-4 py-3">
+                  <a
+                    href={periziaPdfResolvedUrl}
+                    download
+                    className="inline-flex items-center rounded-full bg-sky-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-500"
+                  >
+                    Scarica PDF perizia riconsegna
+                  </a>
+                </div>
+              ) : null}
+            </div>
           </div>
-          <div>
-            <h2 className="text-2xl font-bold mb-4 font-headline">
+          <div className="rounded-[2rem] border border-sky-900/40 bg-[linear-gradient(180deg,_rgba(7,19,40,1),_rgba(12,31,61,0.98))] p-6 text-white shadow-[0_35px_100px_-70px_rgba(15,23,42,1)]">
+            <p className="text-xs font-semibold uppercase tracking-[0.32em] text-sky-200/70">-</p>
+            <h2 className="mb-4 mt-3 text-2xl font-bold font-headline text-white">
               Dati Tecnici
             </h2>
             <div className="space-y-3 text-sm">
               <div className="flex justify-between">
-                <span className="font-medium text-muted-foreground">
+                <span className="font-medium text-white/60">
                   Immatricolazione
                 </span>
                 <span className="font-semibold">{registrationDate}</span>
               </div>
+              {formattedAddedDate && (
+                <div className="flex justify-between">
+                  <span className="font-medium text-white/60">
+                    Aggiunta al catalogo
+                  </span>
+                  <span className="font-semibold">{formattedAddedDate}</span>
+                </div>
+              )}
               <div className="flex justify-between">
-                <span className="font-medium text-muted-foreground">
+                <span className="font-medium text-white/60">
                   Chilometraggio
                 </span>
                 <span className="font-semibold">
-                  {formatNumber(vehicle.chilometraggio)} km
+                  {formatNumber(resolvedVehicle.chilometraggio)} km
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="font-medium text-muted-foreground">
+                <span className="font-medium text-white/60">
                   Carburante
                 </span>
-                <span className="font-semibold">{vehicle.carburante}</span>
+                <span className="font-semibold">{resolvedVehicle.carburante}</span>
               </div>
               <div className="flex justify-between">
-                <span className="font-medium text-muted-foreground">
+                <span className="font-medium text-white/60">
                   Cambio
                 </span>
-                <span className="font-semibold">{vehicle.cambio}</span>
+                <span className="font-semibold">{resolvedVehicle.cambio}</span>
               </div>
               <div className="flex justify-between">
                 <span className="font-medium text-muted-foreground">
                   Potenza
                 </span>
                 <span className="font-semibold">
-                  {vehicle.potenza} CV{' '}
-                  {vehicle.potenza_kw && `(${vehicle.potenza_kw} kW)`}
+                  {resolvedVehicle.potenza} CV{' '}
+                  {resolvedVehicle.potenza_kw && `(${resolvedVehicle.potenza_kw} kW)`}
                 </span>
               </div>
-              {vehicle.cilindrata && (
+              {resolvedVehicle.cilindrata && (
                 <div className="flex justify-between">
                   <span className="font-medium text-muted-foreground">
                     Cilindrata
                   </span>
                   <span className="font-semibold">
-                    {formatNumber(vehicle.cilindrata)} cc
+                    {formatNumber(resolvedVehicle.cilindrata)} cc
                   </span>
                 </div>
               )}
@@ -665,56 +1105,56 @@ export default function VehiclePage() {
                 <span className="font-medium text-muted-foreground">
                   Colore Esterno
                 </span>
-                <span className="font-semibold">{vehicle.colore_esterno}</span>
+                <span className="font-semibold">{resolvedVehicle.colore_esterno}</span>
               </div>
-              {vehicle.colore_interni && (
+              {resolvedVehicle.colore_interni && (
                 <div className="flex justify-between">
                   <span className="font-medium text-muted-foreground">
                     Colore Interni
                   </span>
                   <span className="font-semibold">
-                    {vehicle.colore_interni}
+                    {resolvedVehicle.colore_interni}
                   </span>
                 </div>
               )}
-              {vehicle.classe_emissioni && (
+              {resolvedVehicle.classe_emissioni && (
                 <div className="flex justify-between">
                   <span className="font-medium text-muted-foreground">
                     Classe Emissioni
                   </span>
                   <span className="font-semibold">
-                    {vehicle.classe_emissioni}
+                    {resolvedVehicle.classe_emissioni}
                   </span>
                 </div>
               )}
-              {vehicle.garanzia && (
+              {resolvedVehicle.garanzia && (
                 <div className="flex justify-between">
                   <span className="font-medium text-muted-foreground">
                     Garanzia
                   </span>
-                  <span className="font-semibold">{vehicle.garanzia}</span>
+                  <span className="font-semibold">{resolvedVehicle.garanzia}</span>
                 </div>
               )}
-              {vehicle.bollo && (
+              {resolvedVehicle.bollo && (
                 <div className="flex justify-between">
                   <span className="font-medium text-muted-foreground">
                     Bollo
                   </span>
-                  <span className="font-semibold">{vehicle.bollo}</span>
+                  <span className="font-semibold">{resolvedVehicle.bollo}</span>
                 </div>
               )}
               <div className="flex justify-between items-center">
                 <span className="font-medium text-muted-foreground">Stato</span>
                 <Badge
                   variant={
-                    vehicle.stato === 'Venduto'
+                    resolvedVehicle.stato === 'Venduto'
                       ? 'destructive'
-                      : vehicle.stato === 'Prenotato'
+                      : resolvedVehicle.stato === 'Prenotato'
                         ? 'default'
                         : 'secondary'
                   }
                 >
-                  {vehicle.stato}
+                  {resolvedVehicle.stato}
                 </Badge>
               </div>
             </div>
@@ -771,21 +1211,22 @@ export default function VehiclePage() {
 
       {/* Vehicle Sheet Preview Dialog */}
       <Dialog open={isPreviewing} onOpenChange={hidePreview}>
-        <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
+        <DialogContent className="w-[95vw] max-w-4xl h-[95vh] sm:h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Anteprima Scheda Veicolo</DialogTitle>
           </DialogHeader>
-          <div className="flex-1 overflow-auto bg-gray-300 p-8">
+          <div className="flex-1 overflow-auto bg-gray-300 p-4">
             <div
               ref={printableSheetRef}
-              className="w-[800px] mx-auto my-8 shadow-2xl"
+              className="mx-auto w-[794px] max-w-none shadow-2xl"
             >
               {finalSheetPrice !== null && (
                 <PrintableVehicleSheet
-                  vehicle={vehicle}
+                  vehicle={resolvedVehicle}
                   price={finalSheetPrice}
                   branding={branding}
                   logoUrl={branding.logoUrl}
+                  compact
                 />
               )}
             </div>
@@ -812,7 +1253,7 @@ export default function VehiclePage() {
 
       {/* Proforma Customer Data Form Dialog */}
       <Dialog open={isProformaFormOpen} onOpenChange={setIsProformaFormOpen}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Crea Contratto di Vendita</DialogTitle>
             <DialogDescription>
@@ -1136,6 +1577,55 @@ export default function VehiclePage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t pt-4">
                 <FormField
                   control={proformaForm.control}
+                  name="vehiclePublicPrice"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Prezzo pubblico catalogo (€) *</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          {...field}
+                          value={field.value ?? ''}
+                          disabled={!canEditVehiclePrices}
+                        />
+                      </FormControl>
+                      {!canEditVehiclePrices && (
+                        <FormDescription>
+                          Solo admin e seller HUB possono modificarlo.
+                        </FormDescription>
+                      )}
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={proformaForm.control}
+                  name="vehicleMerchantPrice"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Prezzo commerciante catalogo (€) *</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          {...field}
+                          value={field.value ?? ''}
+                          disabled={!canEditVehiclePrices}
+                        />
+                      </FormControl>
+                      {!canEditVehiclePrices && (
+                        <FormDescription>
+                          Solo admin e seller HUB possono modificarlo.
+                        </FormDescription>
+                      )}
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t pt-4">
+                <FormField
+                  control={proformaForm.control}
                   name="price"
                   render={({ field }) => (
                     <FormItem>
@@ -1299,11 +1789,20 @@ export default function VehiclePage() {
 
               <DialogFooter>
                 <DialogClose asChild>
-                  <Button type="button" variant="outline">
+                  <Button type="button" variant="outline" disabled={isSavingContract}>
                     Annulla
                   </Button>
                 </DialogClose>
-                <Button type="submit">Genera Anteprima Contratto</Button>
+                <Button type="submit" disabled={isSavingContract}>
+                  {isSavingContract ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Salvataggio...
+                    </>
+                  ) : (
+                    'Genera Anteprima Contratto'
+                  )}
+                </Button>
               </DialogFooter>
             </form>
           </Form>
@@ -1315,7 +1814,7 @@ export default function VehiclePage() {
         open={!!proformaCustomerData}
         onOpenChange={open => !open && hideProformaPreview()}
       >
-        <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
+        <DialogContent className="w-[95vw] max-w-4xl h-[95vh] sm:h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Anteprima Contratto di Vendita</DialogTitle>
             {showContractSuccess && (
@@ -1328,11 +1827,11 @@ export default function VehiclePage() {
           <div className="flex-1 overflow-auto bg-gray-300 p-8">
             <div
               ref={proformaSheetRef}
-              className="w-[800px] mx-auto my-8 shadow-2xl"
+              className="w-full max-w-[800px] mx-auto my-8 shadow-2xl"
             >
-              {proformaCustomerData && vehicle && (
+              {proformaCustomerData && resolvedVehicle && (
                 <PrintableProforma
-                  vehicle={vehicle}
+                  vehicle={resolvedVehicle}
                   customer={proformaCustomerData}
                   price={proformaCustomerData.price}
                   costoVultura={Number(proformaCustomerData.costoVultura) || 0}
@@ -1357,7 +1856,7 @@ export default function VehiclePage() {
                   withdrawal={proformaCustomerData.withdrawal || ''}
                   date={format(new Date(), 'dd/MM/yyyy')}
                   branding={branding}
-                  logoUrl={brandingProfiles.default.logoUrl}
+                  logoUrl={branding.logoUrl}
                 />
               )}
             </div>

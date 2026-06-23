@@ -195,7 +195,7 @@
             "string",
             "null"
           ],
-          "description": "The brand affiliation of the seller (e.g., 'HUB', 'EXPRESS', 'MGV').",
+          "description": "The brand affiliation of the seller (e.g., 'AUTOTRADE', 'EXPRESS', 'MGV').",
           "enum": [
             "HUB",
             "EXPRESS",

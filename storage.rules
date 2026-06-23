@@ -2,18 +2,65 @@ rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
-    
+    function userDoc() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid));
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
     function isAdmin() {
-      // Check for admin role in the 'Admin' collection in Firestore.
-      return request.auth != null && exists(/databases/$(database)/documents/Admin/$(request.auth.uid));
+      return isSignedIn() && (
+        request.auth.uid == '4E6MSEuIXZeeo3j2taWIA7LbYcw2'
+        || firestore.exists(/databases/(default)/documents/Admin/$(request.auth.uid))
+      );
+    }
+
+    function isSeller() {
+      return isSignedIn() && userDoc().data.role == 'seller';
+    }
+
+    function canAccessPerizie() {
+      return isAdmin() || isSeller();
+    }
+
+    function isHubSeller() {
+      return isSignedIn()
+        && firestore.exists(/databases/(default)/documents/seller/$(request.auth.uid))
+        && (
+          firestore.get(/databases/(default)/documents/seller/$(request.auth.uid)).data.sellerType == 'HUB'
+          || firestore.get(/databases/(default)/documents/seller/$(request.auth.uid)).data.sellerType == 'hub'
+        );
+    }
+
+    function isSellerProfile() {
+      return isSignedIn()
+        && firestore.exists(/databases/(default)/documents/seller/$(request.auth.uid));
+    }
+
+    function canManageContractFiles() {
+      return isAdmin() || isSellerProfile();
     }
 
     // Rule for vehicle images.
     // Public 'get' for catalog display.
-    // 'list' and 'write' for admins to manage images and use the folder import feature.
+    // 'list' and 'write' for admins to manage images.
     match /download/{vehicleId}/{allPaths=**} {
       allow get: if true;
       allow list, write: if isAdmin();
+    }
+
+    // Private perizie: visible only to registered sellers and admins.
+    match /perizie/{vehicleId}/{allPaths=**} {
+      allow get, list: if canAccessPerizie();
+      allow write: if isAdmin();
+    }
+
+    // Signed contracts uploaded after contract generation.
+    match /contracts/{vehicleId}/{allPaths=**} {
+      allow get, list: if canManageContractFiles();
+      allow write: if canManageContractFiles();
     }
 
     // Rule for form documents.
@@ -24,24 +71,37 @@ service firebase.storage {
       allow list, write: if isAdmin();
     }
 
+    // Shared HUB documents: admin and seller HUB only.
+    match /hub-documents/{ownerUid}/{allPaths=**} {
+      allow get, list: if isAdmin() || isHubSeller();
+      allow write: if isAdmin() || (isHubSeller() && request.auth.uid == ownerUid);
+    }
+
+    // Rule for newsletter attachments uploaded by admins.
+    // Files are sent via secure download URLs generated after upload.
+    match /newsletter-attachments/{adminUid}/{allPaths=**} {
+      allow get: if isAdmin();
+      allow list, write: if isAdmin();
+    }
+
+    match /agent-vehicle-reports/images/{userId}/{reportId}/{allPaths=**} {
+      allow get, list, write: if isAdmin() || (isSignedIn() && request.auth.uid == userId);
+    }
+
+    match /agent-vehicle-reports/attachments/{userId}/{reportId}/{allPaths=**} {
+      allow get, list, write: if isAdmin() || (isSignedIn() && request.auth.uid == userId);
+    }
+
     // Publicly readable logos for branding
     match /LOGHI/{allPaths=**} {
       allow get: if true;
     }
-    match /HUB - logo tutti formati_Tavola disegno 1 copia 4 (4).png {
-        allow get: if true;
-    }
-     match /logo-restart-mobility-white-300x154.png {
-        allow get: if true;
-    }
-     match /WhatsApp Image 2026-03-09 at 16.41.30.jpeg {
-        allow get: if true;
-    }
-     match /Logo-1 trasparente.png {
-        allow get: if true;
-    }
-    match /MGV_logo.png {
-      allow get: if true;
+    match /{fileName} {
+      allow get: if fileName == 'HUB - logo tutti formati_Tavola disegno 1 copia 4 (4).png'
+        || fileName == 'logo-restart-mobility-white-300x154.png'
+        || fileName == 'WhatsApp Image 2026-03-09 at 16.41.30.jpeg'
+        || fileName == 'Logo-1 trasparente.png'
+        || fileName == 'MGV_logo.png';
     }
   }
 }

@@ -31,6 +31,7 @@ function Calendar({
         ),
         nav_button_previous: "absolute left-1",
         nav_button_next: "absolute right-1",
+        chevron: "h-4 w-4",
         table: "w-full border-collapse space-y-1",
         head_row: "flex",
         head_cell:
@@ -54,12 +55,12 @@ function Calendar({
         ...classNames,
       }}
       components={{
-        IconLeft: ({ className, ...props }) => (
-          <ChevronLeft className={cn("h-4 w-4", className)} {...props} />
-        ),
-        IconRight: ({ className, ...props }) => (
-          <ChevronRight className={cn("h-4 w-4", className)} {...props} />
-        ),
+        Chevron: ({ className, orientation }) =>
+          orientation === "left" ? (
+            <ChevronLeft className={cn("h-4 w-4", className)} />
+          ) : (
+            <ChevronRight className={cn("h-4 w-4", className)} />
+          ),
       }}
       {...props}
     />
