@@ -317,7 +317,7 @@ export default function AutoPage() {
         </Sheet>
       </div>
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-4">
-        <div className="sticky top-4 h-fit">
+        <div className="sticky h-fit z-40" style={{ top: 'var(--site-header-height)' }}>
           <FilterSidebar
             brands={brands}
             models={models}
