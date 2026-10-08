@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { FirebaseClientProvider } from '@/firebase';
 import { LayoutShell } from '@/components/layout-shell';
 import { getStructuredData, siteConfig } from '@/lib/site';
+import { Analytics } from '@vercel/analytics/next';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
 
@@ -105,6 +106,7 @@ export default function RootLayout({
           <LayoutShell>{children}</LayoutShell>
           <Toaster />
         </FirebaseClientProvider>
+        <Analytics />
       </body>
     </html>
   );
