@@ -19,6 +19,13 @@ export function Footer() {
             Piattaforma dedicata alla selezione di auto usate, veicoli provenienti da noleggio a lungo termine,
             consulenza su finanziamenti, permute e servizi automotive con approccio trasparente e orientato al cliente.
           </p>
+          <address className="text-sm not-italic leading-7 text-slate-300">
+            <a href="https://www.google.com/maps/search/?api=1&query=Via+Pininfarina+64+Torino" target="_blank" rel="noopener noreferrer" className="transition hover:text-amber-300">
+              Via Pininfarina 64, Torino
+              <br />
+              All&apos;interno del piazzale MAESTRI DELLA GRANDINE
+            </a>
+          </address>
           <p className="text-sm text-slate-400">{siteUrl.replace('https://', '')}</p>
         </div>
 

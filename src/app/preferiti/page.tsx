@@ -6,21 +6,37 @@ import { collection, query, where } from 'firebase/firestore';
 import type { Vehicle } from '@/lib/types';
 import { VehicleCard } from '@/components/vehicle-card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { readFavoriteIds } from '@/lib/favorites';
+import { FAVORITES_CHANGED_EVENT, readFavoriteIdsByScope } from '@/lib/favorites';
 
 export default function FavoritesPage() {
   const firestore = useFirestore();
   const { user } = useUser();
   const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
+  const favoritePersistence = user && !user.isAnonymous ? 'persistent' : 'session';
 
   useEffect(() => {
-    setFavoriteIds(readFavoriteIds());
-  }, []);
+    setFavoriteIds(readFavoriteIdsByScope(favoritePersistence));
+
+    const handleFavoritesChanged = (event: Event) => {
+      const customEvent = event as CustomEvent<{ favoriteIds?: string[]; persistence?: string }>;
+      if (customEvent.detail?.persistence !== favoritePersistence) {
+        return;
+      }
+
+      setFavoriteIds(customEvent.detail.favoriteIds ?? []);
+    };
+
+    window.addEventListener(FAVORITES_CHANGED_EVENT, handleFavoritesChanged as EventListener);
+
+    return () => {
+      window.removeEventListener(FAVORITES_CHANGED_EVENT, handleFavoritesChanged as EventListener);
+    };
+  }, [favoritePersistence]);
 
   const favoriteVehiclesQuery = useMemoFirebase(
     () =>
       firestore && favoriteIds.length > 0
-        ? query(collection(firestore, 'vehicles'), where('id', 'in', favoriteIds))
+        ? query(collection(firestore, 'vehicles'), where('id', 'in', favoriteIds), where('adminOnly', '==', false))
         : null,
     [firestore, favoriteIds]
   );
@@ -30,6 +46,7 @@ export default function FavoritesPage() {
         ? query(
             collection(firestore, 'vehicles'),
             where('stato', '==', 'Prenotato'),
+            where('adminOnly', '==', false),
             where('statusChangedBy', '==', user.uid)
           )
         : null,

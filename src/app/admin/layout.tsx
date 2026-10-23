@@ -15,13 +15,14 @@ export default function AdminLayout({
   const pathname = usePathname();
 
   const isAuthPage = pathname === '/admin/login' || pathname === '/register';
+  const canAccess = role === 'admin';
 
   useEffect(() => {
     // We only want to run the auth check on protected pages.
-    if (!isAuthPage && !isLoading && role !== 'admin') {
+    if (!isAuthPage && !isLoading && !canAccess) {
       router.replace('/admin/login');
     }
-  }, [isLoading, role, router, isAuthPage, pathname]);
+  }, [isLoading, canAccess, router, isAuthPage, pathname]);
 
   // If we are on the login or register page, just render the content.
   if (isAuthPage) {
@@ -29,7 +30,7 @@ export default function AdminLayout({
   }
 
   // For all other admin pages, show a loader until we confirm the user's role.
-  if (isLoading || role !== 'admin') {
+  if (isLoading || !canAccess) {
     return (
       <div className="flex h-screen w-full items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -37,6 +38,6 @@ export default function AdminLayout({
     );
   }
 
-  // If the user is an admin, render the requested admin page.
+  // If the user is allowed in the admin area, render the requested page.
   return <>{children}</>;
 }

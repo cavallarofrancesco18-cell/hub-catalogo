@@ -1,28 +1,28 @@
 // Mappa marche auto → URL logo PNG trasparente (da Wikimedia o fonti ufficiali)
 // Puoi aggiungere altre marche facilmente
 export const carBrandLogos: Record<string, string> = {
-  'fiat': 'https://upload.wikimedia.org/wikipedia/commons/6/6a/Fiat_Auto_Logo.png',
+  'fiat': 'https://cdn.simpleicons.org/fiat/1f2937',
   'ford': 'https://upload.wikimedia.org/wikipedia/commons/3/3e/Ford_logo_flat.svg',
-  'audi': 'https://upload.wikimedia.org/wikipedia/commons/6/6f/Audi_logo.png',
+  'audi': 'https://cdn.simpleicons.org/audi/1f2937',
   'bmw': 'https://upload.wikimedia.org/wikipedia/commons/4/44/BMW.svg',
   'mercedes': 'https://upload.wikimedia.org/wikipedia/commons/9/90/Mercedes-Logo.svg',
-  'volkswagen': 'https://upload.wikimedia.org/wikipedia/commons/6/6d/Volkswagen_logo_2019.png',
-  'toyota': 'https://upload.wikimedia.org/wikipedia/commons/9/9d/Toyota_logo.png',
-  'renault': 'https://upload.wikimedia.org/wikipedia/commons/0/0b/Renault_2021_text_logo.png',
-  'peugeot': 'https://upload.wikimedia.org/wikipedia/commons/5/5e/Peugeot_Logo_2021.png',
+  'volkswagen': 'https://cdn.simpleicons.org/volkswagen/1f2937',
+  'toyota': 'https://cdn.simpleicons.org/toyota/1f2937',
+  'renault': 'https://cdn.simpleicons.org/renault/1f2937',
+  'peugeot': 'https://cdn.simpleicons.org/peugeot/1f2937',
   'citroen': 'https://upload.wikimedia.org/wikipedia/commons/7/7e/Citroen_2021_logo.png',
   'opel': 'https://upload.wikimedia.org/wikipedia/commons/7/70/Opel_Logo_2021.svg',
   'nissan': 'https://upload.wikimedia.org/wikipedia/commons/4/4e/Nissan_logo.png',
   'hyundai': 'https://upload.wikimedia.org/wikipedia/commons/8/87/Hyundai_Motor_Company_logo.svg',
   'kia': 'https://upload.wikimedia.org/wikipedia/commons/6/65/Kia_logo3.png',
   'honda': 'https://upload.wikimedia.org/wikipedia/commons/7/7b/Honda-logo.png',
-  'jeep': 'https://upload.wikimedia.org/wikipedia/commons/5/5c/Jeep_logo.png',
-  'alfa romeo': 'https://upload.wikimedia.org/wikipedia/commons/6/6b/Alfa_Romeo_Logo_2023.svg',
+  'jeep': 'https://cdn.simpleicons.org/jeep/1f2937',
+  'alfa romeo': '/alfa-romeo-logo.webp',
   'seat': 'https://upload.wikimedia.org/wikipedia/commons/7/7e/SEAT_2020_logo.svg',
-  'skoda': 'https://upload.wikimedia.org/wikipedia/commons/6/6d/Skoda_Auto_logo.png',
+  'skoda': 'https://cdn.simpleicons.org/skoda/1f2937',
   'mazda': 'https://upload.wikimedia.org/wikipedia/commons/6/6e/Mazda_logo_with_emblem.png',
   'dacia': 'https://upload.wikimedia.org/wikipedia/commons/7/7e/Dacia_logo_2021.png',
-  'mini': 'https://upload.wikimedia.org/wikipedia/commons/2/2e/MINI_logo.png',
+  'mini': 'https://cdn.simpleicons.org/mini/1f2937',
   'suzuki': 'https://upload.wikimedia.org/wikipedia/commons/3/3e/Suzuki_logo_2.png',
   'volvo': 'https://upload.wikimedia.org/wikipedia/commons/6/6b/Volvo-Iron-Mark-Black.svg',
   'smart': 'https://upload.wikimedia.org/wikipedia/commons/6/6a/Smart_logo.png',
@@ -31,12 +31,13 @@ export const carBrandLogos: Record<string, string> = {
   'lancia': 'https://upload.wikimedia.org/wikipedia/commons/6/6e/Lancia_Logo_2022.svg',
   'mitsubishi': 'https://upload.wikimedia.org/wikipedia/commons/6/6e/Mitsubishi_logo.png',
   'subaru': 'https://upload.wikimedia.org/wikipedia/commons/6/6e/Subaru_logo.png',
-  'land rover': 'https://upload.wikimedia.org/wikipedia/commons/6/6e/Land_Rover_logo.png',
+  'land rover': '/land-rover-logo.svg',
   'jaguar': 'https://upload.wikimedia.org/wikipedia/commons/6/6e/Jaguar_logo.png',
   'porsche': 'https://upload.wikimedia.org/wikipedia/commons/6/6e/Porsche_logo.png',
   'ferrari': 'https://upload.wikimedia.org/wikipedia/commons/6/6e/Ferrari-Logo.png',
   'maserati': 'https://upload.wikimedia.org/wikipedia/commons/6/6e/Maserati_logo.png',
   'abarth': 'https://upload.wikimedia.org/wikipedia/commons/6/6e/Abarth_logo.png',
+  'cupra': 'https://upload.wikimedia.org/wikipedia/commons/d/d5/Cupra_black.png',
 };
 
 const brandAliases: Record<string, string> = {
@@ -77,6 +78,11 @@ export function getCarBrandLogoUrl(brand: string | null | undefined): string {
   if (!normalizedBrand) return '';
 
   const canonicalBrand = brandAliases[normalizedBrand] ?? normalizedBrand;
+
+  if (carBrandLogos[canonicalBrand]) {
+    return carBrandLogos[canonicalBrand];
+  }
+
   const preferredLogo = preferredLogoUrls[canonicalBrand];
   if (preferredLogo) {
     return preferredLogo;
@@ -88,5 +94,5 @@ export function getCarBrandLogoUrl(brand: string | null | undefined): string {
     return `https://cdn.simpleicons.org/${simpleIconsSlug}/1f2937`;
   }
 
-  return carBrandLogos[canonicalBrand] ?? '';
+  return '';
 }

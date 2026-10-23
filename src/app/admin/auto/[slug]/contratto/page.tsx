@@ -1,0 +1,1 @@
+export { default } from '@/app/auto/[slug]/contratto/page';

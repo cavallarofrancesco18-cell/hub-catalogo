@@ -2,10 +2,6 @@ rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
-    function userDoc() {
-      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid));
-    }
-
     function isSignedIn() {
       return request.auth != null;
     }
@@ -18,19 +14,26 @@ service firebase.storage {
     }
 
     function isSeller() {
-      return isSignedIn() && userDoc().data.role == 'seller';
+      return isSellerProfile()
+        || (
+          isSignedIn()
+          && firestore.exists(/databases/(default)/documents/users/$(request.auth.uid))
+          && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'seller'
+        );
     }
 
     function canAccessPerizie() {
-      return isAdmin() || isSeller();
+      return isAdmin() || isSellerProfile() || isSeller();
     }
 
     function isHubSeller() {
       return isSignedIn()
         && firestore.exists(/databases/(default)/documents/seller/$(request.auth.uid))
         && (
-          firestore.get(/databases/(default)/documents/seller/$(request.auth.uid)).data.sellerType == 'HUB'
-          || firestore.get(/databases/(default)/documents/seller/$(request.auth.uid)).data.sellerType == 'hub'
+          (
+            firestore.get(/databases/(default)/documents/seller/$(request.auth.uid)).data.sellerType is string
+            && firestore.get(/databases/(default)/documents/seller/$(request.auth.uid)).data.sellerType.matches('^\\s*[Hh][Uu][Bb]\\s*$')
+          )
         );
     }
 
@@ -40,27 +43,54 @@ service firebase.storage {
     }
 
     function canManageContractFiles() {
-      return isAdmin() || isSellerProfile();
+      return isAdmin() || isHubSeller();
+    }
+
+    function isPublicVehicle(vehicleId) {
+      return firestore.exists(/databases/(default)/documents/vehicles/$(vehicleId))
+        && firestore.get(/databases/(default)/documents/vehicles/$(vehicleId)).data.adminOnly == false;
+    }
+
+    match /seller-company-logos/{sellerId}/{allPaths=**} {
+      allow get: if isAdmin() || (isSellerProfile() && request.auth.uid == sellerId);
+      allow list: if isAdmin();
+      allow write: if isAdmin()
+        && request.resource != null
+        && request.resource.size <= 4 * 1024 * 1024
+        && request.resource.contentType.matches('image/(png|jpeg|webp)');
+    }
+
+    match /seller-company-documents/{sellerId}/{allPaths=**} {
+      allow get: if isAdmin() || (isSellerProfile() && request.auth.uid == sellerId);
+      allow list: if isAdmin();
+      allow write: if isAdmin()
+        && request.resource != null
+        && request.resource.size <= 10 * 1024 * 1024
+        && request.resource.contentType == 'application/pdf';
     }
 
     // Rule for vehicle images.
     // Public 'get' for catalog display.
-    // 'list' and 'write' for admins to manage images.
+    // 'write' also for HUB sellers to manage ad media from admin pages.
     match /download/{vehicleId}/{allPaths=**} {
-      allow get: if true;
-      allow list, write: if isAdmin();
+      allow get: if isAdmin() || isPublicVehicle(vehicleId);
+      allow list: if isAdmin() || (isSeller() && isPublicVehicle(vehicleId));
+      allow write: if isAdmin() || (isHubSeller() && isPublicVehicle(vehicleId));
     }
 
     // Private perizie: visible only to registered sellers and admins.
     match /perizie/{vehicleId}/{allPaths=**} {
-      allow get, list: if canAccessPerizie();
+      allow get, list: if isAdmin() || (isSignedIn() && isPublicVehicle(vehicleId));
       allow write: if isAdmin();
     }
 
     // Signed contracts uploaded after contract generation.
+    match /contracts/{vehicleId}/signed/{allPaths=**} {
+      allow get, write: if canManageContractFiles();
+    }
+
     match /contracts/{vehicleId}/{allPaths=**} {
-      allow get, list: if canManageContractFiles();
-      allow write: if canManageContractFiles();
+      allow get, list, write: if isAdmin() || (canManageContractFiles() && isPublicVehicle(vehicleId));
     }
 
     // Rule for form documents.
@@ -90,6 +120,12 @@ service firebase.storage {
 
     match /agent-vehicle-reports/attachments/{userId}/{reportId}/{allPaths=**} {
       allow get, list, write: if isAdmin() || (isSignedIn() && request.auth.uid == userId);
+    }
+
+    // Vehicle documents: admin and sellers can read/list; only admins and HUB sellers can write.
+    match /vehicle-documents/{vehicleId}/{allPaths=**} {
+      allow get, list: if isAdmin() || (isSignedIn() && isPublicVehicle(vehicleId));
+      allow write: if (isHubSeller() && isPublicVehicle(vehicleId)) || isAdmin();
     }
 
     // Publicly readable logos for branding

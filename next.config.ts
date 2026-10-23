@@ -9,6 +9,33 @@ const withPWA = withPWAInit({
 
 const nextConfig: NextConfig = {
   /* config options here */
+  outputFileTracingIncludes: {
+    '/api/pdfjs-worker': ['./node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs'],
+  },
+  async redirects() {
+    return [{ source: '/auto', destination: '/#catalogo', permanent: true }];
+  },
+  async headers() {
+    return [
+      '/admin/:path*',
+      '/seller/:path*',
+      '/agent/:path*',
+      '/hub-documenti/:path*',
+      '/modulistica/:path*',
+      '/comunicazioni/:path*',
+      '/auto/:slug/contratto/:path*',
+      '/pdf-preview/:path*',
+      '/preferiti',
+      '/register',
+      '/trader',
+      '/logo-demo',
+      '/splash',
+      '/splash-smartphone-demo',
+    ].map(source => ({
+      source,
+      headers: [{ key: 'X-Robots-Tag', value: 'noindex, follow' }],
+    }));
+  },
   typescript: {
     ignoreBuildErrors: true,
   },

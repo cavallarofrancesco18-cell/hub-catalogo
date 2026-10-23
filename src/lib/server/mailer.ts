@@ -11,6 +11,7 @@ type TransactionalEmailAttachment = {
 type TransactionalEmailParams = {
   from: string;
   to: string;
+  cc?: string;
   subject: string;
   text: string;
   html: string;
@@ -117,6 +118,7 @@ async function buildRawEmail(params: TransactionalEmailParams) {
   const info = await transport.sendMail({
     from: params.from,
     to: params.to,
+    cc: params.cc,
     subject: params.subject,
     text: params.text,
     html: params.html,

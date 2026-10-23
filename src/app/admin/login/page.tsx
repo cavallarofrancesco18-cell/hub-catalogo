@@ -58,7 +58,7 @@ export default function AdminLoginPage() {
       if (role === 'admin') {
         router.replace('/admin');
       } else if (role === 'seller') {
-        router.replace('/seller');
+        router.replace('/auto');
       } else if (role === 'agent') {
         router.replace('/agent');
       }
@@ -101,7 +101,7 @@ export default function AdminLoginPage() {
       // If not admin, check if they are a seller
       if (sellerDocSnap.exists()) {
         toast({ title: 'Accesso riuscito!', description: 'Verrai reindirizzato a breve.' });
-        router.replace('/seller');
+        router.replace('/auto');
         return;
       }
 

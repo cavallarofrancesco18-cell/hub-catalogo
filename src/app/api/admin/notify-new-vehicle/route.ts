@@ -21,6 +21,7 @@ type SellerProfile = {
 };
 
 type VehicleNotificationPayload = {
+  adminOnly?: boolean;
   marca?: string | null;
   modello?: string | null;
   versione?: string | null;
@@ -127,6 +128,10 @@ export async function POST(request: NextRequest) {
     }
 
     const vehicle = vehicleSnapshot.data() as VehicleNotificationPayload;
+
+    if (vehicle.adminOnly === true || vehicle.stato === 'Trasferita') {
+      return NextResponse.json({ success: true, skipped: 'ADMIN_ONLY_VEHICLE' });
+    }
 
     if (vehicle.stato !== 'In vendita') {
       return NextResponse.json({ success: true, skipped: 'STATUS_NOT_FOR_SALE' });

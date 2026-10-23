@@ -18,7 +18,7 @@ function getDb() {
 
 export async function getVehicles(): Promise<Vehicle[]> {
   const db = getDb();
-  const vehiclesCol = collection(db, 'vehicles');
+  const vehiclesCol = query(collection(db, 'vehicles'), where('adminOnly', '==', false));
   const vehicleSnapshot = await getDocs(vehiclesCol);
   const vehicleList = vehicleSnapshot.docs.map(doc => ({
     ...(doc.data() as Omit<Vehicle, 'id'>),
@@ -42,7 +42,7 @@ export async function getVehicle(id: string): Promise<Vehicle | null> {
 export async function getVehicleBySlug(slug: string): Promise<Vehicle | null> {
   const db = getDb();
   const vehiclesRef = collection(db, 'vehicles');
-  const q = query(vehiclesRef, where('slug', '==', slug), limit(1));
+  const q = query(vehiclesRef, where('slug', '==', slug), where('adminOnly', '==', false), limit(1));
   const querySnapshot = await getDocs(q);
 
   if (!querySnapshot.empty) {

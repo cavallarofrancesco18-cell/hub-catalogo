@@ -52,31 +52,31 @@ export function ContactForm() {
   }
 
   return (
-    <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-[0_24px_80px_-40px_rgba(15,23,42,0.25)] sm:p-8">
+    <div className="min-w-0 break-words rounded-[2rem] border border-slate-200 bg-white p-6 shadow-[0_24px_80px_-40px_rgba(15,23,42,0.25)] sm:p-8">
       <form className="space-y-5" onSubmit={handleSubmit}>
         <div className="grid gap-5 sm:grid-cols-2">
-          <label className="space-y-2 text-sm font-medium text-slate-700">
+          <label className="block min-w-0 space-y-2 text-sm font-medium text-slate-700">
             <span>Nome</span>
             <input required value={formData.nome} onChange={event => setFormData(current => ({ ...current, nome: event.target.value }))} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-amber-400 focus:bg-white" />
           </label>
-          <label className="space-y-2 text-sm font-medium text-slate-700">
+          <label className="block min-w-0 space-y-2 text-sm font-medium text-slate-700">
             <span>Cognome</span>
             <input required value={formData.cognome} onChange={event => setFormData(current => ({ ...current, cognome: event.target.value }))} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-amber-400 focus:bg-white" />
           </label>
         </div>
 
         <div className="grid gap-5 sm:grid-cols-2">
-          <label className="space-y-2 text-sm font-medium text-slate-700">
+          <label className="block min-w-0 space-y-2 text-sm font-medium text-slate-700">
             <span>Telefono</span>
             <input required value={formData.telefono} onChange={event => setFormData(current => ({ ...current, telefono: event.target.value }))} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-amber-400 focus:bg-white" />
           </label>
-          <label className="space-y-2 text-sm font-medium text-slate-700">
+          <label className="block min-w-0 space-y-2 text-sm font-medium text-slate-700">
             <span>Email</span>
             <input required type="email" value={formData.email} onChange={event => setFormData(current => ({ ...current, email: event.target.value }))} className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-amber-400 focus:bg-white" />
           </label>
         </div>
 
-        <label className="space-y-2 text-sm font-medium text-slate-700">
+        <label className="block min-w-0 space-y-2 text-sm font-medium text-slate-700">
           <span>Messaggio</span>
           <textarea required rows={6} value={formData.messaggio} onChange={event => setFormData(current => ({ ...current, messaggio: event.target.value }))} className="w-full rounded-[1.5rem] border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-amber-400 focus:bg-white" />
         </label>

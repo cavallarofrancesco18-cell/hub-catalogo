@@ -1,7 +1,8 @@
 import { ExternalLink, Star } from 'lucide-react';
-import { googleReviewsConfig, getLatestReviewAboveFourStars } from '@/lib/google-reviews';
+import { getGoogleReviewsConfig, getLatestReviewAboveFourStars } from '@/lib/google-reviews';
 
-export function GoogleReviewsSummary() {
+export async function GoogleReviewsSummary() {
+  const googleReviewsConfig = await getGoogleReviewsConfig();
   const latestPositiveReview = getLatestReviewAboveFourStars(googleReviewsConfig.reviews);
   const hasProfileUrl = Boolean(googleReviewsConfig.profileUrl);
 

@@ -1,12 +1,11 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Vehicle } from '@/lib/types';
 import { formatCurrency, formatNumber, formatVehicleReference } from '@/lib/utils';
 import { getDirectImageUrl, getOrderedVehicleImageUrls } from '@/lib/utils';
 import { format } from 'date-fns';
 import type { BrandingProfile } from '@/lib/branding';
-import { siteUrl } from '@/lib/site';
 
 function getFileProxyUrl(fileUrl: string, fileName: string, contentType?: string) {
   const searchParams = new URLSearchParams({
@@ -27,12 +26,18 @@ interface PrintableVehicleSheetProps {
   price: number;
   branding: BrandingProfile;
   logoUrl: string;
+  companyLegalAddress?: string;
+  companyVatNumber?: string;
+  companyEmail?: string;
+  companyContact?: string;
   compact?: boolean;
 }
 
-export function PrintableVehicleSheet({ vehicle, price, branding, logoUrl, compact = false }: PrintableVehicleSheetProps) {
-  const { companyName, companyAddress, companyContact, printLogoWidth = 200, printLogoMaxHeight = 64 } = branding;
+export function PrintableVehicleSheet({ vehicle, price, branding, logoUrl, companyLegalAddress, companyVatNumber, companyEmail, companyContact, compact = false }: PrintableVehicleSheetProps) {
+  const { companyName, printLogoWidth = 200, printLogoMaxHeight = 64 } = branding;
   const orderedImageUrls = getOrderedVehicleImageUrls(vehicle);
+  const vehiclePhotoUrls = [...new Set(orderedImageUrls.map(getDirectImageUrl).filter((url): url is string => Boolean(url)))];
+  const thumbnailColumns = vehiclePhotoUrls.length > 24 ? 8 : vehiclePhotoUrls.length > 12 ? 6 : 5;
   const imageUrl = getDirectImageUrl(orderedImageUrls[0] || '');
   const coverImageProxyUrl = imageUrl
     ? getFileProxyUrl(imageUrl, `${vehicle.slug || 'veicolo'}-copertina.jpg`, 'image/jpeg')
@@ -41,22 +46,6 @@ export function PrintableVehicleSheet({ vehicle, price, branding, logoUrl, compa
   const [generatedDate, setGeneratedDate] = useState('');
   const [resolvedLogoUrl, setResolvedLogoUrl] = useState(logoUrl);
   const [resolvedCoverImageUrl, setResolvedCoverImageUrl] = useState(coverImageProxyUrl || imageUrl || '');
-
-  const publicAnnouncementUrl = useMemo(() => {
-    const baseUrl = siteUrl.replace(/\/$/, '');
-    const announcementTarget = vehicle.slug || vehicle.id;
-    return announcementTarget
-      ? `${baseUrl}/auto/${encodeURIComponent(announcementTarget)}?src=qr&view=mobile`
-      : `${baseUrl}/auto`;
-  }, [vehicle.slug, vehicle.id]);
-
-  const qrImageUrl = useMemo(() => {
-    const params = new URLSearchParams({
-      data: publicAnnouncementUrl,
-    });
-
-    return `/api/qr-code?${params.toString()}`;
-  }, [publicAnnouncementUrl]);
 
   useEffect(() => {
     setGeneratedDate(format(new Date(), 'dd/MM/yyyy HH:mm'));
@@ -101,13 +90,26 @@ export function PrintableVehicleSheet({ vehicle, price, branding, logoUrl, compa
     };
   }, [logoUrl]);
 
-  const hasAdditionalDetails = vehicle.cilindrata || vehicle.colore_interni || vehicle.classe_emissioni || vehicle.garanzia || vehicle.bollo;
   const shortDescription = vehicle.descrizione ? vehicle.descrizione.split(/[.!?]/)[0] + '.' : '';
+  const vehicleSpecifications = [
+    ...(vehicle.targa ? [{ label: 'Targa', value: vehicle.targa }] : []),
+    ...(vehicle.vin ? [{ label: 'Telaio (VIN)', value: vehicle.vin }] : []),
+    { label: 'Immatricolazione', value: registrationDate ? String(registrationDate) : '—' },
+    { label: 'Chilometraggio', value: `${formatNumber(vehicle.chilometraggio)} km` },
+    { label: 'Carburante', value: vehicle.carburante || '—' },
+    { label: 'Cambio', value: vehicle.cambio || '—' },
+    { label: 'Potenza', value: `${vehicle.potenza} CV${vehicle.potenza_kw ? ` (${vehicle.potenza_kw} kW)` : ''}` },
+    { label: 'Cilindrata', value: vehicle.cilindrata ? `${formatNumber(vehicle.cilindrata)} cc` : '—' },
+    { label: 'Colore esterno', value: vehicle.colore_esterno || '—' },
+    { label: 'Colore interni', value: vehicle.colore_interni || '—' },
+    { label: 'Classe emissioni', value: vehicle.classe_emissioni || '—' },
+    { label: 'Garanzia', value: vehicle.garanzia || '—' },
+    { label: 'Bollo', value: vehicle.bollo || '—' },
+  ];
   const sheetSpacing = compact ? 'p-3 md:p-4' : 'p-6';
   const titleSpacing = compact ? 'my-4' : 'my-6';
   const contentGap = compact ? 'gap-4' : 'gap-8';
   const cardPadding = compact ? 'p-3' : 'p-6';
-  const qrSizeClass = compact ? 'h-40 w-40' : 'h-52 w-52';
   const imageAspectRatioClass = compact ? 'aspect-[4/3]' : 'aspect-[4/3]';
   const imageObjectPositionClass = compact ? 'object-[center_52%]' : 'object-center';
   const imageColumnClass = compact ? 'col-span-7' : 'col-span-7';
@@ -125,10 +127,11 @@ export function PrintableVehicleSheet({ vehicle, price, branding, logoUrl, compa
 
 
   return (
-    <div className={`bg-white text-black ${sheetSpacing} leading-normal`} style={sheetStyle}>
+    <div className={compact ? 'space-y-5' : ''}>
+    <div data-pdf-page="true" className={`bg-white text-black ${sheetSpacing} leading-normal`} style={sheetStyle}>
       {/* Header */}
-      <header className="flex justify-between items-center pb-4 border-b-2 border-gray-200">
-        <div className="flex items-center gap-4">
+      <header className="flex items-center justify-between gap-4 pb-4 border-b-2 border-gray-200">
+        <div className="flex shrink-0 items-center gap-4">
           {resolvedLogoUrl ? (
              <img
               src={resolvedLogoUrl}
@@ -144,13 +147,23 @@ export function PrintableVehicleSheet({ vehicle, price, branding, logoUrl, compa
               crossOrigin="anonymous"
             />
           ) : (
-            <h1 className="text-xl font-bold">{companyName}</h1>
+            <div
+              aria-hidden="true"
+              style={{
+                display: 'block',
+                width: `${printLogoWidth}px`,
+                maxWidth: '100%',
+                height: `${printLogoMaxHeight}px`,
+              }}
+            />
           )}
         </div>
-        <div className="text-right text-sm">
-          <p className="font-bold">{companyName}</p>
-          <p>{companyAddress}</p>
-          <p>{companyContact}</p>
+        <div className="min-w-0 flex-1 text-right text-[10px] leading-tight">
+            <p className="text-xs font-bold">{companyName}</p>
+            {companyLegalAddress ? <p>{companyLegalAddress}</p> : null}
+            {companyVatNumber ? <p>P. IVA: {companyVatNumber}</p> : null}
+            {companyEmail ? <p>Email: {companyEmail}</p> : null}
+            {companyContact ? <p>{companyContact}</p> : null}
         </div>
       </header>
 
@@ -193,102 +206,51 @@ export function PrintableVehicleSheet({ vehicle, price, branding, logoUrl, compa
         <div className={infoColumnClass}>
           <div className={`bg-gray-50 border border-gray-200 rounded-lg ${cardPadding}`}>
             <p className={`font-bold text-gray-800 ${compact ? 'mb-3 text-3xl' : 'mb-6 text-5xl'}`}>{formatCurrency(price)}</p>
-            <div className={compact ? 'space-y-1.5 text-sm' : 'space-y-3 text-base'}>
-                <div className="flex justify-between">
-                    <span className="font-medium text-gray-500">Immatricolazione</span>
-                    <span className="font-semibold">{registrationDate}</span>
-                </div>
-                <div className="flex justify-between">
-                    <span className="font-medium text-gray-500">Chilometraggio</span>
-                    <span className="font-semibold">{formatNumber(vehicle.chilometraggio)} km</span>
-                </div>
-                <div className="flex justify-between">
-                    <span className="font-medium text-gray-500">Carburante</span>
-                    <span className="font-semibold">{vehicle.carburante}</span>
-                </div>
-                <div className="flex justify-between">
-                    <span className="font-medium text-gray-500">Cambio</span>
-                    <span className="font-semibold">{vehicle.cambio}</span>
-                </div>
-                <div className="flex justify-between">
-                    <span className="font-medium text-gray-500">Potenza</span>
-                    <span className="font-semibold">{vehicle.potenza} CV {vehicle.potenza_kw && `(${vehicle.potenza_kw} kW)`}</span>
-                </div>
-                <div className="flex justify-between">
-                    <span className="font-medium text-gray-500">Colore Esterno</span>
-                    <span className="font-semibold">{vehicle.colore_esterno}</span>
-                </div>
-            </div>
+            <dl className={compact ? 'grid grid-cols-2 gap-x-3 gap-y-2 text-[10px] leading-[1.4]' : 'space-y-3 text-base'}>
+              {vehicleSpecifications.map(specification => (
+              <div key={specification.label} className={compact ? 'min-w-0 border-b border-gray-200 pb-1.5' : 'flex justify-between gap-3 border-b border-gray-200 pb-2'}>
+                <dt className={compact ? 'text-[8px] font-medium uppercase leading-[1.4] text-gray-500' : 'font-medium text-gray-500'}>{specification.label}</dt>
+                <dd className={compact ? 'mt-0.5 min-w-0 break-words text-[10px] font-semibold leading-[1.4]' : 'font-semibold text-right'}>{specification.value}</dd>
+              </div>
+              ))}
+            </dl>
           </div>
         </div>
       </div>
       
-      {/* Short Description */}
       {shortDescription && shortDescription.length > 1 && (
-        <div className={compact ? 'mt-4' : 'mt-6'}>
-            <h3 className={`mb-2 border-b pb-2 ${compact ? 'text-xl' : 'text-2xl'} font-bold`}>Descrizione</h3>
-            <p className={`${compact ? 'text-sm' : 'text-base'} leading-relaxed text-gray-700`}>
-                {shortDescription}
-            </p>
+        <div className="mt-3">
+          <h3 className="mb-1 border-b pb-1 text-sm font-bold">Descrizione</h3>
+          <p className="text-xs leading-snug text-gray-700">{shortDescription}</p>
         </div>
       )}
 
-      {/* QR Centered Row */}
-      <div className={`mt-4 rounded-lg border border-gray-200 bg-white ${compact ? 'p-3' : 'p-5'} text-center`}>
-        <p className={`${compact ? 'text-base' : 'text-lg'} font-bold text-gray-800`}>Scansiona il QR</p>
-        <p className={`mt-1 ${compact ? 'text-xs' : 'text-sm'} text-gray-600`}>Apri l'annuncio completo sul sito pubblico.</p>
-        <div className={`mt-3 flex items-center justify-center`}>
-          <img
-            src={qrImageUrl}
-            alt={`QR code annuncio ${vehicle.marca} ${vehicle.modello}`}
-            className={`rounded-lg border border-gray-200 bg-white p-2 ${qrSizeClass}`}
-            loading="eager"
-            decoding="sync"
-          />
+      <section className="mt-3" aria-label="Tutte le foto del veicolo">
+        <div className="mb-1 flex items-center justify-between border-b pb-1">
+          <h3 className="text-sm font-bold">Foto veicolo</h3>
+          <span className="text-[10px] text-gray-500">{vehiclePhotoUrls.length} foto</span>
         </div>
-        <p className="mt-2 break-words text-xs text-gray-500">{publicAnnouncementUrl}</p>
-      </div>
-
-      {/* Additional Details */}
-      {!compact && hasAdditionalDetails && (
-          <div className="mt-6">
-            <h3 className="mb-4 border-b pb-2 text-2xl font-bold">Caratteristiche Principali</h3>
-            <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-base">
-            
-            {vehicle.cilindrata && (
-                <div className="flex justify-between py-2 border-b">
-                <span className="font-medium text-gray-500">Cilindrata</span>
-                <span className="font-semibold">{formatNumber(vehicle.cilindrata)} cc</span>
+        <div className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${thumbnailColumns}, minmax(0, 1fr))` }}>
+          {vehiclePhotoUrls.map((photoUrl, index) => {
+            const photoProxyUrl = getFileProxyUrl(photoUrl, `${vehicle.slug || 'veicolo'}-foto-${index + 1}`);
+            return (
+              <figure key={`${photoUrl}-${index}`} className="min-w-0">
+                <div className="relative overflow-hidden rounded border border-gray-200 bg-gray-100" style={{ aspectRatio: '16 / 10' }}>
+                  <img
+                    src={photoProxyUrl}
+                    alt={`Foto ${index + 1} ${vehicle.marca} ${vehicle.modello}`}
+                    className="absolute inset-0 h-full w-full object-cover"
+                    loading="eager"
+                    decoding="sync"
+                    crossOrigin="anonymous"
+                  />
                 </div>
-            )}
-            {vehicle.colore_interni && (
-                <div className="flex justify-between py-2 border-b">
-                <span className="font-medium text-gray-500">Colore Interni</span>
-                <span className="font-semibold">{vehicle.colore_interni}</span>
-                </div>
-            )}
-            {vehicle.classe_emissioni && (
-                <div className="flex justify-between py-2 border-b">
-                <span className="font-medium text-gray-500">Classe Emissioni</span>
-                <span className="font-semibold">{vehicle.classe_emissioni}</span>
-                </div>
-            )}
-            {vehicle.garanzia && (
-                <div className="flex justify-between py-2 border-b">
-                <span className="font-medium text-gray-500">Garanzia</span>
-                <span className="font-semibold">{vehicle.garanzia}</span>
-                </div>
-            )}
-            {vehicle.bollo && (
-                <div className="flex justify-between py-2 border-b">
-                <span className="font-medium text-gray-500">Bollo</span>
-                <span className="font-semibold">{vehicle.bollo}</span>
-                </div>
-            )}
-            </div>
+                <figcaption className="mt-0.5 text-center text-[8px] text-gray-500">{index + 1}</figcaption>
+              </figure>
+            );
+          })}
         </div>
-      )}
-
+      </section>
 
       {/* Footer */}
       <footer className={`${compact ? 'mt-4' : 'mt-8'} border-t pt-4 text-center text-sm text-gray-500`}>
@@ -299,6 +261,7 @@ export function PrintableVehicleSheet({ vehicle, price, branding, logoUrl, compa
           <p className="mt-2">Scheda generata il: {generatedDate}</p>
         )}
       </footer>
+    </div>
     </div>
   );
 }

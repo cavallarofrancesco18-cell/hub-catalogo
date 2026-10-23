@@ -64,7 +64,7 @@ import { useToast } from '@/hooks/use-toast';
 import type { Form as FormType, User as SellerUser } from '@/lib/types';
 import { canPreviewDocumentFile, DocumentPreviewContent, getDocumentOpenUrl, getDocumentProxyUrl } from '@/components/document-preview-content';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Code2, Download, Eye, FileText, Loader2, Mail, Paperclip, SendHorizontal, Trash2, Upload, UploadCloud, Users, X } from 'lucide-react';
+import { Code2, Download, Eye, FileText, Loader2, Mail, Paperclip, Search, SendHorizontal, Trash2, Upload, UploadCloud, Users, X } from 'lucide-react';
 import { deleteDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { Progress } from '@/components/ui/progress';
 import {
@@ -145,6 +145,13 @@ const SELLER_TYPE_OPTIONS = [
 function normalizeSellerType(value?: string | null) {
   const normalized = value?.trim().toLowerCase();
   return !normalized || normalized === 'standard' ? 'standard' : normalized;
+}
+
+function normalizeSellerSearch(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLocaleLowerCase('it-IT');
 }
 
 function formatHistoryDate(value: string | null) {
@@ -338,7 +345,7 @@ export default function ModulisticaPage() {
   const firestore = useFirestore();
   const app = useFirebaseApp();
   const { user } = useUser();
-  const { role, isLoading: isLoadingRole } = useUserRole();
+  const { role, isLoading: isLoadingRole, isPlatformAdmin } = useUserRole();
   const storage = useMemo(() => getStorage(app, 'gs://studio-3074982188-44660.firebasestorage.app'), [app]);
   const { toast } = useToast();
 
@@ -352,6 +359,7 @@ export default function ModulisticaPage() {
   const [isLoadingGroups, setIsLoadingGroups] = useState(false);
   const [isSavingGroup, setIsSavingGroup] = useState(false);
   const [groupName, setGroupName] = useState('');
+  const [newsletterSellerSearch, setNewsletterSellerSearch] = useState('');
   const [newsletterAttachmentItems, setNewsletterAttachmentItems] = useState<UploadItem[]>([]);
   const [isDraggingNewsletterAttachments, setIsDraggingNewsletterAttachments] = useState(false);
   const [uploadItem, setUploadItem] = useState<UploadItem | null>(null);
@@ -362,8 +370,8 @@ export default function ModulisticaPage() {
   const formsRef = useMemoFirebase(() => { if (!firestore || !user) return null; return collection(firestore, 'forms'); }, [firestore, user]);
   const { data: forms, isLoading: isLoadingForms } = useCollection<FormType>(formsRef);
   const sellersRef = useMemoFirebase(
-    () => (firestore && user && role === 'admin' ? collection(firestore, 'seller') : null),
-    [firestore, user, role]
+    () => (firestore && user && isPlatformAdmin ? collection(firestore, 'seller') : null),
+    [firestore, user, isPlatformAdmin]
   );
   const { data: sellers, isLoading: isLoadingSellers } = useCollection<SellerUser>(sellersRef);
 
@@ -393,7 +401,7 @@ export default function ModulisticaPage() {
     },
   });
 
-  const isAdmin = role === 'admin';
+  const canManageCommunications = isPlatformAdmin;
   const hasUploadingItem = uploadItem?.status === 'uploading';
   const watchedNewsletter = newsletterForm.watch();
 
@@ -436,13 +444,21 @@ export default function ModulisticaPage() {
     () => (sellers ?? []).filter(seller => selectedSellerIds.includes(seller.id)),
     [selectedSellerIds, sellers]
   );
+  const visibleSpecificSellers = useMemo(() => {
+    const searchTokens = normalizeSellerSearch(newsletterSellerSearch).trim().split(/\s+/).filter(Boolean);
+    return (sellers ?? []).filter(seller => {
+      if (!seller.email?.trim()) return false;
+      const searchableName = normalizeSellerSearch(`${seller.nome ?? ''} ${seller.name ?? ''}`);
+      return searchTokens.every(token => searchableName.includes(token));
+    });
+  }, [newsletterSellerSearch, sellers]);
 
   const hasUploadingNewsletterAttachments = newsletterAttachmentItems.some(
     item => item.status === 'uploading'
   );
 
   const loadNewsletterHistory = async () => {
-    if (!user || role !== 'admin') {
+    if (!user || !isPlatformAdmin) {
       setNewsletterHistory([]);
       return;
     }
@@ -1131,7 +1147,7 @@ export default function ModulisticaPage() {
         <h1 className="text-3xl font-bold font-headline">Comunicazioni</h1>
       </div>
 
-      {isAdmin && (
+      {canManageCommunications && (
         <Card className="mb-8 overflow-hidden border-0 shadow-lg shadow-slate-200/60">
           <CardHeader className="border-b bg-gradient-to-r from-slate-900 via-slate-800 to-blue-700 text-white">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
@@ -1392,9 +1408,19 @@ export default function ModulisticaPage() {
                               <p className="text-sm text-muted-foreground">
                                 I venditori selezionati qui vengono inclusi anche se non rientrano nel filtro per tipo seller.
                               </p>
+                              <div className="relative">
+                                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                                <Input
+                                  aria-label="Cerca venditore per nome e cognome"
+                                  placeholder="Cerca per nome e cognome"
+                                  value={newsletterSellerSearch}
+                                  onChange={event => setNewsletterSellerSearch(event.target.value)}
+                                  className="pl-9"
+                                />
+                              </div>
                               <div className="max-h-64 overflow-y-auto rounded-2xl border p-4">
                                 <div className="space-y-3">
-                                  {(sellers ?? []).filter(seller => !!seller.email?.trim()).map(seller => {
+                                  {visibleSpecificSellers.length > 0 ? visibleSpecificSellers.map(seller => {
                                     const checked = selectedSellerIds.includes(seller.id);
                                     return (
                                       <label key={seller.id} className="flex items-start gap-3 text-sm">
@@ -1418,7 +1444,11 @@ export default function ModulisticaPage() {
                                         </span>
                                       </label>
                                     );
-                                  })}
+                                  }) : (
+                                    <p className="text-sm text-muted-foreground">
+                                      {isLoadingSellers ? 'Caricamento venditori...' : 'Nessun venditore trovato.'}
+                                    </p>
+                                  )}
                                 </div>
                               </div>
                             </div>
@@ -1554,7 +1584,7 @@ export default function ModulisticaPage() {
         </Card>
       )}
 
-      {isAdmin && (
+      {canManageCommunications && (
         <Card className="mb-8">
           <CardHeader className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
@@ -1681,7 +1711,7 @@ export default function ModulisticaPage() {
         </Card>
       )}
 
-      {isAdmin && (
+      {canManageCommunications && (
         <Card className="mb-8">
           <CardHeader>
             <CardTitle>Aggiungi Nuovo Documento</CardTitle>
@@ -1864,10 +1894,10 @@ export default function ModulisticaPage() {
                 <TabsTrigger value="commerciante">Per il Commerciante</TabsTrigger>
         </TabsList>
         <TabsContent value="cliente">
-            {isLoading ? <Skeleton className="h-24 w-full" /> : <FormList forms={clientForms} isAdmin={isAdmin} onDelete={handleDelete} />}
+            {isLoading ? <Skeleton className="h-24 w-full" /> : <FormList forms={clientForms} isAdmin={canManageCommunications} onDelete={handleDelete} />}
         </TabsContent>
         <TabsContent value="commerciante">
-            {isLoading ? <Skeleton className="h-24 w-full" /> : <FormList forms={merchantForms} isAdmin={isAdmin} onDelete={handleDelete} />}
+            {isLoading ? <Skeleton className="h-24 w-full" /> : <FormList forms={merchantForms} isAdmin={canManageCommunications} onDelete={handleDelete} />}
         </TabsContent>
       </Tabs>
     </div>

@@ -8,6 +8,9 @@ export type BrandingProfile = {
   brandName?: string;
   companyAddress: string;
   companyContact: string;
+  companyVatNumber?: string;
+  companyEmail?: string;
+  companyPhone?: string;
   printLogoWidth?: number;
   printLogoMaxHeight?: number;
 };
@@ -29,8 +32,11 @@ export const brandingProfiles: {
     logoUrl: AUTOTRADE_LOGO_URL,
     companyName: 'HUB srl',
     brandName: 'AUTOTRADE',
-    companyAddress: 'Corso Vittorio Emanuele II 71, 10128 - Torino (TO)',
+    companyAddress: 'Sede Legale: Corso Vittorio Emanuele II 71, - Torino (TO) Sede Operativa: Via Pininfarina 64/C interno cortile, Torino (TO)',
     companyContact: 'P.iva:12512480017 mail:amministrazione@hubmobility.it tel:0110252664',
+    companyVatNumber: '12512480017',
+    companyEmail: 'amministrazione@hubmobility.it',
+    companyPhone: 'Tel. 011 025 2664',
   },
   express: {
     logoUrl: EXPRESS_LOGO_URL,
@@ -62,23 +68,27 @@ export const brandingProfiles: {
 
 export const getBranding = (user?: User | null): BrandingProfile => {
   const normalizedSellerType = user?.sellerType?.toUpperCase();
+  let profile: BrandingProfile;
 
   if (normalizedSellerType === 'EXPRESS') {
-    return brandingProfiles.express;
+    profile = brandingProfiles.express;
+  } else if (normalizedSellerType === 'MGV') {
+    profile = brandingProfiles.mgv;
+  } else if (normalizedSellerType === 'TANTIBUONIKM') {
+    profile = brandingProfiles.tantibuonikm;
+  } else if (normalizedSellerType === 'GRUPPODINAMICA') {
+    profile = brandingProfiles.gruppodinamica;
+  } else {
+    profile = brandingProfiles.default;
   }
-  if (normalizedSellerType === 'MGV') {
-    return brandingProfiles.mgv;
-  }
-  if (normalizedSellerType === 'TANTIBUONIKM') {
-    return brandingProfiles.tantibuonikm;
-  }
-  if (normalizedSellerType === 'GRUPPODINAMICA') {
-    return brandingProfiles.gruppodinamica;
-  }
-  // Admins and sellers on the default channel use the AUTOTRADE branding
-  if (normalizedSellerType === 'HUB') {
-    return brandingProfiles.default;
-  }
-  // Default for non-typed sellers and logged-out users
-  return brandingProfiles.default;
+
+  const hasCustomCompany = Boolean(user?.companyName?.trim());
+  const hasKnownBranding = ['HUB', 'EXPRESS', 'MGV', 'TANTIBUONIKM', 'GRUPPODINAMICA'].includes(normalizedSellerType ?? '');
+  const hasCustomSellerType = hasCustomCompany && !hasKnownBranding;
+  return {
+    ...profile,
+    companyName: user?.companyName?.trim() || profile.companyName,
+    logoUrl: user?.companyLogoUrl?.trim() || (hasCustomSellerType ? '' : profile.logoUrl),
+    ...(hasCustomSellerType ? { companyAddress: '', companyContact: '' } : {}),
+  };
 };

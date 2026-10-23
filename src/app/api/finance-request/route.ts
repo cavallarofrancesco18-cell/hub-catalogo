@@ -46,7 +46,6 @@ export async function POST(request: Request) {
   const anticipo = clean(payload.anticipo);
   const messaggio = clean(payload.messaggio);
 
-  const recipient = process.env.FINANCE_REQUEST_TO?.trim() || 'hubcatalogo.notifiche@gmail.com';
   const from = process.env.SMTP_FROM || 'AutoTrade HUB <no-reply@autotrade.local>';
 
   const subject = `Nuova richiesta consulenza finanziaria da ${nome} ${cognome}`;
@@ -90,7 +89,8 @@ export async function POST(request: Request) {
   try {
     await sendTransactionalEmail({
       from,
-      to: recipient,
+      to: 'francis.sassone@hubmobility.it',
+      cc: 'hubcatalogo.notifiche@gmail.com',
       subject,
       text,
       html,

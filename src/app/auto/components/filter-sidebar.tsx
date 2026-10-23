@@ -3,19 +3,21 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { formatCurrency } from '@/lib/utils';
+import { Checkbox } from '@/components/ui/checkbox';
+import { formatCurrency, formatNumber } from '@/lib/utils';
 import type { Vehicle } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { Heart } from 'lucide-react';
 
 interface FilterSidebarProps {
   brands: string[];
   models: string[];
   filters: {
     searchText: string;
+    favoritesOnly: boolean;
     brand: string;
     model: string;
     fuel: string;
@@ -26,22 +28,38 @@ interface FilterSidebarProps {
   setFilters: React.Dispatch<React.SetStateAction<FilterSidebarProps['filters']>>;
   sortBy: string;
   setSortBy: React.Dispatch<React.SetStateAction<string>>;
+  favoriteCount?: number;
   priceRange: [number, number];
   mileageRange: [number, number];
   disabled: boolean;
   layout?: 'vertical' | 'horizontal';
   tone?: 'default' | 'dark';
   className?: string;
+  enableAdvancedInternalScroll?: boolean;
+  compactMobile?: boolean;
 }
 
-export function FilterSidebar({ brands, models, filters, setFilters, sortBy, setSortBy, priceRange, mileageRange, disabled, layout = 'vertical', tone = 'default', className }: FilterSidebarProps) {
+      export function FilterSidebar({ brands, models, filters, setFilters, sortBy, setSortBy, favoriteCount = 0, priceRange, mileageRange, disabled, layout = 'vertical', tone = 'default', className, enableAdvancedInternalScroll = false, compactMobile = false }: FilterSidebarProps) {
   const isHorizontal = layout === 'horizontal';
   const isDarkSurface = tone === 'dark';
+  const isMobileCompact = compactMobile && !isHorizontal;
   const isCompactActions = isHorizontal || isDarkSurface;
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const compactControlClass = isHorizontal ? 'h-9 text-sm' : '';
-  const compactLabelClass = isHorizontal ? 'text-[11px] font-medium' : '';
+  const shouldUseInternalScroll = enableAdvancedInternalScroll && !isHorizontal;
+  const compactControlClass = cn(
+    isHorizontal && 'h-9 text-sm',
+    isMobileCompact && 'h-8 text-xs'
+  );
+  const compactLabelClass = cn(
+    isHorizontal && 'text-[11px] font-medium',
+    isMobileCompact && 'text-[11px] font-semibold'
+  );
   const labelClass = cn(compactLabelClass, isDarkSurface ? 'text-sky-100' : '');
+  const nativeSelectClass = cn(
+    'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
+    compactControlClass,
+    isDarkSurface && 'border-sky-200/30 bg-white text-slate-900'
+  );
 
   
   const handleFilterChange = (key: keyof typeof filters, value: any) => {
@@ -64,7 +82,7 @@ export function FilterSidebar({ brands, models, filters, setFilters, sortBy, set
       return;
     }
 
-    const parsed = Number(nextValue);
+    const parsed = Number(nextValue.replace(/[^\d-]/g, ''));
 
     setFilters(prev => {
       if (Number.isNaN(parsed)) {
@@ -89,7 +107,7 @@ export function FilterSidebar({ brands, models, filters, setFilters, sortBy, set
     });
   };
   
-  const fuelOptions: Vehicle['carburante'][] = ['Benzina', 'Diesel', 'Elettrica', 'Ibrida'];
+  const fuelOptions: Vehicle['carburante'][] = ['Benzina', 'GPL', 'Diesel', 'Elettrica', 'Ibrida'];
   const transmissionOptions: Vehicle['cambio'][] = ['Manuale', 'Automatico'];
   const advancedButtonLabel = isCompactActions
     ? showAdvanced
@@ -103,6 +121,7 @@ export function FilterSidebar({ brands, models, filters, setFilters, sortBy, set
     setFilters(prev => ({
       ...prev,
       searchText: '',
+      favoritesOnly: false,
       brand: 'all',
       model: 'all',
       fuel: 'all',
@@ -115,16 +134,18 @@ export function FilterSidebar({ brands, models, filters, setFilters, sortBy, set
 
   return (
     <Card className={cn('h-fit home-filter-card', isHorizontal && 'home-filter-toolbar', className)}>
-      <CardHeader className={cn(isHorizontal && 'px-4 py-2 pb-1')}>
-        <div className="flex items-center justify-between gap-3">
-          <CardTitle className={cn(isHorizontal && 'text-sm', isDarkSurface && 'text-slate-50')}>Ricerca Auto</CardTitle>
-          <div className="flex shrink-0 items-center gap-1.5">
+      <CardHeader className={cn(isHorizontal && 'px-4 py-2 pb-1', isMobileCompact && 'px-3 py-3 pb-2')}>
+        <div className={cn('gap-3', isHorizontal ? 'flex items-center justify-between' : 'flex flex-wrap items-start justify-between')}>
+          <CardTitle className={cn(isHorizontal && 'text-sm', isMobileCompact && 'text-base leading-none', isDarkSurface && 'text-slate-50')}>Ricerca Auto</CardTitle>
+          <div className={cn('flex shrink-0 items-center gap-1.5', !isHorizontal && 'ml-auto flex-wrap justify-end')}>
             <Button
               type="button"
               variant="secondary"
               size="sm"
               className={cn(
                 isCompactActions && 'h-7 px-2 text-[11px] leading-none',
+                isMobileCompact && 'h-6 px-2 text-[10px]',
+                'whitespace-nowrap',
                 isDarkSurface && 'border border-sky-200/30 bg-sky-400/15 text-sky-50 hover:bg-sky-400/25'
               )}
               onClick={() => setShowAdvanced(current => !current)}
@@ -138,6 +159,8 @@ export function FilterSidebar({ brands, models, filters, setFilters, sortBy, set
               size="sm"
               className={cn(
                 isCompactActions && 'h-7 px-2 text-[11px] leading-none',
+                isMobileCompact && 'h-6 px-2 text-[10px]',
+                'whitespace-nowrap',
                 isDarkSurface && 'border border-sky-200/30 bg-white/10 text-slate-100 hover:bg-white/20'
               )}
               onClick={resetFilters}
@@ -148,8 +171,14 @@ export function FilterSidebar({ brands, models, filters, setFilters, sortBy, set
           </div>
         </div>
       </CardHeader>
-      <CardContent className={cn(isHorizontal ? 'space-y-2 px-4 pb-3 pt-1' : 'space-y-6')}>
-        <div className={cn(isHorizontal ? 'grid gap-2 md:grid-cols-2 xl:grid-cols-4' : 'space-y-6')}>
+      <CardContent
+        className={cn(
+          isHorizontal ? 'space-y-2 px-4 pb-3 pt-1' : 'space-y-6',
+          isMobileCompact && 'space-y-4 px-3 pb-3 pt-0',
+          shouldUseInternalScroll && 'home-filter-scroll pr-2 max-h-[calc(100vh-var(--site-header-height)-10.5rem)] overflow-y-auto'
+        )}
+      >
+        <div className={cn(isHorizontal ? 'grid gap-2 md:grid-cols-2 xl:grid-cols-4' : 'space-y-6', isMobileCompact && 'space-y-4')}>
           <div className={cn('space-y-2', isHorizontal && 'xl:col-span-1')}>
           <Label htmlFor="searchText" className={labelClass}>Ricerca testuale</Label>
           <Input
@@ -160,46 +189,59 @@ export function FilterSidebar({ brands, models, filters, setFilters, sortBy, set
             placeholder="Cerca marca, modello, versione o targa"
             disabled={disabled}
           />
+          <div
+            className={cn(
+              'flex items-center justify-between rounded-md border border-input px-3 py-2',
+              isMobileCompact && 'py-1.5'
+            )}
+          >
+            <Label htmlFor="favoritesOnly" className={cn('mb-0 flex items-center gap-2 text-xs sm:text-sm', isDarkSurface && 'text-sky-100')}>
+              <Heart className="h-3.5 w-3.5" />
+              Preferite
+            </Label>
+            <Checkbox
+              id="favoritesOnly"
+              checked={filters.favoritesOnly}
+              onCheckedChange={checked => handleFilterChange('favoritesOnly', checked === true)}
+              disabled={disabled}
+            />
+          </div>
           </div>
 
           <div className="space-y-2">
           <Label htmlFor="brand" className={labelClass}>Marca</Label>
-          <Select
+          <select
+            id="brand"
+            className={nativeSelectClass}
             value={filters.brand}
-            onValueChange={value => handleFilterChange('brand', value)}
+            onChange={event => handleFilterChange('brand', event.target.value)}
             disabled={disabled}
             name="brand"
           >
-            <SelectTrigger id="brand" className={compactControlClass}>
-              <SelectValue placeholder="Tutte le marche" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tutte le marche</SelectItem>
-              {brands.map(brand => (
-                <SelectItem key={brand} value={brand}>{brand}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            <option value="all">Tutte le marche</option>
+            {brands.map(brand => (
+              <option key={brand} value={brand}>{brand}</option>
+            ))}
+          </select>
           </div>
 
           <div className="space-y-2">
           <Label htmlFor="model" className={labelClass}>Modello</Label>
-          <Select
+          <select
+            id="model"
+            className={nativeSelectClass}
             value={filters.model}
-            onValueChange={value => handleFilterChange('model', value)}
+            onChange={event => handleFilterChange('model', event.target.value)}
             disabled={disabled || filters.brand === 'all' || models.length === 0}
             name="model"
           >
-            <SelectTrigger id="model" className={compactControlClass}>
-              <SelectValue placeholder={filters.brand === 'all' ? 'Seleziona prima una marca' : 'Tutti i modelli'} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tutti i modelli</SelectItem>
-              {models.map(model => (
-                <SelectItem key={model} value={model}>{model}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            <option value="all">
+              {filters.brand === 'all' ? 'Seleziona prima una marca' : 'Tutti i modelli'}
+            </option>
+            {models.map(model => (
+              <option key={model} value={model}>{model}</option>
+            ))}
+          </select>
           </div>
 
           <div className="space-y-2">
@@ -212,12 +254,13 @@ export function FilterSidebar({ brands, models, filters, setFilters, sortBy, set
               <Input
                 id="price-min"
                 className={compactControlClass}
-                type="number"
+                type="text"
                 inputMode="numeric"
                 placeholder="Min"
                 min={priceRange[0]}
                 max={priceRange[1]}
-                value={filters.price[0]}
+                value={formatNumber(filters.price[0])}
+                onFocus={event => event.currentTarget.select()}
                 onChange={event =>
                   handleRangeInputChange('price', 0, event.target.value, priceRange)
                 }
@@ -231,12 +274,13 @@ export function FilterSidebar({ brands, models, filters, setFilters, sortBy, set
               <Input
                 id="price-max"
                 className={compactControlClass}
-                type="number"
+                type="text"
                 inputMode="numeric"
                 placeholder="Max"
                 min={priceRange[0]}
                 max={priceRange[1]}
-                value={filters.price[1]}
+                value={formatNumber(filters.price[1])}
+                onFocus={event => event.currentTarget.select()}
                 onChange={event =>
                   handleRangeInputChange('price', 1, event.target.value, priceRange)
                 }
@@ -244,7 +288,7 @@ export function FilterSidebar({ brands, models, filters, setFilters, sortBy, set
               />
             </div>
           </div>
-          {!isHorizontal && (
+          {!isHorizontal && !isMobileCompact && (
             <Slider
               value={filters.price}
               onValueChange={value => handleFilterChange('price', value)}
@@ -255,7 +299,7 @@ export function FilterSidebar({ brands, models, filters, setFilters, sortBy, set
             />
           )}
           {!isHorizontal && (
-            <div className="flex justify-between text-sm text-muted-foreground">
+            <div className={cn('flex justify-between text-sm text-muted-foreground', isMobileCompact && 'text-xs')}>
               <span>{formatCurrency(filters.price[0])}</span>
               <span>{formatCurrency(filters.price[1])}</span>
             </div>
@@ -264,60 +308,56 @@ export function FilterSidebar({ brands, models, filters, setFilters, sortBy, set
         </div>
 
         {showAdvanced && (
-          <div className={cn('rounded-xl border border-sky-300/40 bg-white/55 p-3', isHorizontal ? 'grid gap-3 xl:grid-cols-4' : 'space-y-6')}>
+          <div className={cn('rounded-xl border border-sky-300/40 bg-white/55 p-3', isHorizontal ? 'grid gap-3 xl:grid-cols-4' : 'space-y-6', isMobileCompact && 'space-y-4 p-2.5')}>
             <div className="space-y-2">
               <Label htmlFor="fuel" className={labelClass}>Carburante</Label>
-              <Select
+              <select
+                id="fuel"
+                className={nativeSelectClass}
                 value={filters.fuel}
-                onValueChange={value => handleFilterChange('fuel', value)}
+                onChange={event => handleFilterChange('fuel', event.target.value)}
                 disabled={disabled}
                 name="fuel"
               >
-                <SelectTrigger id="fuel" className={compactControlClass}>
-                  <SelectValue placeholder="Tutti" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tutti i tipi</SelectItem>
-                  {fuelOptions.map(fuel => (
-                    <SelectItem key={fuel} value={fuel}>{fuel}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                <option value="all">Tutti i tipi</option>
+                {fuelOptions.map(fuel => (
+                  <option key={fuel} value={fuel}>{fuel}</option>
+                ))}
+              </select>
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="transmission" className={labelClass}>Cambio</Label>
-              <Select
+              <select
+                id="transmission"
+                className={nativeSelectClass}
                 value={filters.transmission}
-                onValueChange={value => handleFilterChange('transmission', value)}
+                onChange={event => handleFilterChange('transmission', event.target.value)}
                 disabled={disabled}
                 name="transmission"
               >
-                <SelectTrigger id="transmission" className={compactControlClass}>
-                  <SelectValue placeholder="Tutti" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tutti i tipi</SelectItem>
-                  {transmissionOptions.map(trans => (
-                    <SelectItem key={trans} value={trans}>{trans}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                <option value="all">Tutti i tipi</option>
+                {transmissionOptions.map(trans => (
+                  <option key={trans} value={trans}>{trans}</option>
+                ))}
+              </select>
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="sort" className={labelClass}>Ordina per</Label>
-              <Select value={sortBy} onValueChange={setSortBy} disabled={disabled} name="sort">
-                <SelectTrigger id="sort" className={compactControlClass}>
-                  <SelectValue placeholder="Ordina per..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="price-asc">Prezzo (crescente)</SelectItem>
-                  <SelectItem value="price-desc">Prezzo (decrescente)</SelectItem>
-                  <SelectItem value="year-desc">Anno (più recente)</SelectItem>
-                  <SelectItem value="year-asc">Anno (meno recente)</SelectItem>
-                </SelectContent>
-              </Select>
+              <select
+                id="sort"
+                className={nativeSelectClass}
+                value={sortBy}
+                onChange={event => setSortBy(event.target.value)}
+                disabled={disabled}
+                name="sort"
+              >
+                <option value="price-asc">Prezzo (crescente)</option>
+                <option value="price-desc">Prezzo (decrescente)</option>
+                <option value="year-desc">Anno (più recente)</option>
+                <option value="year-asc">Anno (meno recente)</option>
+              </select>
             </div>
 
         <div className="space-y-2">
@@ -328,11 +368,12 @@ export function FilterSidebar({ brands, models, filters, setFilters, sortBy, set
               <Input
                 id="mileage-min"
                 className={compactControlClass}
-                type="number"
+                type="text"
                 inputMode="numeric"
                 min={mileageRange[0]}
                 max={mileageRange[1]}
-                value={filters.mileage[0]}
+                value={formatNumber(filters.mileage[0])}
+                onFocus={event => event.currentTarget.select()}
                 onChange={event =>
                   handleRangeInputChange('mileage', 0, event.target.value, mileageRange)
                 }
@@ -344,11 +385,12 @@ export function FilterSidebar({ brands, models, filters, setFilters, sortBy, set
               <Input
                 id="mileage-max"
                 className={compactControlClass}
-                type="number"
+                type="text"
                 inputMode="numeric"
                 min={mileageRange[0]}
                 max={mileageRange[1]}
-                value={filters.mileage[1]}
+                value={formatNumber(filters.mileage[1])}
+                onFocus={event => event.currentTarget.select()}
                 onChange={event =>
                   handleRangeInputChange('mileage', 1, event.target.value, mileageRange)
                 }
@@ -356,7 +398,7 @@ export function FilterSidebar({ brands, models, filters, setFilters, sortBy, set
               />
             </div>
           </div>
-          {!isHorizontal && (
+          {!isHorizontal && !isMobileCompact && (
             <Slider
               value={filters.mileage}
               onValueChange={value => handleFilterChange('mileage', value)}
@@ -367,9 +409,9 @@ export function FilterSidebar({ brands, models, filters, setFilters, sortBy, set
             />
           )}
           {!isHorizontal && (
-            <div className="flex justify-between text-sm text-muted-foreground">
-              <span>{new Intl.NumberFormat('it-IT').format(filters.mileage[0])} km</span>
-              <span>{new Intl.NumberFormat('it-IT').format(filters.mileage[1])} km</span>
+            <div className={cn('flex justify-between text-sm text-muted-foreground', isMobileCompact && 'text-xs')}>
+              <span>{formatNumber(filters.mileage[0])} km</span>
+              <span>{formatNumber(filters.mileage[1])} km</span>
             </div>
           )}
         </div>

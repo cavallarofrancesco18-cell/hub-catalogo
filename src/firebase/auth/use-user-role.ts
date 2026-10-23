@@ -13,14 +13,20 @@ export interface UserRoleState {
   role: Role;
   roleData: UserData | null;
   isLoading: boolean;
+  isPlatformAdmin: boolean;
 }
 
 const ADMIN_UID = '4E6MSEuIXZeeo3j2taWIA7LbYcw2';
 
+function isHubSellerUser(userData: UserData | null | undefined) {
+  return (userData?.sellerType ?? '').trim().toUpperCase() === 'HUB';
+}
+
 /**
  * Hook to get the current user's role.
  * Admin role is determined by a hardcoded UID.
- * Seller role is determined by document existence in the 'seller' collection.
+ * HUB sellers are normalized to admin so the app treats them with the same permissions.
+ * Seller role is otherwise determined by document existence in the 'seller' collection.
  */
 export function useUserRole(): UserRoleState {
   const { user, isUserLoading: isAuthLoading } = useUser();
@@ -50,11 +56,11 @@ export function useUserRole(): UserRoleState {
       (!!user && (isSellerDataLoading || isAgentDataLoading));
 
     if (isLoading) {
-      return { role: null, roleData: null, isLoading: true };
+      return { role: null, roleData: null, isLoading: true, isPlatformAdmin: false };
     }
     
     if (!user) {
-        return { role: null, roleData: null, isLoading: false };
+        return { role: null, roleData: null, isLoading: false, isPlatformAdmin: false };
     }
 
     // Check for admin role by UID first
@@ -67,15 +73,19 @@ export function useUserRole(): UserRoleState {
           createdAt: user.metadata.creationTime ? new Date(user.metadata.creationTime) : new Date(),
           sellerType: 'HUB',
       };
-      return { role: 'admin', roleData: adminUserData, isLoading: false };
+      return { role: 'admin', roleData: adminUserData, isLoading: false, isPlatformAdmin: true };
     }
 
     if (sellerData) {
-      return { role: 'seller', roleData: sellerData, isLoading: false };
+      if (isHubSellerUser(sellerData)) {
+        return { role: 'admin', roleData: sellerData, isLoading: false, isPlatformAdmin: false };
+      }
+
+      return { role: 'seller', roleData: sellerData, isLoading: false, isPlatformAdmin: false };
     }
 
     if (agentData) {
-      return { role: 'agent', roleData: agentData, isLoading: false };
+      return { role: 'agent', roleData: agentData, isLoading: false, isPlatformAdmin: false };
     }
 
     // User is authenticated but has no specific role document.
@@ -85,7 +95,7 @@ export function useUserRole(): UserRoleState {
         name: user.displayName || user.email!,
         createdAt: user.metadata.creationTime ? new Date(user.metadata.creationTime) : new Date(),
     };
-    return { role: null, roleData: basicUserData, isLoading: false };
+    return { role: null, roleData: basicUserData, isLoading: false, isPlatformAdmin: false };
 
   }, [isAuthLoading, isSellerDataLoading, isAgentDataLoading, user, sellerData, agentData, auth]);
 

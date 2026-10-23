@@ -8,9 +8,27 @@ service cloud.firestore {
     function isSignedIn() {
       return request.auth != null;
     }
+
+    function isHardcodedAdmin() {
+      return isSignedIn() && request.auth.uid == '4E6MSEuIXZeeo3j2taWIA7LbYcw2';
+    }
+
+    function isAdminByCollection() {
+      return isSignedIn()
+        && (
+          exists(/databases/$(database)/documents/Admin/$(request.auth.uid))
+          || exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid))
+        );
+    }
+
+    function isAdminByUserDoc() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
     
     function isAdmin() {
-      return isSignedIn() && request.auth.uid == '4E6MSEuIXZeeo3j2taWIA7LbYcw2';
+      return isHardcodedAdmin() || (!isHubSeller() && (isAdminByCollection() || isAdminByUserDoc()));
     }
 
     function isSeller() {
@@ -25,33 +43,51 @@ service cloud.firestore {
       return isSignedIn()
         && exists(/databases/$(database)/documents/seller/$(request.auth.uid))
         && (
-          get(/databases/$(database)/documents/seller/$(request.auth.uid)).data.sellerType == 'HUB'
-          || get(/databases/$(database)/documents/seller/$(request.auth.uid)).data.sellerType == 'hub'
+          (
+            get(/databases/$(database)/documents/seller/$(request.auth.uid)).data.sellerType is string
+            && get(/databases/$(database)/documents/seller/$(request.auth.uid)).data.sellerType.matches('^\\s*[Hh][Uu][Bb]\\s*$')
+          )
         );
     }
 
+    function isStandardSeller() {
+      return isSeller() && (
+        get(/databases/$(database)/documents/seller/$(request.auth.uid)).data.get('sellerType', null) == null
+        || (get(/databases/$(database)/documents/seller/$(request.auth.uid)).data.get('sellerType', null) is string
+          && get(/databases/$(database)/documents/seller/$(request.auth.uid)).data.sellerType.matches('^\\s*([Ss][Tt][Aa][Nn][Dd][Aa][Rr][Dd])?\\s*$'))
+      );
+    }
+
     function canWriteContracts() {
-      return (isAdmin() || isSeller()) && request.auth.token.email != 'gp@gruppodinamica.com';
+      return (isAdmin() || (isSeller() && !isStandardSeller())) && request.auth.token.email != 'gp@gruppodinamica.com';
     }
 
     match /vehicles/{vehicleId} {
-      allow get: if true;
-      allow list: if true;
+      allow get, list: if isAdmin() || resource.data.adminOnly == false;
 
-      allow create: if isAdmin();
-      allow delete: if isAdmin();
+      allow create: if isAdmin() && (request.resource.data.stato != 'Trasferita' || request.resource.data.adminOnly == true);
+      allow delete: if isAdmin() || (canWriteContracts() && resource.data.get('adminOnly', false) == false && resource.data.stato != 'Trasferita');
       
       // Any signed in user can book a vehicle. Admins can update anything.
-      allow update: if isAdmin() || 
+      allow update: if (isAdmin()
+                    && request.resource.data.adminOnly == resource.data.adminOnly
+                    && (request.resource.data.stato != 'Trasferita' || request.resource.data.adminOnly == true)) ||
                     (isSignedIn()
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stato', 'updatedAt', 'statusChangedBy', 'statusChangedByName', 'statusChangedByEmail', 'reservationCreatedAt', 'reservationExpiresAt'])
+                    && !isStandardSeller()
+                    && resource.data.get('adminOnly', false) == false
+                    && request.resource.data.get('adminOnly', false) == false
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stato', 'updatedAt', 'statusChangedBy', 'statusChangedByName', 'statusChangedByEmail', 'reservationCreatedAt', 'reservationExpiresAt', 'statusChangeActorUid', 'statusChangeActorName', 'statusChangeActorEmail', 'statusChangedAt'])
                     && resource.data.stato == 'In vendita'
                     && request.resource.data.stato == 'Prenotato'
                     && request.resource.data.statusChangedBy == request.auth.uid) ||
                     (isHubSeller()
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['prezzo', 'prezzoPrivati', 'updatedAt'])
-                    && request.resource.data.prezzo is number
-                    && request.resource.data.prezzoPrivati is number);
+                    && resource.data.get('adminOnly', false) == false
+                    && request.resource.data.get('adminOnly', false) == false
+                    && resource.data.stato != 'Trasferita'
+                    && request.resource.data.stato != 'Trasferita'
+                    && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['adminOnly'])
+                    && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['targa', 'prezzoValutazione'])
+                    && request.resource.data.updatedAt == request.time);
     }
 
     match /forms/{formId} {
@@ -66,16 +102,31 @@ service cloud.firestore {
     
     match /seller/{sellerId} {
       // Allow a user to be created in the sellers collection during registration.
-      allow create: if isSignedIn() && request.auth.uid == sellerId;
+      allow create: if isAdmin() || (isSignedIn() && request.auth.uid == sellerId
+        && request.resource.data.get('sellerType', null) in [null, 'standard', 'STANDARD']);
 
       // Admins can list and delete sellers.
       allow list, delete: if isAdmin();
       
       // A user can update their own document (e.g. during registration), and an admin can update any document.
-      allow update: if (isSignedIn() && request.auth.uid == sellerId) || isAdmin();
+      allow update: if isAdmin() || (isSignedIn() && request.auth.uid == sellerId
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['sellerType']));
 
       // A seller can read their own document, and an admin can read any seller document.
       allow get: if (isSignedIn() && request.auth.uid == sellerId) || isAdmin();
+    }
+
+    match /sellerTypes/{sellerTypeId} {
+      allow get, list: if isAdmin();
+      allow create: if isAdmin()
+        && request.resource.data.keys().hasOnly(['id', 'name', 'createdAt', 'createdByUid'])
+        && request.resource.data.keys().hasAll(['id', 'name', 'createdAt', 'createdByUid'])
+        && request.resource.data.id == sellerTypeId
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 2
+        && request.resource.data.name.size() <= 120
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.createdByUid == request.auth.uid;
     }
 
     match /agents/{agentId} {
@@ -104,15 +155,26 @@ service cloud.firestore {
     }
 
     match /contracts/{contractId} {
-      // Any authenticated user can read contracts.
-      allow read: if isSignedIn();
+      allow get: if isAdmin()
+                 || (isSignedIn()
+                     && exists(/databases/$(database)/documents/contracts/$(contractId))
+                     && resource.data.adminOnly == false)
+                 || (canWriteContracts()
+                     && !exists(/databases/$(database)/documents/contracts/$(contractId))
+                     && exists(/databases/$(database)/documents/vehicles/$(contractId))
+                     && get(/databases/$(database)/documents/vehicles/$(contractId)).data.adminOnly == false);
+      allow list: if isAdmin() || (isSignedIn() && resource.data.adminOnly == false);
 
-      // Admins and sellers except the blocked account can create contracts.
       allow create: if canWriteContracts()
-                    && request.resource.data.creatorId == request.auth.uid;
+                    && request.resource.data.creatorId == request.auth.uid
+                    && exists(/databases/$(database)/documents/vehicles/$(contractId))
+                    && request.resource.data.adminOnly == get(/databases/$(database)/documents/vehicles/$(contractId)).data.adminOnly
+                    && (!request.resource.data.keys().hasAny(['signedContractName', 'signedContractStoragePath', 'signedContractUrl', 'signedContractUploadedAt', 'signedContractUploadedBy']) || isAdmin() || isHubSeller());
 
-      // Admins and sellers except the blocked account can update contracts.
-      allow update: if canWriteContracts();
+      allow update: if canWriteContracts()
+                    && request.resource.data.adminOnly == resource.data.adminOnly
+                    && request.resource.data.adminOnly == get(/databases/$(database)/documents/vehicles/$(contractId)).data.adminOnly
+                    && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['signedContractName', 'signedContractStoragePath', 'signedContractUrl', 'signedContractUploadedAt', 'signedContractUploadedBy']) || isAdmin() || isHubSeller());
 
       allow delete: if isAdmin();
     }
@@ -121,13 +183,24 @@ service cloud.firestore {
       allow get, list, create, update, delete: if isAdmin();
     }
 
+    match /customers/{customerId} {
+      allow get, list: if isAdmin() || (isHubSeller() && resource.data.adminOnly == false);
+      allow create: if (isAdmin() || (isHubSeller() && request.resource.data.adminOnly == false))
+                    && request.resource.data.createdBy == request.auth.uid;
+      allow update: if (isAdmin() && request.resource.data.adminOnly == resource.data.adminOnly)
+                    || (isHubSeller() && resource.data.adminOnly == false && request.resource.data.adminOnly == false);
+      allow delete: if isAdmin() || (isHubSeller() && resource.data.adminOnly == false);
+    }
+
     match /hubDocuments/{documentId} {
       function isHubSellerDoc() {
         return isSignedIn()
           && exists(/databases/$(database)/documents/seller/$(request.auth.uid))
           && (
-            get(/databases/$(database)/documents/seller/$(request.auth.uid)).data.sellerType == 'HUB'
-            || get(/databases/$(database)/documents/seller/$(request.auth.uid)).data.sellerType == 'hub'
+            (
+              get(/databases/$(database)/documents/seller/$(request.auth.uid)).data.sellerType is string
+              && get(/databases/$(database)/documents/seller/$(request.auth.uid)).data.sellerType.matches('^\\s*[Hh][Uu][Bb]\\s*$')
+            )
           );
       }
       allow get, list: if isAdmin() || isHubSellerDoc();
@@ -139,12 +212,24 @@ service cloud.firestore {
         return isSignedIn()
           && exists(/databases/$(database)/documents/seller/$(request.auth.uid))
           && (
-            get(/databases/$(database)/documents/seller/$(request.auth.uid)).data.sellerType == 'HUB'
-            || get(/databases/$(database)/documents/seller/$(request.auth.uid)).data.sellerType == 'hub'
+            (
+              get(/databases/$(database)/documents/seller/$(request.auth.uid)).data.sellerType is string
+              && get(/databases/$(database)/documents/seller/$(request.auth.uid)).data.sellerType.matches('^\\s*[Hh][Uu][Bb]\\s*$')
+            )
           );
       }
       allow get, list: if isAdmin() || isHubSellerFolder();
       allow create, update, delete: if isAdmin() || isHubSellerFolder();
+    }
+
+    match /vehicles/{vehicleId}/documentFolders/{folderId} {
+      allow read: if isAdmin() || (isSeller() && get(/databases/$(database)/documents/vehicles/$(vehicleId)).data.adminOnly == false);
+      allow write: if isAdmin() || (isHubSeller() && get(/databases/$(database)/documents/vehicles/$(vehicleId)).data.adminOnly == false);
+    }
+
+    match /vehicles/{vehicleId}/documents/{documentId} {
+      allow read: if isAdmin() || (isSeller() && get(/databases/$(database)/documents/vehicles/$(vehicleId)).data.adminOnly == false);
+      allow write: if isAdmin() || (isHubSeller() && get(/databases/$(database)/documents/vehicles/$(vehicleId)).data.adminOnly == false);
     }
   }
 }

@@ -29,6 +29,7 @@ const payload = JSON.stringify({
         'http://localhost:3001',
         'http://127.0.0.1:3001',
         'https://hubcatalogo.vercel.app',
+        'https://autotrade.hubmobility.it',
         'https://hubcatalogo-*.vercel.app',
       ],
       method: ['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'OPTIONS'],

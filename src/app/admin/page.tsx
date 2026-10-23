@@ -1,12 +1,14 @@
 'use client';
 
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useCollection } from '@/firebase/firestore/use-collection';
-import { collection, doc, serverTimestamp, getDoc, type Firestore } from 'firebase/firestore';
+import { collection, doc, serverTimestamp, getDoc, query, where, type Firestore } from 'firebase/firestore';
 import type { Vehicle, Contract, CustomerCompany, User as SellerProfile } from '@/lib/types';
 import { formatCurrency, formatVehicleReference, getDirectImageUrl, getVehicleAddedAt, getVehicleCoverImageUrl, isFirebaseStorageUrl, cn } from '@/lib/utils';
+import { notifyVehicleStatusChange } from '@/lib/vehicle-status-notification';
 
 function useVehicleContracts(
   firestore: Firestore | null,
@@ -127,6 +129,7 @@ import {
   SlidersHorizontal,
   Download,
   Plus,
+  FileText,
 } from 'lucide-react';
 import {
   useFirestore,
@@ -177,6 +180,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Checkbox } from '@/components/ui/checkbox';
 import { PrintableProforma } from '@/app/auto/[slug]/components/printable-proforma';
+import { buildPdfImageData } from '@/lib/pdf-export-quality';
+import { usePdfExportQualityDialog } from '@/components/pdf-export-quality-dialog';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { format } from 'date-fns';
@@ -185,6 +190,7 @@ import { addFavoriteId } from '@/lib/favorites';
 import { canManageContracts, isContractCreationBlocked } from '@/lib/contract-permissions';
 import {
   buildVehicleReservationMetadata,
+  buildStatusChangeAuditFields,
   getVehicleReservationResetFields,
   isVehicleReservationExpired,
   releaseExpiredVehicleReservations,
@@ -232,6 +238,7 @@ const proformaSchema = z
       .nonnegative('Il costo non può essere negativo.')
       .optional()
       .or(z.literal('')),
+    costoVulturaCaricoCliente: z.boolean().default(true),
     customerType: z.enum(['privato', 'commerciante'], {
       required_error: 'Selezionare il tipo di cliente.',
     }),
@@ -334,6 +341,7 @@ type ExportableVehicleField =
   | 'numeroRiferimento'
   | 'marca'
   | 'modello'
+  | 'versione'
   | 'targa'
   | 'dataAggiunta'
   | 'annoImmatricolazione'
@@ -399,6 +407,12 @@ const exportFieldOptions: {
     getValue: vehicle => vehicle.modello,
   },
   {
+    value: 'versione',
+    label: 'Versione/Allestimento',
+    columnName: 'Versione/Allestimento',
+    getValue: vehicle => vehicle.versione || '',
+  },
+  {
     value: 'targa',
     label: 'Targa',
     columnName: 'Targa',
@@ -430,8 +444,8 @@ const exportFieldOptions: {
   },
   {
     value: 'prezzo',
-    label: 'Prezzo',
-    columnName: 'Prezzo',
+    label: 'Prezzo al Pubblico',
+    columnName: 'Prezzo al Pubblico',
     getValue: vehicle => vehicle.prezzo ?? '',
   },
   {
@@ -478,16 +492,20 @@ const photoExportStatusOptions: { value: PhotoExportSelection; label: string }[]
 export default function AdminPage() {
   const firestore = useFirestore();
   const app = useFirebaseApp();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const storage = useMemo(
     () => getStorage(app, 'gs://studio-3074982188-44660.firebasestorage.app'),
     [app]
   );
   const { toast } = useToast();
   const { user: currentUser } = useUser();
-  const { role, roleData } = useUserRole();
+  const { role, roleData, isPlatformAdmin } = useUserRole();
   const vehiclesRef = useMemoFirebase(
-    () => collection(firestore, 'vehicles'),
-    [firestore]
+    () => isPlatformAdmin
+      ? collection(firestore, 'vehicles')
+      : query(collection(firestore, 'vehicles'), where('adminOnly', '==', false)),
+    [firestore, isPlatformAdmin]
   );
   const sellersRef = useMemoFirebase(
     () => (firestore ? collection(firestore, 'seller') : null),
@@ -498,7 +516,11 @@ export default function AdminPage() {
     [firestore]
   );
   const { data: vehicles, isLoading } = useCollection<Vehicle>(vehiclesRef);
-  const isAdmin = role === 'admin';
+  const isAdmin = isPlatformAdmin;
+  const normalizedSellerType = (roleData?.sellerType ?? '').trim().toUpperCase();
+  const isHubSeller = !isAdmin && normalizedSellerType === 'HUB';
+  const canEditVehicles = role === 'admin';
+  const canOpenVehicleAd = isAdmin || isHubSeller;
   const vehicleContracts = useVehicleContracts(firestore, vehicles, isAdmin);
   const { data: sellers } = useCollection<SellerProfile>(sellersRef);
   const { data: customerCompanies } = useCollection<CustomerCompany>(customerCompaniesRef);
@@ -513,7 +535,7 @@ export default function AdminPage() {
     });
   }, [firestore]);
 
-  const [sortBy, setSortBy] = useState<
+  const [sortBy, setSortByState] = useState<
     | 'default'
     | 'added-asc'
     | 'added-desc'
@@ -523,26 +545,61 @@ export default function AdminPage() {
     | 'year-desc'
     | 'km-asc'
     | 'km-desc'
-  >('default');
-  const [statusFilter, setStatusFilter] = useState<'all' | Vehicle['stato']>(
-    'all'
+  >((searchParams.get('sort') as any) || 'default');
+  const [statusFilter, setStatusFilterState] = useState<'all' | Vehicle['stato']>(
+    (searchParams.get('stato') as any) || 'all'
   );
-  const [plateSearch, setPlateSearch] = useState('');
-  const [referenceSearch, setReferenceSearch] = useState('');
-  const [brandFilter, setBrandFilter] = useState('all');
-  const [modelFilter, setModelFilter] = useState('all');
-  const [addedDateFrom, setAddedDateFrom] = useState('');
-  const [addedDateTo, setAddedDateTo] = useState('');
+  const [quickSearch, setQuickSearchState] = useState(
+    searchParams.get('q') ||
+      searchParams.get('targa') ||
+      searchParams.get('rif') ||
+      searchParams.get('marca') ||
+      searchParams.get('modello') ||
+      ''
+  );
+  const [plateSearch, setPlateSearchState] = useState(searchParams.get('targa') || '');
+  const [referenceSearch, setReferenceSearchState] = useState(searchParams.get('rif') || '');
+  const [brandFilter, setBrandFilterState] = useState(searchParams.get('marca') || 'all');
+  const [modelFilter, setModelFilterState] = useState(searchParams.get('modello') || 'all');
+  const [addedDateFrom, setAddedDateFromState] = useState(searchParams.get('dal') || '');
+  const [addedDateTo, setAddedDateToState] = useState(searchParams.get('al') || '');
+
+  // Sincronizza i filtri nell'URL
+  const updateUrl = useCallback((params: Record<string, string>) => {
+    const current = new URLSearchParams(Array.from(searchParams.entries()));
+    Object.entries(params).forEach(([key, value]) => {
+      if (value && value !== 'all' && value !== 'default') {
+        current.set(key, value);
+      } else {
+        current.delete(key);
+      }
+    });
+    const query = current.toString();
+    router.replace(query ? `?${query}` : '/admin', { scroll: false });
+  }, [searchParams, router]);
+
+  const setSortBy = (v: typeof sortBy) => { setSortByState(v); updateUrl({ sort: v }); };
+  const setStatusFilter = (v: typeof statusFilter) => { setStatusFilterState(v); updateUrl({ stato: v }); };
+  const setQuickSearch = (v: string) => {
+    setQuickSearchState(v);
+    updateUrl({ q: v, targa: '', rif: '', marca: '', modello: '' });
+  };
+  const setPlateSearch = (v: string) => { setPlateSearchState(v); updateUrl({ targa: v }); };
+  const setReferenceSearch = (v: string) => { setReferenceSearchState(v); updateUrl({ rif: v }); };
+  const setBrandFilter = (v: string) => { setBrandFilterState(v); updateUrl({ marca: v }); };
+  const setModelFilter = (v: string) => { setModelFilterState(v); updateUrl({ modello: v }); };
+  const setAddedDateFrom = (v: string) => { setAddedDateFromState(v); updateUrl({ dal: v }); };
+  const setAddedDateTo = (v: string) => { setAddedDateToState(v); updateUrl({ al: v }); };
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
   const [exportStatus, setExportStatus] = useState<ExportVehicleSelection>('In vendita');
   const [exportFields, setExportFields] = useState<ExportableVehicleField[]>([
-    'numeroRiferimento',
-    'dataAggiunta',
     'marca',
     'modello',
+    'versione',
     'targa',
-    'prezzo',
+    'annoImmatricolazione',
     'chilometraggio',
+    'prezzoPrivati',
   ]);
   const [selectedExportBrands, setSelectedExportBrands] = useState<string[]>([]);
   const [selectedExportModels, setSelectedExportModels] = useState<string[]>([]);
@@ -551,6 +608,9 @@ export default function AdminPage() {
   const [isPhotoExportDialogOpen, setIsPhotoExportDialogOpen] = useState(false);
   const [photoExportStatus, setPhotoExportStatus] = useState<PhotoExportSelection>('all');
   const [isDownloadingPhotos, setIsDownloadingPhotos] = useState(false);
+  const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
+  const [reportDateFrom, setReportDateFrom] = useState('');
+  const [reportDateTo, setReportDateTo] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
   const [vehicleToDelete, setVehicleToDelete] = useState<Vehicle | null>(null);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState<string | null>(null);
@@ -561,6 +621,7 @@ export default function AdminPage() {
   const [proformaCustomerData, setProformaCustomerData] =
     useState<ProformaFormValues | null>(null);
   const [isGeneratingProforma, setIsGeneratingProforma] = useState(false);
+  const { requestPdfExportProfile, pdfExportQualityDialog } = usePdfExportQualityDialog();
   const [isBooking, setIsBooking] = useState<string | null>(null);
   const [existingContract, setExistingContract] = useState<Contract | null>(
     null
@@ -580,6 +641,7 @@ export default function AdminPage() {
       customerType: 'privato',
       paymentMethod: 'bonifico',
       costoVultura: '',
+      costoVulturaCaricoCliente: true,
       warranty: 'Il veicolo viene venduto con garanzia legale di conformità per 12 mesi come da D.Lgs. 206/2005 (Codice del Consumo). L\'Acquirente si obbliga ad effettuare gli interventi di manutenzione ordinaria programmata dell\'AUTO, in conformità alle indicazioni e scadenze del libretto di manutenzione. In caso di interventi in garanzia, il venditore si obbliga ad utilizzare ricambi originali. La garanzia non opererà per quei guasti/avarie che siano stati causati dalla omessa manutenzione.',
       insurance:
         "L'acquirente si impegna a stipulare una polizza assicurativa RC auto prima del ritiro del veicolo.",
@@ -640,34 +702,64 @@ export default function AdminPage() {
     setSaveCompanyProfile(true);
   };
 
-  const availableExportBrands = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          photoExportVehicles
-            .map(vehicle => vehicle.marca)
-            .filter(Boolean)
-        )
-      ).sort((firstBrand, secondBrand) =>
-        firstBrand.localeCompare(secondBrand, 'it', { sensitivity: 'base' })
-      ),
-    [photoExportVehicles]
-  );
+  const exportVehicles = useMemo(() => {
+    if (!vehicles) return [];
+
+    const selectedVehicles =
+      exportStatus === 'all'
+        ? vehicles
+        : vehicles.filter(vehicle => vehicle.stato === exportStatus);
+
+    return [...selectedVehicles].sort((firstVehicle, secondVehicle) => {
+      const firstAddedAt = getVehicleAddedAt(firstVehicle)?.getTime() ?? 0;
+      const secondAddedAt = getVehicleAddedAt(secondVehicle)?.getTime() ?? 0;
+
+      return secondAddedAt - firstAddedAt;
+    });
+  }, [vehicles, exportStatus]);
+
+  const availableExportBrands = useMemo(() => {
+    const brandMap = new Map<string, string>();
+
+    exportVehicles.forEach(vehicle => {
+      const brand = normalizeBrandForFilter(vehicle.marca);
+      if (!brand) return;
+
+      const key = normalizeLookupKey(brand);
+      if (!brandMap.has(key)) {
+        brandMap.set(key, brand);
+      }
+    });
+
+    return Array.from(brandMap.values()).sort((firstBrand, secondBrand) =>
+      firstBrand.localeCompare(secondBrand, 'it', { sensitivity: 'base' })
+    );
+  }, [exportVehicles]);
 
   const availableExportModels = useMemo(() => {
-    const filteredByBrand =
+    const vehiclesForModelFilter =
       selectedExportBrands.length > 0
-        ? photoExportVehicles.filter(vehicle =>
-            selectedExportBrands.includes(vehicle.marca)
+        ? exportVehicles.filter(vehicle =>
+            selectedExportBrands.includes(normalizeBrandForFilter(vehicle.marca))
           )
-        : photoExportVehicles;
+        : exportVehicles;
 
-    return Array.from(
-      new Set(filteredByBrand.map(vehicle => vehicle.modello).filter(Boolean))
-    ).sort((firstModel, secondModel) =>
+    const modelMap = new Map<string, string>();
+
+    vehiclesForModelFilter.forEach(vehicle => {
+      const model = normalizeModelForFilter(vehicle.modello);
+      if (!model) return;
+
+      const key = normalizeLookupKey(model);
+      if (!modelMap.has(key)) {
+        modelMap.set(key, model);
+      }
+    });
+
+    return Array.from(modelMap.values()).sort((firstModel, secondModel) =>
       firstModel.localeCompare(secondModel, 'it', { sensitivity: 'base' })
     );
-  }, [photoExportVehicles, selectedExportBrands]);
+  }, [exportVehicles, selectedExportBrands]);
 
   const filteredExportBrands = useMemo(() => {
     const normalizedSearch = exportBrandSearch.trim().toLowerCase();
@@ -686,6 +778,26 @@ export default function AdminPage() {
       model.toLowerCase().includes(normalizedSearch)
     );
   }, [availableExportModels, exportModelSearch]);
+
+  useEffect(() => {
+    setSelectedExportBrands(currentBrands => {
+      const nextBrands = currentBrands.filter(brand =>
+        availableExportBrands.includes(brand)
+      );
+
+      return nextBrands.length === currentBrands.length ? currentBrands : nextBrands;
+    });
+  }, [availableExportBrands]);
+
+  useEffect(() => {
+    setSelectedExportModels(currentModels => {
+      const nextModels = currentModels.filter(model =>
+        availableExportModels.includes(model)
+      );
+
+      return nextModels.length === currentModels.length ? currentModels : nextModels;
+    });
+  }, [availableExportModels]);
 
   useEffect(() => {
     if (
@@ -777,19 +889,37 @@ export default function AdminPage() {
     return result;
   };
 
-  const handleStatusChange = (
-    vehicleId: string,
-    previousStatus: 'In vendita' | 'Venduto' | 'Prenotato' | 'In arrivo',
-    newStatus: 'In vendita' | 'Venduto' | 'Prenotato' | 'In arrivo'
-  ) => {
-    if (!firestore || !currentUser) return;
-    const isTransitionToSale = previousStatus !== 'In vendita' && newStatus === 'In vendita';
-    const shouldSendNotification = isTransitionToSale
-      ? window.confirm(
-          'Stai passando il veicolo a "In vendita". Vuoi inviare una mail a tutti i seller per comunicare il cambio di stato?'
-        )
-      : false;
+  const notifyCarrozzeriaReservation = async (vehicleId: string) => {
+    if (!currentUser) {
+      throw new Error('ADMIN_NOT_AUTHENTICATED');
+    }
 
+    const idToken = await currentUser.getIdToken();
+    const response = await fetch('/api/vehicle-reservations/notify-carrozzeria', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({ vehicleId }),
+    });
+
+    const result = (await response.json().catch(() => null)) as { error?: string } | null;
+
+    if (!response.ok) {
+      throw new Error(result?.error || 'RESERVATION_NOTIFICATION_FAILED');
+    }
+
+    return result;
+  };
+
+  const handleStatusChange = async (
+    vehicleId: string,
+    previousStatus: Vehicle['stato'],
+    newStatus: Vehicle['stato']
+  ) => {
+    if (!canEditVehicles) return;
+    if (!firestore || !currentUser) return;
     setIsUpdatingStatus(vehicleId);
     const vehicleRef = doc(firestore, 'vehicles', vehicleId);
     const resetReservationFields = getVehicleReservationResetFields();
@@ -797,6 +927,7 @@ export default function AdminPage() {
       resetReservationFields;
     const dataToUpdate = {
       stato: newStatus,
+        ...(newStatus === 'Trasferita' ? { adminOnly: true } : {}),
       updatedAt: serverTimestamp(),
       ...(newStatus === 'Prenotato'
         ? buildVehicleReservationMetadata({
@@ -810,51 +941,98 @@ export default function AdminPage() {
           }),
     };
 
-    updateDocumentNonBlocking(vehicleRef, dataToUpdate)
-      .then(async () => {
-        if (shouldSendNotification) {
-          try {
-            await notifyNewVehicle(vehicleId, true);
-            toast({
-              title: 'Mail inviata ai seller',
-              description: 'Comunicazione del cambio stato inviata a tutti i seller.',
-            });
-          } catch (notificationError) {
-            const notificationMessage =
-              notificationError instanceof Error
-                ? notificationError.message
-                : 'VEHICLE_NOTIFICATION_FAILED';
-            toast({
-              variant: 'destructive',
-              title: 'Stato aggiornato, mail non inviata',
-              description: `Il veicolo è in vendita, ma l'invio ai seller è fallito. Motivo: ${notificationMessage}`,
-            });
-          }
-        }
+    try {
+      let soldBuyerName: string | null = null;
 
-        toast({
-          title: 'Stato aggiornato!',
-          description: `Lo stato del veicolo è ora "${newStatus}".`,
-        });
-      })
-      .catch(error => {
-        toast({
-          variant: 'destructive',
-          title: 'Uh oh! Qualcosa è andato storto.',
-          description:
-            'Impossibile aggiornare lo stato del veicolo. Controlla la console per i dettagli.',
-        });
-      })
-      .finally(() => {
-        setIsUpdatingStatus(null);
+      if (newStatus === 'Venduto') {
+        const contractRef = doc(firestore, 'contracts', vehicleId);
+        const contractSnap = await getDoc(contractRef);
+
+        if (contractSnap.exists()) {
+          const contract = contractSnap.data() as Partial<Contract>;
+          const normalizedContractBuyer =
+            typeof contract.name === 'string' ? contract.name.trim() : '';
+          soldBuyerName = normalizedContractBuyer || null;
+        }
+      }
+
+      const dataToUpdate = {
+        stato: newStatus,
+        ...(newStatus === 'Trasferita' ? { adminOnly: true } : {}),
+        updatedAt: serverTimestamp(),
+        ...(newStatus === 'Prenotato'
+          ? buildVehicleReservationMetadata({
+              uid: currentUser.uid,
+              displayName: currentUser.displayName,
+              email: currentUser.email,
+            })
+          : {
+              statusChangedBy: currentUser.uid,
+              ...reservationFieldsWithoutOwner,
+            }),
+        ...(newStatus === 'Venduto' && soldBuyerName
+          ? { statusChangedByName: soldBuyerName }
+          : {}),
+        ...buildStatusChangeAuditFields({
+          uid: currentUser.uid,
+          displayName: currentUser.displayName,
+          email: currentUser.email,
+        }),
+      };
+
+      await updateDocumentNonBlocking(vehicleRef, dataToUpdate);
+
+      if (!vehicles?.find(vehicle => vehicle.id === vehicleId)?.adminOnly && previousStatus !== 'Trasferita' && newStatus !== 'Trasferita') {
+        try {
+          await notifyVehicleStatusChange({ user: currentUser, vehicleId, previousStatus, newStatus });
+        } catch (notificationError) {
+          console.error('Errore durante l\'invio notifica cambio stato:', notificationError);
+        }
+      }
+
+      if (newStatus === 'Prenotato' && previousStatus !== 'Trasferita' && !vehicles?.find(vehicle => vehicle.id === vehicleId)?.adminOnly) {
+        try {
+          await notifyCarrozzeriaReservation(vehicleId);
+          toast({
+            title: 'Amministrazione avvisata',
+            description: "Email inviata a amministrazione@hubmobility.it con il dettaglio dell'annuncio.",
+          });
+        } catch (reservationNotificationError) {
+          const reservationMessage =
+            reservationNotificationError instanceof Error
+              ? reservationNotificationError.message
+              : 'RESERVATION_NOTIFICATION_FAILED';
+          toast({
+            variant: 'destructive',
+            title: 'Stato aggiornato, mail non inviata',
+            description: `Il veicolo è prenotato, ma la mail all'amministrazione non è partita. Motivo: ${reservationMessage}`,
+          });
+        }
+      }
+
+      toast({
+        title: 'Stato aggiornato!',
+        description: `Lo stato del veicolo è ora "${newStatus}".`,
       });
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Uh oh! Qualcosa è andato storto.',
+        description:
+          'Impossibile aggiornare lo stato del veicolo. Controlla la console per i dettagli.',
+      });
+    } finally {
+      setIsUpdatingStatus(null);
+    }
   };
 
   const handleDeleteClick = (vehicle: Vehicle) => {
+    if (!canEditVehicles) return;
     setVehicleToDelete(vehicle);
   };
 
   const handleDeleteConfirm = async () => {
+    if (!canEditVehicles) return;
     if (!vehicleToDelete || !firestore) return;
 
     setIsDeleting(true);
@@ -937,10 +1115,10 @@ export default function AdminPage() {
         .filter(vehicle => {
           const matchesBrand =
             selectedExportBrands.length === 0 ||
-            selectedExportBrands.includes(vehicle.marca);
+            selectedExportBrands.includes(normalizeBrandForFilter(vehicle.marca));
           const matchesModel =
             selectedExportModels.length === 0 ||
-            selectedExportModels.includes(vehicle.modello);
+            selectedExportModels.includes(normalizeModelForFilter(vehicle.modello));
 
           return matchesBrand && matchesModel;
         })
@@ -1171,6 +1349,11 @@ export default function AdminPage() {
     if (!ref.current) return;
   
     setIsGeneratingProforma(true);
+    const exportProfile = await requestPdfExportProfile();
+    if (!exportProfile) {
+      setIsGeneratingProforma(false);
+      return;
+    }
   
     try {
       const images = Array.from(ref.current.querySelectorAll('img'));
@@ -1195,14 +1378,16 @@ export default function AdminPage() {
         )
       );
 
+      const renderScale = exportProfile.scale;
       const canvas = await html2canvas(ref.current, {
-        scale: 2,
+        scale: renderScale,
         useCORS: true,
       });
       const pdf = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
         format: 'a4',
+        compress: true,
       });
 
       const margin = 15;
@@ -1252,9 +1437,9 @@ export default function AdminPage() {
             sourceHeightOnCanvas // destHeight
             );
 
-            const imgData = sliceCanvas.toDataURL('image/png');
+            const imgData = buildPdfImageData(sliceCanvas, exportProfile);
             const renderedSliceHeight = (sourceHeightOnCanvas * contentWidth) / canvasWidth;
-            pdf.addImage(imgData, 'PNG', margin, margin, contentWidth, renderedSliceHeight);
+            pdf.addImage(imgData, exportProfile.imageFormat, margin, margin, contentWidth, renderedSliceHeight);
         }
 
         currentY += pageHeightOnPdf;
@@ -1334,6 +1519,7 @@ export default function AdminPage() {
       ...values,
       id: vehicleForContract.id,
       vehicleId: vehicleForContract.id,
+      adminOnly: vehicleForContract.adminOnly === true,
       companyProfileId,
       creatorId: currentUser.uid,
       updatedAt: serverTimestamp(),
@@ -1371,9 +1557,9 @@ export default function AdminPage() {
   };
 
   const handleCreateContractClick = async (vehicle: Vehicle) => {
-    if (!firestore || !currentUser) return;
+    if (!currentUser) return;
 
-    if (!canManageContracts(role)) {
+    if (!canManageContracts(role, roleData?.sellerType)) {
       toast({
         variant: 'destructive',
         title: 'Azione non consentita',
@@ -1391,110 +1577,23 @@ export default function AdminPage() {
       return;
     }
 
-    setIsBooking(vehicle.id);
-
-    try {
-        setVehicleForContract(vehicle);
-
-        const contractRef = doc(firestore, 'contracts', vehicle.id);
-        const contractSnap = await getDoc(contractRef);
-
-        if (contractSnap.exists()) {
-          const contractData = contractSnap.data() as Contract;
-          setExistingContract(contractData);
-          proformaForm.reset(contractData as ProformaFormValues);
-          setSelectedCompanyId(contractData.companyProfileId ?? 'manual');
-          setSaveCompanyProfile(contractData.customerType === 'commerciante');
-          setIsProformaFormOpen(true);
-          toast({
-            title: 'Contratto caricato',
-            description: 'Modifica i dati del contratto esistente.',
-          });
-        } else {
-          setExistingContract(null);
-          const openTheForm = () => {
-            setSelectedCompanyId('manual');
-            setSaveCompanyProfile(false);
-            proformaForm.reset({
-              name: '',
-              address: '',
-              cf: '',
-              docNumber: '',
-              birthDate: '',
-              birthPlace: '',
-              phone: '',
-              email: '',
-              customerType: 'privato',
-              paymentMethod: 'bonifico',
-              costoVultura: '',
-              warranty: 'Il veicolo viene venduto con garanzia legale di conformità per 12 mesi come da D.Lgs. 206/2005 (Codice del Consumo). L\'Acquirente si obbliga ad effettuare gli interventi di manutenzione ordinaria programmata dell\'AUTO, in conformità alle indicazioni e scadenze del libretto di manutenzione. In caso di interventi in garanzia, il venditore si obbliga ad utilizzare ricambi originali. La garanzia non opererà per quei guasti/avarie che siano stati causati dalla omessa manutenzione.',
-              insurance:
-                "L'acquirente si impegna a stipulare una polizza assicurativa RC auto prima del ritiro del veicolo.",
-              wearAndTear:
-                "L'acquirente dichiara di aver preso visione dello stato d'uso del veicolo e di accettarlo nelle condizioni in cui si trova, tenuto conto della normale usura pregressa in base all'anno di immatricolazione e al chilometraggio.",
-              documentation: 'Il veicolo viene consegnato completo di carta di circolazione, certificato di proprietà (o D.U.) e n.2 chiavi. Il passaggio di proprietà avverrà a seguito del saldo completo.',
-              withdrawal:
-                "Per i contratti conclusi a distanza, l'acquirente consumatore ha diritto di recedere dal contratto, senza alcuna penalità e senza specificarne il motivo, entro il termine di 14 giorni dalla presa in consegna del veicolo.",
-              price:
-                (vehicle.prezzo ?? 0) + (vehicle.garanzia_legale_prezzo ?? 0),
-              financingCompany: '',
-              numberOfInstallments: '',
-              installmentAmount: '',
-              totalFinancedAmount: '',
-            });
-            setIsProformaFormOpen(true);
-          };
-
-          const reservationWasExpired = isVehicleReservationExpired(vehicle);
-          const effectiveVehicleStatus = reservationWasExpired ? 'In vendita' : vehicle.stato;
-
-          if (reservationWasExpired) {
-            await releaseExpiredVehicleReservations(vehicle.id);
-          }
-
-          if (effectiveVehicleStatus === 'In vendita') {
-            const vehicleRef = doc(firestore, 'vehicles', vehicle.id);
-            await updateDocumentNonBlocking(vehicleRef, {
-                stato: 'Prenotato',
-                updatedAt: serverTimestamp(),
-                ...buildVehicleReservationMetadata({
-                  uid: currentUser.uid,
-                  displayName: currentUser.displayName,
-                  email: currentUser.email,
-                }),
-            });
-            addFavoriteId(vehicle.id);
-            toast({
-                title: 'Veicolo Prenotato!',
-                description:
-                  'Il veicolo è stato prenotato. Compila i dati per il contratto.',
-            });
-            openTheForm();
-          } else if (canCreateContract(vehicle)) {
-            openTheForm();
-          } else {
-            toast({
-              variant: 'destructive',
-              title: 'Azione non consentita',
-              description: `Lo stato attuale del veicolo (${vehicle.stato}) non permette di creare un nuovo contratto, oppure non sei l'utente che ha effettuato l'ultima modifica.`,
-            });
-          }
-        }
-    } catch (error) {
-        toast({
-          variant: 'destructive',
-          title: 'Errore',
-          description: 'Impossibile preparare il contratto. Riprova tra poco.',
-        });
-        console.error("Error preparing proforma:", error);
-    } finally {
-        setIsBooking(null);
+    if (!vehicle.slug) {
+      toast({
+        variant: 'destructive',
+        title: 'Veicolo non disponibile',
+        description: 'Slug veicolo non disponibile per aprire la pagina contratto.',
+      });
+      return;
     }
+
+    const adminReturnTo = `/admin${searchParams.toString() ? `?${searchParams.toString()}` : ''}`;
+    router.push(`${vehicle.adminOnly || vehicle.stato === 'Trasferita' ? '/admin/auto' : '/auto'}/${vehicle.slug}/contratto?returnTo=${encodeURIComponent(adminReturnTo)}`);
   };
 
   const canCreateContract = (vehicle: Vehicle) => {
+    if ((vehicle.adminOnly || vehicle.stato === 'Trasferita') && !isAdmin) return false;
     if (!currentUser) return false;
-    if (!canManageContracts(role)) return false;
+    if (!canManageContracts(role, roleData?.sellerType)) return false;
     if (isContractCreationBlocked(currentUser.email)) return false;
 
     return true;
@@ -1603,52 +1702,29 @@ export default function AdminPage() {
         ? vehicles
         : vehicles.filter(vehicle => vehicle.stato === statusFilter);
 
-    const normalizedSearch = plateSearch.trim().replace(/\s+/g, '').toLowerCase();
-    const normalizedReferenceSearch = referenceSearch.trim();
-    const addedFromDate = addedDateFrom ? new Date(`${addedDateFrom}T00:00:00`) : null;
-    const addedToDate = addedDateTo ? new Date(`${addedDateTo}T23:59:59.999`) : null;
+    const normalizedSearch = quickSearch.trim().toLowerCase();
 
     return statusFiltered.filter(vehicle => {
-      const targa = (vehicle.targa || '').toString().trim().replace(/\s+/g, '').toLowerCase();
-      const matchesPlate = !normalizedSearch || targa.includes(normalizedSearch);
-      if (!matchesPlate) return false;
+      if (!normalizedSearch) {
+        return true;
+      }
 
-      const referenceLabel =
-        typeof vehicle.numeroRiferimento === 'number'
-          ? formatVehicleReference(vehicle, { includePrefix: false })
-          : '';
-      const matchesReference =
-        !normalizedReferenceSearch ||
-        referenceLabel.includes(normalizedReferenceSearch);
-      if (!matchesReference) return false;
+      const targa = (vehicle.targa || '').toString().toLowerCase();
+      const riferimento = formatVehicleReference(vehicle, { includePrefix: false }).toLowerCase();
+      const marca = (vehicle.marca || '').toString().toLowerCase();
+      const modello = (vehicle.modello || '').toString().toLowerCase();
 
-      const matchesBrand =
-        brandFilter === 'all' || normalizeBrandForFilter(vehicle.marca) === brandFilter;
-      if (!matchesBrand) return false;
-
-      const matchesModel =
-        modelFilter === 'all' || normalizeModelForFilter(vehicle.modello) === modelFilter;
-      if (!matchesModel) return false;
-
-      if (!addedFromDate && !addedToDate) return true;
-
-      const addedAt = getVehicleAddedAt(vehicle);
-      if (!addedAt) return false;
-
-      if (addedFromDate && addedAt < addedFromDate) return false;
-      if (addedToDate && addedAt > addedToDate) return false;
-
-      return true;
+      return (
+        targa.includes(normalizedSearch) ||
+        riferimento.includes(normalizedSearch) ||
+        marca.includes(normalizedSearch) ||
+        modello.includes(normalizedSearch)
+      );
     });
   }, [
     vehicles,
     statusFilter,
-    plateSearch,
-    referenceSearch,
-    brandFilter,
-    modelFilter,
-    addedDateFrom,
-    addedDateTo,
+    quickSearch,
   ]);
 
   const sortedVehicles = useMemo(() => {
@@ -1702,8 +1778,16 @@ export default function AdminPage() {
           (firstVehicle, secondVehicle) =>
             secondVehicle.chilometraggio - firstVehicle.chilometraggio
         );
-      default:
-        return vehiclesToSort;
+      default: {
+        // Ordine per ultima modifica/aggiunta, dal più recente al più vecchio
+        const getTimestamp = (v: Vehicle) => {
+          const ts = v.updatedAt ?? v.createdAt;
+          if (!ts) return 0;
+          if (typeof ts.toDate === 'function') return ts.toDate().getTime();
+          return new Date(ts).getTime() || 0;
+        };
+        return vehiclesToSort.sort((a, b) => getTimestamp(b) - getTimestamp(a));
+      }
     }
   }, [filteredVehicles, sortBy]);
 
@@ -1725,28 +1809,43 @@ export default function AdminPage() {
             </div>
 
             <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap xl:justify-end">
-              <Button
-                onClick={() => setIsExportDialogOpen(true)}
-                variant="outline"
-                className="h-11 rounded-xl border-border/70 bg-background px-4 shadow-sm sm:min-w-[170px]"
-              >
-                <Download className="size-4" />
-                Esporta Excel
-              </Button>
+              {isAdmin ? (
+                <Button
+                  onClick={() => setIsExportDialogOpen(true)}
+                  variant="outline"
+                  className="h-11 rounded-xl border-border/70 bg-background px-4 shadow-sm sm:min-w-[170px]"
+                >
+                  <Download className="size-4" />
+                  Esporta Excel
+                </Button>
+              ) : null}
               <Button
                 onClick={() => setIsPhotoExportDialogOpen(true)}
                 variant="outline"
+                disabled={!canEditVehicles}
                 className="h-11 rounded-xl border-border/70 bg-background px-4 shadow-sm sm:min-w-[170px]"
               >
                 <Download className="size-4" />
                 Esporta foto
               </Button>
-              <Button asChild className="h-11 rounded-xl px-4 shadow-sm sm:min-w-[170px]">
-                <Link href="/admin/add-vehicle">
-                  <Plus className="size-4" />
-                  Aggiungi Veicolo
-                </Link>
-              </Button>
+              {isAdmin ? (
+                <Button
+                  onClick={() => setIsReportDialogOpen(true)}
+                  variant="outline"
+                  className="h-11 rounded-xl border-border/70 bg-background px-4 shadow-sm sm:min-w-[170px]"
+                >
+                  <FileText className="size-4" />
+                  Report Vendite
+                </Button>
+              ) : null}
+              {canEditVehicles ? (
+                <Button asChild className="h-11 rounded-xl px-4 shadow-sm sm:min-w-[170px]">
+                  <Link href="/admin/add-vehicle">
+                    <Plus className="size-4" />
+                    Aggiungi Veicolo
+                  </Link>
+                </Button>
+              ) : null}
             </div>
           </div>
 
@@ -1767,7 +1866,7 @@ export default function AdminPage() {
             </div>
 
             <div className="p-4 sm:p-5">
-              <div className="grid gap-4 xl:grid-cols-[minmax(220px,1.15fr)_minmax(220px,1fr)_minmax(280px,0.9fr)_minmax(240px,1fr)]">
+              <div className="grid gap-4 md:grid-cols-[minmax(320px,1fr)_220px]">
                 <div className="rounded-2xl border border-border/60 bg-background/90 p-4 shadow-sm backdrop-blur">
                   <div className="mb-3 flex items-center gap-2">
                     <div className="rounded-full bg-primary/10 p-2 text-primary">
@@ -1775,136 +1874,17 @@ export default function AdminPage() {
                     </div>
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                        Ricerca
+                        Ricerca unica
                       </p>
-                      <p className="text-sm font-medium">Targa e riferimento</p>
+                      <p className="text-sm font-medium">Targa, riferimento, marca o modello</p>
                     </div>
                   </div>
                   <Input
-                    placeholder="Cerca per targa"
-                    value={plateSearch}
-                    onChange={e => setPlateSearch((e.target as HTMLInputElement).value)}
+                    placeholder="Cerca targa, riferimento, marca o modello"
+                    value={quickSearch}
+                    onChange={e => setQuickSearch((e.target as HTMLInputElement).value)}
                     className="w-full border-border/70 bg-background"
                   />
-                  <Input
-                    type="number"
-                    placeholder="Cerca per numero riferimento"
-                    value={referenceSearch}
-                    onChange={e =>
-                      setReferenceSearch((e.target as HTMLInputElement).value)
-                    }
-                    className="mt-2 w-full border-border/70 bg-background"
-                  />
-                </div>
-
-                <div className="rounded-2xl border border-border/60 bg-background/90 p-4 shadow-sm backdrop-blur">
-                  <div className="mb-3 flex items-center gap-2">
-                    <div className="rounded-full bg-primary/10 p-2 text-primary">
-                      <CarFront className="size-4" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                        Marca e modello
-                      </p>
-                      <p className="text-sm font-medium">Affina i risultati</p>
-                    </div>
-                  </div>
-                  <div className="grid gap-2">
-                    <Select value={brandFilter} onValueChange={setBrandFilter}>
-                      <SelectTrigger className="w-full border-border/70 bg-background">
-                        <SelectValue placeholder="Tutte le marche" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Tutte le marche</SelectItem>
-                        {availableBrands.map(brand => (
-                          <SelectItem key={brand} value={brand}>
-                            {brand}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Select value={modelFilter} onValueChange={setModelFilter}>
-                      <SelectTrigger className="w-full border-border/70 bg-background">
-                        <SelectValue placeholder="Tutti i modelli" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Tutti i modelli</SelectItem>
-                        {availableModels.map(model => (
-                          <SelectItem key={model} value={model}>
-                            {model}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-border/60 bg-background/90 p-4 shadow-sm backdrop-blur">
-                  <div className="mb-3 flex items-center gap-2">
-                    <div className="rounded-full bg-primary/10 p-2 text-primary">
-                      <CalendarRange className="size-4" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                        Data di aggiunta
-                      </p>
-                      <p className="text-sm font-medium">Intervallo compatto</p>
-                    </div>
-                  </div>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <Input
-                      type="date"
-                      aria-label="Data aggiunta da"
-                      value={addedDateFrom}
-                      onChange={e => setAddedDateFrom((e.target as HTMLInputElement).value)}
-                      className="w-full border-border/70 bg-background"
-                    />
-                    <Input
-                      type="date"
-                      aria-label="Data aggiunta a"
-                      value={addedDateTo}
-                      onChange={e => setAddedDateTo((e.target as HTMLInputElement).value)}
-                      className="w-full border-border/70 bg-background"
-                    />
-                  </div>
-                  <div className="mt-3 flex flex-wrap gap-1.5">
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      className="h-8 rounded-full px-3"
-                      onClick={() => applyQuickAddedDateFilter('today')}
-                    >
-                      Oggi
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      className="h-8 rounded-full px-3"
-                      onClick={() => applyQuickAddedDateFilter('last7days')}
-                    >
-                      7 giorni
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      className="h-8 rounded-full px-3"
-                      onClick={() => applyQuickAddedDateFilter('currentMonth')}
-                    >
-                      Mese
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 rounded-full px-3"
-                      onClick={() => applyQuickAddedDateFilter('all')}
-                    >
-                      Reset
-                    </Button>
-                  </div>
                 </div>
 
                 <div className="rounded-2xl border border-border/60 bg-background/90 p-4 shadow-sm backdrop-blur">
@@ -1914,62 +1894,29 @@ export default function AdminPage() {
                     </div>
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                        Stato e ordine
+                        Stato
                       </p>
-                      <p className="text-sm font-medium">Filtri di lettura lista</p>
+                      <p className="text-sm font-medium">Filtro elenco</p>
                     </div>
                   </div>
-                  <div className="grid gap-2">
-                    <Select
-                      value={statusFilter}
-                      onValueChange={value =>
-                        setStatusFilter(value as 'all' | Vehicle['stato'])
-                      }
-                    >
-                      <SelectTrigger className="w-full border-border/70 bg-background">
-                        <SelectValue placeholder="Filtra per stato" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Tutti gli stati</SelectItem>
-                        <SelectItem value="In vendita">In vendita</SelectItem>
-                        <SelectItem value="Prenotato">Prenotato</SelectItem>
-                        <SelectItem value="Venduto">Venduto</SelectItem>
-                        <SelectItem value="In arrivo">In arrivo</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Select
-                      value={sortBy}
-                      onValueChange={value =>
-                        setSortBy(
-                          value as
-                            | 'default'
-                            | 'added-asc'
-                            | 'added-desc'
-                            | 'price-asc'
-                            | 'price-desc'
-                            | 'year-asc'
-                            | 'year-desc'
-                            | 'km-asc'
-                            | 'km-desc'
-                        )
-                      }
-                    >
-                      <SelectTrigger className="w-full border-border/70 bg-background">
-                        <SelectValue placeholder="Ordina per" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="default">Ordine predefinito</SelectItem>
-                        <SelectItem value="added-desc">Data aggiunta piu recente</SelectItem>
-                        <SelectItem value="added-asc">Data aggiunta piu vecchia</SelectItem>
-                        <SelectItem value="price-asc">Prezzo crescente</SelectItem>
-                        <SelectItem value="price-desc">Prezzo decrescente</SelectItem>
-                        <SelectItem value="year-asc">Anno crescente</SelectItem>
-                        <SelectItem value="year-desc">Anno decrescente</SelectItem>
-                        <SelectItem value="km-asc">Km crescenti</SelectItem>
-                        <SelectItem value="km-desc">Km decrescenti</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  <Select
+                    value={statusFilter}
+                    onValueChange={value =>
+                      setStatusFilter(value as 'all' | Vehicle['stato'])
+                    }
+                  >
+                    <SelectTrigger className="w-full border-border/70 bg-background">
+                      <SelectValue placeholder="Filtra per stato" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tutti gli stati</SelectItem>
+                      <SelectItem value="In vendita">In vendita</SelectItem>
+                      <SelectItem value="Prenotato">Prenotato</SelectItem>
+                      <SelectItem value="Venduto">Venduto</SelectItem>
+                      <SelectItem value="In arrivo">In arrivo</SelectItem>
+                      {isAdmin && <SelectItem value="Trasferita">Trasferita (solo admin)</SelectItem>}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
             </div>
@@ -1980,31 +1927,30 @@ export default function AdminPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[80px]">Immagine</TableHead>
-                <TableHead>Rif.</TableHead>
+                <TableHead className="w-[96px] px-2">Immagine</TableHead>
                 <TableHead>Veicolo</TableHead>
-                <TableHead>Targa</TableHead>
-                <TableHead>Aggiunta</TableHead>
-                <TableHead>Anno</TableHead>
-                <TableHead>Km</TableHead>
-                <TableHead>Prezzo</TableHead>
-                <TableHead>Prezzo commerciante</TableHead>
-                <TableHead>Stato</TableHead>
-                {isAdmin && <TableHead>Acquirente</TableHead>}
-                <TableHead className="text-right">Azioni</TableHead>
+                <TableHead className="px-2">Targa</TableHead>
+                <TableHead className="px-2">Aggiunta</TableHead>
+                <TableHead className="px-2">Anno</TableHead>
+                <TableHead className="px-2">Km</TableHead>
+                <TableHead className="px-2">Prezzo</TableHead>
+                <TableHead className="max-w-[120px] whitespace-normal px-2 text-xs leading-4">Prezzo commerciante</TableHead>
+                <TableHead className="px-2">Stato</TableHead>
+                {isAdmin && <TableHead className="max-w-[136px] px-2">Acquirente</TableHead>}
+                <TableHead className="px-2 text-right">Azioni</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading &&
                 Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={i}>
-                    <TableCell>
-                      <div className="flex h-12 w-16 items-center justify-center rounded-md bg-muted">
-                        <img src="/logo.gif" alt="Caricamento" className="h-10 w-14 object-contain" />
+                    <TableCell className="px-2 py-2">
+                      <div className="flex w-20 flex-col gap-1">
+                        <div className="flex h-12 w-16 items-center justify-center rounded-md bg-muted">
+                          <img src="/logo.gif" alt="Caricamento" className="h-10 w-14 object-contain" />
+                        </div>
+                        <Skeleton className="h-4 w-14" />
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-6 w-16" />
                     </TableCell>
                     <TableCell>
                       <div className="space-y-1">
@@ -2033,6 +1979,11 @@ export default function AdminPage() {
                     <TableCell>
                       <Skeleton className="h-10 w-32" />
                     </TableCell>
+                    {isAdmin && (
+                      <TableCell>
+                        <Skeleton className="h-4 w-24" />
+                      </TableCell>
+                    )}
                     <TableCell className="text-right flex justify-end gap-2">
                       <Skeleton className="h-8 w-8 rounded-md" />
                       <Skeleton className="h-8 w-8 rounded-md" />
@@ -2043,42 +1994,60 @@ export default function AdminPage() {
               {!isLoading && sortedVehicles.length > 0 ? (
                 sortedVehicles.map(vehicle => (
                   <TableRow key={vehicle.id}>
-                    <TableCell>
-                      <VehicleImageCell vehicle={vehicle} />
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="secondary">
+                    <TableCell className="px-2 py-2">
+                      <div className="flex w-20 flex-col items-start gap-1">
+                        {canOpenVehicleAd && (!vehicle.adminOnly || isAdmin) ? (
+                          <Link href={`${vehicle.adminOnly || vehicle.stato === 'Trasferita' ? '/admin/auto' : '/auto'}/${vehicle.slug || vehicle.id}`} className="inline-block">
+                            <VehicleImageCell vehicle={vehicle} />
+                          </Link>
+                        ) : (
+                          <VehicleImageCell vehicle={vehicle} />
+                        )}
+                        <Badge variant="secondary" className="max-w-full truncate px-1.5 py-0 text-[10px]">
                         {formatVehicleReference(vehicle, { includePrefix: false })}
-                      </Badge>
+                        </Badge>
+                      </div>
                     </TableCell>
                     <TableCell>
-                      <div className="font-medium">{`${vehicle.marca} ${vehicle.modello}`}</div>
+                      {canOpenVehicleAd && (!vehicle.adminOnly || isAdmin) ? (
+                        <Link
+                          href={`${vehicle.adminOnly || vehicle.stato === 'Trasferita' ? '/admin/auto' : '/auto'}/${vehicle.slug || vehicle.id}`}
+                          className="font-medium underline-offset-2 hover:underline"
+                        >
+                          {`${vehicle.marca} ${vehicle.modello}`}
+                        </Link>
+                      ) : (
+                        <div className="font-medium">{`${vehicle.marca} ${vehicle.modello}`}</div>
+                      )}
                       <div className="text-sm text-muted-foreground">
                         {vehicle.versione}
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="px-2">
                       <Badge variant="outline">{vehicle.targa || 'N/D'}</Badge>
                     </TableCell>
-                    <TableCell>{formatAddedDate(vehicle)}</TableCell>
-                    <TableCell>
+                    <TableCell className="whitespace-nowrap px-2">{formatAddedDate(vehicle)}</TableCell>
+                    <TableCell className="px-2">
                       {vehicle.data_immatricolazione
                         ? new Date(
                             vehicle.data_immatricolazione
                           ).getFullYear()
                         : vehicle.anno}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="px-2">
                       <span className="text-sm tabular-nums">
                         {vehicle.chilometraggio?.toLocaleString('it-IT') || '0'}
                       </span>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="px-2">
                       <Input
                         type="number"
-                        className="w-28 h-8 text-base"
+                        className="h-8 w-24 text-sm"
                         defaultValue={vehicle.prezzo ?? ''}
+                        readOnly={!canEditVehicles}
+                        disabled={!canEditVehicles}
                         onBlur={async e => {
+                          if (!canEditVehicles) return;
                           const value = Number(e.target.value);
                           if (!isNaN(value) && value !== vehicle.prezzo) {
                             await updateDocumentNonBlocking(doc(firestore, 'vehicles', vehicle.id), {
@@ -2095,12 +2064,15 @@ export default function AdminPage() {
                         }}
                       />
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="px-2">
                       <Input
                         type="number"
-                        className="w-28 h-8 text-base"
+                        className="h-8 w-24 text-sm"
                         defaultValue={vehicle.prezzoPrivati ?? ''}
+                        readOnly={!canEditVehicles}
+                        disabled={!canEditVehicles}
                         onBlur={async e => {
+                          if (!canEditVehicles) return;
                           const value = Number(e.target.value);
                           if (!isNaN(value) && value !== vehicle.prezzoPrivati) {
                             await updateDocumentNonBlocking(doc(firestore, 'vehicles', vehicle.id), {
@@ -2117,24 +2089,24 @@ export default function AdminPage() {
                         }}
                       />
                     </TableCell>
-                    <TableCell>
-                      {isUpdatingStatus === vehicle.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
+                    <TableCell className="px-2">
+                      {isUpdatingStatus === vehicle.id ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                      {isUpdatingStatus !== vehicle.id ? (
                         <div className="space-y-1.5">
                           <Select
                             value={vehicle.stato}
+                            disabled={!canEditVehicles}
                             onValueChange={newStatus =>
                               handleStatusChange(
                                 vehicle.id,
                                 vehicle.stato,
-                                newStatus as 'In vendita' | 'Venduto' | 'Prenotato' | 'In arrivo'
+                                newStatus as Vehicle['stato']
                               )
                             }
                           >
                             <SelectTrigger
                               className={cn(
-                                'w-[130px]',
+                                'w-[112px]',
                                 vehicle.stato === 'Venduto' && 'text-destructive',
                                 vehicle.stato === 'Prenotato' && 'text-primary',
                                 vehicle.stato === 'In arrivo' && 'text-amber-600'
@@ -2149,6 +2121,7 @@ export default function AdminPage() {
                               <SelectItem value="Prenotato">Prenotato</SelectItem>
                               <SelectItem value="In arrivo">In arrivo</SelectItem>
                               <SelectItem value="Venduto">Venduto</SelectItem>
+                              {isAdmin && vehicle.adminOnly && <SelectItem value="Trasferita">Trasferita (solo admin)</SelectItem>}
                             </SelectContent>
                           </Select>
                           {getReservationUserLabel(vehicle) && (
@@ -2157,16 +2130,39 @@ export default function AdminPage() {
                             </p>
                           )}
                         </div>
-                      )}
+                      ) : null}
                     </TableCell>
                     {isAdmin && (
-                      <TableCell>
+                      <TableCell className="max-w-[136px] px-2">
+                        <div className="max-w-[120px] truncate" title={vehicle.stato === 'Venduto'
+                          ? vehicleContracts[vehicle.id]?.name || vehicle.statusChangedByName || 'N/D'
+                          : vehicle.stato === 'Prenotato'
+                            ? getReservationUserLabel(vehicle) || 'N/D'
+                            : undefined}>
                         {vehicle.stato === 'Venduto'
-                          ? vehicleContracts[vehicle.id]?.name || <span className="text-muted-foreground text-xs">N/D</span>
-                          : null}
+                          ? vehicleContracts[vehicle.id]?.name ||
+                            vehicle.statusChangedByName ||
+                            <span className="text-muted-foreground text-xs">N/D</span>
+                          : vehicle.stato === 'Prenotato'
+                            ? getReservationUserLabel(vehicle) || <span className="text-muted-foreground text-xs">N/D</span>
+                            : null}
+                        </div>
+                        {vehicle.statusChangeActorName && vehicle.statusChangedAt && (
+                          <p className="mt-1 max-w-[120px] truncate text-xs leading-4 text-muted-foreground" title={`Cambiato da ${vehicle.statusChangeActorName} il ${new Date(vehicle.statusChangedAt).toLocaleString('it-IT')}`}>
+                            Cambiato da {vehicle.statusChangeActorName} il{' '}
+                            {new Date(vehicle.statusChangedAt).toLocaleString('it-IT')}
+                          </p>
+                        )}
                       </TableCell>
                     )}
-                    <TableCell className="text-right">
+                    <TableCell className="px-2">
+                      <div className="flex min-w-[112px] flex-col items-end gap-1">
+                      {isAdmin && vehicle.stato === 'Venduto' ? (
+                        <Button asChild variant="outline" size="sm" className="h-7 px-2 text-xs">
+                          <Link href={`/admin/auto/${vehicle.id}/post-vendita`}>Post Vendita</Link>
+                        </Button>
+                      ) : null}
+                      <div className="flex items-center">
                       <Button
                         variant="ghost"
                         size="icon"
@@ -2185,26 +2181,31 @@ export default function AdminPage() {
                         )}
                         <span className="sr-only">Crea Contratto</span>
                       </Button>
-                      <Button
-                        asChild
-                        variant="ghost"
-                        size="icon"
-                        title="Modifica"
-                      >
-                        <Link href={`/admin/edit-vehicle/${vehicle.id}`}>
+                      {canEditVehicles ? (
+                        <Button asChild variant="ghost" size="icon" title="Modifica">
+                          <Link href={`/admin/edit-vehicle/${vehicle.id}?returnTo=${encodeURIComponent('/admin' + (searchParams.toString() ? '?' + searchParams.toString() : ''))}`}>
+                            <Pencil className="h-4 w-4" />
+                            <span className="sr-only">Modifica</span>
+                          </Link>
+                        </Button>
+                      ) : (
+                        <Button variant="ghost" size="icon" title="Modifica non consentita" disabled>
                           <Pencil className="h-4 w-4" />
-                          <span className="sr-only">Modifica</span>
-                        </Link>
-                      </Button>
+                          <span className="sr-only">Modifica non consentita</span>
+                        </Button>
+                      )}
                       <Button
                         variant="ghost"
                         size="icon"
                         onClick={() => handleDeleteClick(vehicle)}
-                        title="Cancella"
+                        title={canEditVehicles ? 'Cancella' : 'Cancellazione non consentita'}
+                        disabled={!canEditVehicles}
                       >
                         <Trash2 className="h-4 w-4 text-destructive" />
                         <span className="sr-only">Cancella</span>
                       </Button>
+                      </div>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
@@ -2247,14 +2248,14 @@ export default function AdminPage() {
       </AlertDialog>
 
       <Dialog open={isExportDialogOpen} onOpenChange={setIsExportDialogOpen}>
-        <DialogContent className="sm:max-w-2xl">
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-hidden">
           <DialogHeader>
             <DialogTitle>Esporta Excel</DialogTitle>
             <DialogDescription>
               Scegli quali veicoli vuoi includere nel file Excel.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="max-h-[65vh] space-y-4 overflow-y-scroll py-2 pr-2">
             <div className="space-y-2">
               <Label>Categoria veicoli</Label>
               <Select
@@ -2320,7 +2321,7 @@ export default function AdminPage() {
                   )}
                 </div>
               </div>
-              <div className="max-h-40 overflow-y-auto rounded-md border p-3">
+              <div className="max-h-40 overflow-y-scroll rounded-md border p-3">
                 <Input
                   value={exportBrandSearch}
                   onChange={event => setExportBrandSearch(event.target.value)}
@@ -2377,7 +2378,7 @@ export default function AdminPage() {
                   )}
                 </div>
               </div>
-              <div className="max-h-40 overflow-y-auto rounded-md border p-3">
+              <div className="max-h-40 overflow-y-scroll rounded-md border p-3">
                 <Input
                   value={exportModelSearch}
                   onChange={event => setExportModelSearch(event.target.value)}
@@ -2792,6 +2793,7 @@ export default function AdminPage() {
                       <FormControl>
                         <Input
                           type="email"
+                          autoComplete="off"
                           {...field}
                           value={field.value ?? ''}
                         />
@@ -2844,6 +2846,26 @@ export default function AdminPage() {
                         Verrà sommato al prezzo del veicolo.
                       </FormDescription>
                       <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={proformaForm.control}
+                  name="costoVulturaCaricoCliente"
+                  render={({ field }) => (
+                    <FormItem className="sm:col-span-2 flex flex-row items-center justify-between rounded-md border p-3">
+                      <div className="space-y-0.5">
+                        <FormLabel className="text-sm">Costo a carico del cliente</FormLabel>
+                        <FormDescription>
+                          Se disattivato, la voltura non viene sommata al totale contratto.
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Checkbox
+                          checked={field.value}
+                          onCheckedChange={checked => field.onChange(checked === true)}
+                        />
+                      </FormControl>
                     </FormItem>
                   )}
                 />
@@ -3009,6 +3031,7 @@ export default function AdminPage() {
                   customer={proformaCustomerData}
                   price={proformaCustomerData.price}
                   costoVultura={Number(proformaCustomerData.costoVultura) || 0}
+                  costoVulturaCaricoCliente={proformaCustomerData.costoVulturaCaricoCliente}
                   customerType={proformaCustomerData.customerType}
                   paymentMethod={proformaCustomerData.paymentMethod}
                   financingCompany={proformaCustomerData.financingCompany}
@@ -3105,6 +3128,58 @@ export default function AdminPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Report Vendite Dialog */}
+      <Dialog open={isReportDialogOpen} onOpenChange={setIsReportDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Report Vendite</DialogTitle>
+            <DialogDescription>
+              Filtra le vendite per periodo e scarica il report PDF
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="report-date-from">Data Inizio (opzionale)</Label>
+              <Input
+                id="report-date-from"
+                type="date"
+                value={reportDateFrom}
+                onChange={(e) => setReportDateFrom(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="report-date-to">Data Fine (opzionale)</Label>
+              <Input
+                id="report-date-to"
+                type="date"
+                value={reportDateTo}
+                onChange={(e) => setReportDateTo(e.target.value)}
+              />
+            </div>
+            <div className="rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground">
+              Lascia vuoto per visualizzare tutte le vendite senza filtro temporale.
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsReportDialogOpen(false)}
+            >
+              Annulla
+            </Button>
+            <Button asChild>
+              <Link 
+                href={`/admin/sales${reportDateFrom || reportDateTo ? `?dateFrom=${reportDateFrom || ''}&dateTo=${reportDateTo || ''}` : ''}`}
+                onClick={() => setIsReportDialogOpen(false)}
+              >
+                Visualizza Report
+              </Link>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {pdfExportQualityDialog}
     </>
   );
 }
