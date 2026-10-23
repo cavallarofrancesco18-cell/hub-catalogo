@@ -11,7 +11,7 @@ export const carBrandLogos: Record<string, string> = {
   'renault': 'https://upload.wikimedia.org/wikipedia/commons/0/0b/Renault_2021_text_logo.png',
   'peugeot': 'https://upload.wikimedia.org/wikipedia/commons/5/5e/Peugeot_Logo_2021.png',
   'citroen': 'https://upload.wikimedia.org/wikipedia/commons/7/7e/Citroen_2021_logo.png',
-  'opel': 'https://upload.wikimedia.org/wikipedia/commons/7/7c/Opel_Logo_2021.png',
+  'opel': 'https://upload.wikimedia.org/wikipedia/commons/7/70/Opel_Logo_2021.svg',
   'nissan': 'https://upload.wikimedia.org/wikipedia/commons/4/4e/Nissan_logo.png',
   'hyundai': 'https://upload.wikimedia.org/wikipedia/commons/8/87/Hyundai_Motor_Company_logo.svg',
   'kia': 'https://upload.wikimedia.org/wikipedia/commons/6/65/Kia_logo3.png',
