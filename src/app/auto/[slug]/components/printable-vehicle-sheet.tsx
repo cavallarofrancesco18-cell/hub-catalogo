@@ -53,7 +53,25 @@ export function PrintableVehicleSheet({ vehicle, price, branding, logoUrl, compa
   }, []);
 
   useEffect(() => {
-    setResolvedCoverImageUrl(coverImageProxyUrl || imageUrl || '');
+    const preferredCoverUrl = coverImageProxyUrl || imageUrl || '';
+    setResolvedCoverImageUrl(preferredCoverUrl);
+
+    if (!preferredCoverUrl || !imageUrl || preferredCoverUrl === imageUrl) {
+      return;
+    }
+
+    let isCancelled = false;
+    const probe = new Image();
+    probe.onerror = () => {
+      if (!isCancelled) {
+        setResolvedCoverImageUrl(imageUrl);
+      }
+    };
+    probe.src = preferredCoverUrl;
+
+    return () => {
+      isCancelled = true;
+    };
   }, [coverImageProxyUrl, imageUrl]);
 
   useEffect(() => {
@@ -112,7 +130,7 @@ export function PrintableVehicleSheet({ vehicle, price, branding, logoUrl, compa
   const contentGap = compact ? 'gap-4' : 'gap-8';
   const cardPadding = compact ? 'p-3' : 'p-6';
   const imageAspectRatioClass = compact ? 'aspect-[4/3]' : 'aspect-[4/3]';
-  const imageObjectPositionClass = compact ? 'object-[center_52%]' : 'object-center';
+  const coverBackgroundPosition = compact ? 'center 52%' : 'center';
   const imageColumnClass = compact ? 'col-span-7' : 'col-span-7';
   const infoColumnClass = compact ? 'col-span-5' : 'col-span-5';
   const sheetStyle = compact
@@ -182,20 +200,17 @@ export function PrintableVehicleSheet({ vehicle, price, branding, logoUrl, compa
         {/* Image */}
         <div className={imageColumnClass}>
           {resolvedCoverImageUrl ? (
-            <div className={`relative w-full overflow-hidden rounded-lg border border-gray-200 bg-gray-100 ${imageAspectRatioClass}`}>
-              <img
-                src={resolvedCoverImageUrl}
-                alt={`Immagine di ${vehicle.marca} ${vehicle.modello}`}
-                className={`absolute inset-0 h-full w-full object-cover ${imageObjectPositionClass}`}
-                loading="eager"
-                decoding="sync"
-                onError={() => {
-                  if (resolvedCoverImageUrl !== imageUrl && imageUrl) {
-                    setResolvedCoverImageUrl(imageUrl);
-                  }
-                }}
-              />
-            </div>
+            <div
+              className={`relative w-full overflow-hidden rounded-lg border border-gray-200 bg-gray-100 ${imageAspectRatioClass}`}
+              role="img"
+              aria-label={`Immagine di ${vehicle.marca} ${vehicle.modello}`}
+              style={{
+                backgroundImage: `url("${resolvedCoverImageUrl}")`,
+                backgroundSize: 'cover',
+                backgroundPosition: coverBackgroundPosition,
+                backgroundRepeat: 'no-repeat',
+              }}
+            />
           ) : (
             <div className={`w-full ${compact ? 'aspect-[16/10]' : 'aspect-[4/3]'} bg-gray-100 flex items-center justify-center text-gray-500 rounded-lg border`}>
               Foto non disponibile
@@ -236,16 +251,18 @@ export function PrintableVehicleSheet({ vehicle, price, branding, logoUrl, compa
             const photoProxyUrl = getFileProxyUrl(photoUrl, `${vehicle.slug || 'veicolo'}-foto-${index + 1}`);
             return (
               <figure key={`${photoUrl}-${index}`} className="min-w-0">
-                <div className="relative overflow-hidden rounded border border-gray-200 bg-gray-100" style={{ aspectRatio: '4 / 3' }}>
-                  <img
-                    src={photoProxyUrl}
-                    alt={`Foto ${index + 1} ${vehicle.marca} ${vehicle.modello}`}
-                    className="absolute inset-0 h-full w-full object-cover"
-                    loading="eager"
-                    decoding="sync"
-                    crossOrigin="anonymous"
-                  />
-                </div>
+                <div
+                  className="relative overflow-hidden rounded border border-gray-200 bg-gray-100"
+                  role="img"
+                  aria-label={`Foto ${index + 1} ${vehicle.marca} ${vehicle.modello}`}
+                  style={{
+                    aspectRatio: '4 / 3',
+                    backgroundImage: `url("${photoProxyUrl}")`,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                    backgroundRepeat: 'no-repeat',
+                  }}
+                />
                 <figcaption className="mt-0.5 text-center text-[8px] text-gray-500">{index + 1}</figcaption>
               </figure>
             );
