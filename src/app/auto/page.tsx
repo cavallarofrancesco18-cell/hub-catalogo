@@ -6,18 +6,24 @@ import { VehicleCard } from '@/components/vehicle-card';
 import './home-custom.css';
 import { FilterSidebar } from './components/filter-sidebar';
 import { TraderAccessPopup } from './components/trader-access-popup';
+import { DidYouKnowPopup } from '@/components/know-did-you-know-popup';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
+import { BrandedLoader } from '@/components/branded-loader';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { useCollection } from '@/firebase/firestore/use-collection';
 import { collection, query, where } from 'firebase/firestore';
-import { useFirestore, useMemoFirebase, useUserRole } from '@/firebase';
+import { useFirestore, useMemoFirebase, useUser, useUserRole } from '@/firebase';
 import { releaseExpiredVehicleReservations } from '@/lib/vehicle-reservations';
+import { FAVORITES_CHANGED_EVENT, readFavoriteIdsByScope } from '@/lib/favorites';
+import { formatNumber } from '@/lib/utils';
 import { SlidersHorizontal } from 'lucide-react';
+import { useInitialCatalogVehicles } from './components/catalog-initial-data';
 
 type VehicleFilters = {
   searchText: string;
+  favoritesOnly: boolean;
   brand: string;
   model: string;
   fuel: string;
@@ -40,46 +46,81 @@ function normalizeVehicleBrand(brand: string | undefined | null): string {
 }
 
 export default function AutoPage() {
+  return <AutoCatalog />;
+}
+
+function AutoCatalog({
+  initialVehicles: serverInitialVehicles,
+}: {
+  initialVehicles?: Vehicle[];
+} = {}) {
+  const contextInitialVehicles = useInitialCatalogVehicles();
+  const initialVehicles = serverInitialVehicles ?? contextInitialVehicles;
   const firestore = useFirestore();
+  const { user } = useUser();
   const { role, roleData } = useUserRole();
   const isSeller = role === 'seller';
   const isAdmin = role === 'admin';
   const hasExtendedCatalogAccess =
     role === 'seller' && roleData?.sellerType?.toUpperCase() === 'HUB';
-  const showHubSection = isAdmin || hasExtendedCatalogAccess;
+  const isRegisteredUser = Boolean(role);
+  const favoritePersistence = user && !user.isAnonymous ? 'persistent' : 'session';
+  const getMerchantPrice = (vehicle: Vehicle) =>
+    typeof vehicle.prezzoPrivati === 'number' && vehicle.prezzoPrivati > 0
+      ? vehicle.prezzoPrivati
+      : vehicle.prezzo;
+  const getVisibleCatalogPrice = (vehicle: Vehicle) => {
+    // Se prezzo pubblico è 0 o null, usa prezzo commerciante
+    const publicPrice = vehicle.prezzo;
+    if (!publicPrice || publicPrice === 0) {
+      return getMerchantPrice(vehicle);
+    }
+
+    if (!isRegisteredUser) {
+      return publicPrice;
+    }
+
+    if (isAdmin || hasExtendedCatalogAccess) {
+      return publicPrice;
+    }
+
+    return getMerchantPrice(vehicle);
+  };
   
   const vehiclesRef = useMemoFirebase(
     () =>
       firestore
         ? query(
             collection(firestore, 'vehicles'),
-            hasExtendedCatalogAccess
-              ? where('stato', 'in', ['In vendita', 'In arrivo', 'Prenotato'])
-              : where('stato', '==', 'In vendita')
+            where('stato', '==', 'In vendita'),
+            where('adminOnly', '==', false)
           )
         : null,
-    [firestore, hasExtendedCatalogAccess]
+    [firestore]
   );
   const { data: vehicles, isLoading: isLoadingVehicles } = useCollection<Vehicle>(vehiclesRef);
 
   const incomingVehiclesRef = useMemoFirebase(
     () =>
-      firestore && showHubSection
+      firestore
         ? query(
             collection(firestore, 'vehicles'),
-            where('stato', '==', 'In arrivo')
+            where('stato', '==', 'In arrivo'),
+            where('adminOnly', '==', false)
           )
         : null,
-    [firestore, showHubSection]
+    [firestore]
   );
   const { data: incomingVehicles, isLoading: isLoadingIncoming } = useCollection<Vehicle>(incomingVehiclesRef);
 
   const normalizedVehicles = useMemo(() => {
-    if (!vehicles) {
-      return vehicles;
-    }
+    const availableVehicles = vehicles ?? initialVehicles;
+    const catalogVehicles = [
+      ...(incomingVehicles ?? []),
+      ...availableVehicles.filter(vehicle => vehicle.stato !== 'In arrivo'),
+    ];
 
-    return vehicles.map(vehicle => {
+    return catalogVehicles.map(vehicle => {
       const normalizedBrand = normalizeVehicleBrand(vehicle?.marca);
       if (!normalizedBrand || normalizedBrand === vehicle.marca) {
         return vehicle;
@@ -90,7 +131,7 @@ export default function AutoPage() {
         marca: normalizedBrand,
       };
     });
-  }, [vehicles]);
+  }, [vehicles, initialVehicles, incomingVehicles]);
   
   const [brands, setBrands] = useState<string[]>([]);
   const [models, setModels] = useState<string[]>([]);
@@ -99,6 +140,7 @@ export default function AutoPage() {
 
   const [filters, setFilters] = useState<VehicleFilters>({
     searchText: '',
+    favoritesOnly: false,
     brand: 'all',
     model: 'all',
     fuel: 'all',
@@ -107,11 +149,54 @@ export default function AutoPage() {
     mileage: [0, 250000],
   });
   const [sortBy, setSortBy] = useState('price-asc');
+  const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
+  const [showCatalogLoadingOverlay, setShowCatalogLoadingOverlay] = useState(false);
   
   // vehicles === null means Firestore has not yet responded (still loading).
   // vehicles === [] means Firestore responded with zero results.
   // Using !vehicles would treat an empty result set as "still loading".
-  const isLoading = isLoadingVehicles || vehicles === null;
+  const isLoading = initialVehicles.length === 0 && (isLoadingVehicles || vehicles === null);
+
+  useEffect(() => {
+    setFavoriteIds(readFavoriteIdsByScope(favoritePersistence));
+
+    const handleFavoritesChanged = (event: Event) => {
+      const customEvent = event as CustomEvent<{ favoriteIds?: string[]; persistence?: string }>;
+      if (customEvent.detail?.persistence !== favoritePersistence) {
+        return;
+      }
+
+      setFavoriteIds(customEvent.detail.favoriteIds ?? []);
+    };
+
+    const handleStorageSync = () => {
+      setFavoriteIds(readFavoriteIdsByScope(favoritePersistence));
+    };
+
+    window.addEventListener(FAVORITES_CHANGED_EVENT, handleFavoritesChanged as EventListener);
+    window.addEventListener('storage', handleStorageSync);
+
+    return () => {
+      window.removeEventListener(FAVORITES_CHANGED_EVENT, handleFavoritesChanged as EventListener);
+      window.removeEventListener('storage', handleStorageSync);
+    };
+  }, [favoritePersistence]);
+
+  useEffect(() => {
+    if (!isLoading) {
+      setShowCatalogLoadingOverlay(false);
+      return;
+    }
+
+    setShowCatalogLoadingOverlay(true);
+    const maxOverlayTimer = window.setTimeout(() => {
+      setShowCatalogLoadingOverlay(false);
+    }, 900);
+
+    return () => {
+      window.clearTimeout(maxOverlayTimer);
+    };
+  }, [isLoading]);
 
   useEffect(() => {
     void releaseExpiredVehicleReservations().catch(error => {
@@ -140,14 +225,15 @@ export default function AutoPage() {
     }
 
     const priceValues = safeVehicles
-      .map(v => Number(v.prezzo))
+      .filter(vehicle => vehicle.stato !== 'In arrivo')
+      .map(v => Number(getVisibleCatalogPrice(v)))
       .filter(value => Number.isFinite(value) && value >= 0);
     if (priceValues.length > 0) {
       const priceRange: [number, number] = [Math.min(...priceValues), Math.max(...priceValues)];
       setInitialPriceRange(priceRange);
       setFilters(prev => ({ ...prev, price: priceRange }));
     }
-  }, [normalizedVehicles]);
+  }, [normalizedVehicles, isRegisteredUser, isAdmin, hasExtendedCatalogAccess]);
 
   useEffect(() => {
     if (!normalizedVehicles || filters.brand === 'all') {
@@ -170,41 +256,35 @@ export default function AutoPage() {
 
   const filteredAndSortedVehicles = useMemo(() => {
     if (!normalizedVehicles) return [];
-
-    const getVisiblePrice = (vehicle: Vehicle) => {
-      if (!isSeller) {
-        return vehicle.prezzo;
-      }
-
-      return typeof vehicle.prezzoPrivati === 'number' && vehicle.prezzoPrivati > 0
-        ? vehicle.prezzoPrivati
-        : vehicle.prezzo;
-    };
     
     let filtered = normalizedVehicles.filter(v => {
-      const { searchText, brand, model, fuel, transmission, price, mileage } = filters;
+      const { searchText, favoritesOnly, brand, model, fuel, transmission, price, mileage } = filters;
       const normalizedSearch = searchText.trim().toLowerCase();
-      const visiblePrice = getVisiblePrice(v);
+      const visiblePrice = getVisibleCatalogPrice(v);
       const vehicleKm = Number(v.chilometraggio) || 0;
       const searchableText = `${v.marca} ${v.modello} ${v.versione ?? ''} ${v.targa ?? ''}`.toLowerCase();
 
       return (
         (normalizedSearch === '' || searchableText.includes(normalizedSearch)) &&
+        (!favoritesOnly || favoriteIds.includes(v.id)) &&
         (brand === 'all' || v.marca === brand) &&
         (model === 'all' || v.modello === model) &&
         (fuel === 'all' || v.carburante === fuel) &&
         (transmission === 'all' || v.cambio === transmission) &&
-        visiblePrice >= price[0] && visiblePrice <= price[1] &&
+        (v.stato === 'In arrivo' || (visiblePrice >= price[0] && visiblePrice <= price[1])) &&
         vehicleKm >= mileage[0] && vehicleKm <= mileage[1]
       );
     });
 
     return filtered.sort((a, b) => {
+      const incomingOrder = Number(b.stato === 'In arrivo') - Number(a.stato === 'In arrivo');
+      if (incomingOrder !== 0) return incomingOrder;
+
       switch (sortBy) {
         case 'price-asc':
-          return getVisiblePrice(a) - getVisiblePrice(b);
+          return getVisibleCatalogPrice(a) - getVisibleCatalogPrice(b);
         case 'price-desc':
-          return getVisiblePrice(b) - getVisiblePrice(a);
+          return getVisibleCatalogPrice(b) - getVisibleCatalogPrice(a);
         case 'year-desc':
           return new Date(b.data_immatricolazione).getTime() - new Date(a.data_immatricolazione).getTime();
         case 'year-asc':
@@ -213,93 +293,49 @@ export default function AutoPage() {
           return 0;
       }
     });
-  }, [normalizedVehicles, filters, sortBy, isSeller]);
+  }, [normalizedVehicles, filters, sortBy, favoriteIds, isRegisteredUser, isAdmin, hasExtendedCatalogAccess]);
+  const incomingCatalogVehicles = filteredAndSortedVehicles.filter(vehicle => vehicle.stato === 'In arrivo');
+  const availableCatalogVehicles = filteredAndSortedVehicles.filter(vehicle => vehicle.stato !== 'In arrivo');
 
   return (
     <div className="container mx-auto px-4 py-5 sm:py-8">
-      <TraderAccessPopup />
-      <section className="hero-showcase relative mb-5 overflow-hidden rounded-2xl border border-slate-800/80 bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900 px-4 py-5 shadow-xl shadow-slate-900/25 sm:px-6 sm:py-6 lg:px-10">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(96,165,250,0.18),_transparent_38%),radial-gradient(circle_at_bottom_right,_rgba(255,255,255,0.08),_transparent_30%)]" />
-        <div className="hero-showcase__content relative mx-auto flex max-w-6xl flex-col items-center gap-4 text-center sm:gap-5">
-          <div className="space-y-3">
-            <em>
-            <h1 className="hero-showcase__headline text-xl font-bold font-headline leading-tight text-white sm:text-2xl md:text-3xl lg:max-w-4xl">
-              Le auto presenti sul nostro portale provengono da contratti di noleggio a lungo termine giunti alla loro scadenza.
-            </h1></em>
-            <p className="hero-showcase__copy mx-auto max-w-4xl text-sm leading-6 text-slate-200/90 md:text-base">
-              Questa tipologia di veicoli rappresenta oggi una delle migliori opportunità sul mercato dell'usato recente: automobili con una storia chiara, manutenzione programmata e chilometraggio certificato.
-            </p>
-            <p className="hero-showcase__copy mx-auto hidden max-w-4xl text-sm leading-6 text-slate-200/90 md:block md:text-base" style={{ animationDelay: '0.14s' }}>
-              Ogni vettura viene verificata prima della messa in vendita e proposta con la massima trasparenza. Eventuali segni di normale utilizzo sono compatibili con l'età e il chilometraggio del veicolo e non ne compromettono affidabilità, sicurezza o funzionalità.
-            </p>
-          </div>
-          <div className="hero-feature-panel flex w-full max-w-4xl flex-col items-center gap-4 rounded-2xl border border-white/10 bg-white/6 px-4 py-4 shadow-lg shadow-slate-950/20 backdrop-blur-md sm:px-5 sm:py-5">
-            <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
-              <Badge variant="outline" className="hero-feature-chip border-white/20 bg-white/10 px-3 py-1.5 text-xs font-medium text-slate-50 shadow-sm sm:px-4 sm:py-2 sm:text-sm">
-                Chilometraggio certificato
-              </Badge>
-              <Badge variant="outline" className="hero-feature-chip border-white/20 bg-white/10 px-3 py-1.5 text-xs font-medium text-slate-50 shadow-sm sm:px-4 sm:py-2 sm:text-sm" style={{ animationDelay: '0.18s' }}>
-                Manutenzione regolare e verificabile
-              </Badge>
-              <Badge variant="outline" className="hero-feature-chip border-sky-300/30 bg-sky-400/15 px-3 py-1.5 text-xs font-semibold text-sky-50 shadow-sm shadow-sky-950/30 sm:px-4 sm:py-2 sm:text-sm" style={{ animationDelay: '0.32s' }}>
-                Finanziamento disponibile in sede
-              </Badge>
-            </div>
-            <p className="hero-showcase__note max-w-3xl text-sm leading-6 text-slate-200/90 md:text-base">
-              Tagliandi eseguiti con puntualita, standard aziendali rigorosi e soluzioni di acquisto flessibili con servizi aggiuntivi disponibili su richiesta.
-            </p>
+      {showCatalogLoadingOverlay ? (
+        <div className="pointer-events-none fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/20">
+          <div className="w-[min(92vw,520px)] rounded-2xl border border-border/70 bg-background/95 px-3 py-4 shadow-2xl">
+            <BrandedLoader
+              className="max-w-full"
+              label="Sto caricando il catalogo..."
+              imageClassName="h-8 max-w-[110px]"
+            />
           </div>
         </div>
-      </section>
-      {showHubSection && (isLoadingIncoming ? (
-        <section className="mb-8">
-          <h2 className="mb-4 text-xl font-bold font-headline sm:text-2xl">Auto in Arrivo - HUB</h2>
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="flex flex-col space-y-3">
-                <Skeleton className="h-[200px] w-full rounded-lg" />
-                <div className="space-y-2">
-                  <Skeleton className="h-4 w-4/5" />
-                  <Skeleton className="h-4 w-3/5" />
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      ) : incomingVehicles && incomingVehicles.length > 0 ? (
-        <section className="mb-8">
-          <h2 className="mb-4 text-xl font-bold font-headline sm:text-2xl">Auto in Arrivo - HUB</h2>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-            {incomingVehicles.slice(0, 10).map(vehicle => (
-              <VehicleCard key={vehicle.id} vehicle={vehicle} />
-            ))}
-          </div>
-        </section>
-      ) : null)}
+      ) : null}
+      <TraderAccessPopup />
+      <DidYouKnowPopup />
       <div className="mb-6 flex flex-col gap-3 sm:mb-8 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold font-headline sm:text-3xl">Catalogo Auto</h1>
+          <h2 className="text-2xl font-bold font-headline sm:text-3xl">Catalogo Auto</h2>
           {!isLoading && (
             <p className="mt-1 text-sm text-muted-foreground">
-              {filteredAndSortedVehicles.length} risultati disponibili
+              {formatNumber(filteredAndSortedVehicles.length)} risultati disponibili
             </p>
           )}
         </div>
         <Sheet>
           <SheetTrigger asChild>
-            <Button variant="outline" className="h-11 w-full gap-2 lg:hidden">
+            <Button variant="outline" className="h-10 w-full gap-1.5 text-sm lg:hidden">
               <SlidersHorizontal className="h-4 w-4" />
               Filtri e ordinamento
             </Button>
           </SheetTrigger>
-          <SheetContent side="left" className="w-[92vw] max-w-md overflow-y-auto px-0">
-            <SheetHeader className="border-b px-5 pb-4 text-left">
-              <SheetTitle>Filtri e ordinamento</SheetTitle>
+          <SheetContent side="left" className="w-[84vw] max-w-[320px] overflow-y-auto px-0">
+            <SheetHeader className="border-b px-3 pb-3 text-left">
+              <SheetTitle className="text-base">Filtri e ordinamento</SheetTitle>
               <SheetDescription>
                 Aggiorna il catalogo senza perdere spazio utile sullo schermo.
               </SheetDescription>
             </SheetHeader>
-            <div className="p-5">
+            <div className="p-3">
               <FilterSidebar
                 brands={brands}
                 models={models}
@@ -307,9 +343,11 @@ export default function AutoPage() {
                 setFilters={setFilters}
                 sortBy={sortBy}
                 setSortBy={setSortBy}
+                favoriteCount={favoriteIds.length}
                 priceRange={initialPriceRange}
                 mileageRange={initialMileageRange}
                 disabled={isLoading}
+                compactMobile
                 className="border-0 shadow-none"
               />
             </div>
@@ -317,7 +355,7 @@ export default function AutoPage() {
         </Sheet>
       </div>
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-4">
-        <div className="sticky h-fit z-40" style={{ top: 'var(--site-header-height)' }}>
+        <div className="h-fit lg:sticky" style={{ top: 'calc(var(--site-header-height) + 0.75rem)' }}>
           <FilterSidebar
             brands={brands}
             models={models}
@@ -325,13 +363,30 @@ export default function AutoPage() {
             setFilters={setFilters}
             sortBy={sortBy}
             setSortBy={setSortBy}
+            favoriteCount={favoriteIds.length}
             priceRange={initialPriceRange}
             mileageRange={initialMileageRange}
             disabled={isLoading}
+            enableAdvancedInternalScroll
             className="hidden lg:block"
           />
         </div>
         <div className="lg:col-span-3">
+          {!isLoading && (incomingCatalogVehicles.length > 0 || isLoadingIncoming) ? (
+            <section className="mb-8 rounded-lg border border-sky-100 bg-sky-50/70 p-4 sm:p-6">
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
+                {isLoadingIncoming
+                  ? Array.from({ length: 3 }).map((_, index) => (
+                      <Skeleton key={index} className="h-80 w-full rounded-lg" />
+                    ))
+                  : incomingCatalogVehicles.map(vehicle => (
+                      <div key={vehicle.id} className="w-full">
+                        <VehicleCard vehicle={vehicle} />
+                      </div>
+                    ))}
+              </div>
+            </section>
+          ) : null}
           {isLoading ? (
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
               {Array.from({ length: 6 }).map((_, i) => (
@@ -344,18 +399,18 @@ export default function AutoPage() {
                 </div>
               ))}
             </div>
-          ) : filteredAndSortedVehicles.length > 0 ? (
+          ) : availableCatalogVehicles.length > 0 ? (
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
-              {filteredAndSortedVehicles.map(vehicle => (
+              {availableCatalogVehicles.map(vehicle => (
                 <VehicleCard key={vehicle.id} vehicle={vehicle} />
               ))}
             </div>
-          ) : (
+          ) : filteredAndSortedVehicles.length === 0 && !isLoadingIncoming ? (
             <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/30 py-20 text-center">
                 <h2 className="text-xl font-semibold">Nessun veicolo trovato</h2>
                 <p className="mt-2 text-muted-foreground">Prova a modificare i filtri di ricerca.</p>
             </div>
-          )}
+          ) : null}
         </div>
       </div>
     </div>

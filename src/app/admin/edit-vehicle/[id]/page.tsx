@@ -1,16 +1,15 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import JSZip from 'jszip';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { doc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import Image from 'next/image';
 
-import { useAuth, useFirestore, useFirebaseApp } from '@/firebase';
+import { useAuth, useFirestore, useFirebaseApp, useUserRole } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -40,20 +39,28 @@ import {
 } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
 import { normalizeBrandLabel } from '@/lib/brand-utils';
+import { notifyVehicleStatusChange } from '@/lib/vehicle-status-notification';
 import { optimizeImageForUpload, getUploadErrorMessage } from '@/lib/image-upload';
+import { classifyVehicleImageAutoCategory } from '@/lib/vehicle-image-auto-category';
 import { Skeleton } from '@/components/ui/skeleton';
+import { VehicleDocumentsSection } from '@/components/vehicle-documents-section';
 import {
   cn,
   generateSlug,
   getDefaultVehicleCoverCategory,
   getDirectImageUrl,
+  getVehicleVideoLabel,
   isFirebaseStorageUrl,
   orderVehicleMediaAssetsForCover,
 } from '@/lib/utils';
-import { updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { setDocumentNonBlocking, updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import {
+  getVehicleNotificationErrorMessage,
+  type VehicleNotificationResponse,
+} from '@/lib/vehicle-notification';
 import Link from 'next/link';
 import { Progress } from '@/components/ui/progress';
-import { Loader2, Mail, Upload, X, Trash2, Star, Sparkles, FileText, Download, Eye } from 'lucide-react';
+import { Loader2, Mail, Upload, X, Trash2, Star, Sparkles, FileText, Download, Eye, FolderOpen, Lock, LockOpen } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -66,6 +73,12 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { generateVehicleDescription } from '@/ai/flows/generate-vehicle-description';
 import { ImageGallery } from '@/components/image-gallery';
 import type {
@@ -82,7 +95,7 @@ const vehicleSchema = z.object({
   data_immatricolazione: z.string({ required_error: 'La data di immatricolazione è obbligatoria.' }),
   targa: z.string().min(1, 'La targa è obbligatoria.'),
   chilometraggio: z.coerce.number().int().optional().or(z.literal('')),
-  carburante: z.enum(['Benzina', 'Diesel', 'Elettrica', 'Ibrida']).optional(),
+  carburante: z.enum(['Benzina', 'GPL', 'Diesel', 'Elettrica', 'Ibrida']).optional(),
   cambio: z.enum(['Manuale', 'Automatico']).optional(),
   potenza: z.coerce.number().int().optional().or(z.literal('')),
   potenza_kw: z.coerce.number().int().optional().or(z.literal('')),
@@ -92,13 +105,14 @@ const vehicleSchema = z.object({
   prezzo: z.coerce.number().optional().or(z.literal('')),
   prezzoPrivati: z.coerce.number().optional().or(z.literal('')),
   garanzia_legale_prezzo: z.coerce.number().optional().or(z.literal('')),
+  prezzoValutazione: z.coerce.number().optional().or(z.literal('')),
   garanzia: z.string().optional(),
   classe_emissioni: z.string().optional(),
   bollo: z.string().optional(),
   descrizione: z.string().optional(),
   youtubeVideoUrl: z.string().trim().optional().or(z.literal('')),
   immagini: z.string().optional(),
-  stato: z.enum(['In vendita', 'Venduto', 'Prenotato', 'In arrivo']).optional(),
+  stato: z.enum(['In vendita', 'Venduto', 'Prenotato', 'In arrivo', 'Trasferita']).optional(),
   sendNotificationEmail: z.boolean().default(false),
 });
 
@@ -111,6 +125,12 @@ const imageCategoryOptions: Array<{
   visibility: VehicleImageVisibility;
   hint: string;
 }> = [
+  {
+    value: 'showroom-hub',
+    label: 'Showroom HUB (copertina)',
+    visibility: 'public',
+    hint: 'Auto davanti al fondale HUB riconoscibile. Viene proposta come copertina.',
+  },
   {
     value: 'fronte-dx',
     label: 'Fronte dx',
@@ -173,9 +193,9 @@ const imageCategoryOptions: Array<{
   },
   {
     value: 'generica',
-    label: 'Video 360',
+    label: 'Generica / da verificare',
     visibility: 'public',
-    hint: 'Video panoramico del veicolo (MP4 o WebM).',
+    hint: 'Foto non riconosciuta con certezza oppure asset generico.',
   },
 ];
 
@@ -211,7 +231,7 @@ const isSupportedVehicleMediaFile = (file: File) => {
 
 const buildVehicleMediaAssets = (vehicleData: Record<string, any>): VehicleImageAsset[] => {
   if (Array.isArray(vehicleData.mediaAssets) && vehicleData.mediaAssets.length > 0) {
-    return vehicleData.mediaAssets.map((asset: VehicleImageAsset) => ({
+    const assets = vehicleData.mediaAssets.map((asset: VehicleImageAsset) => ({
       url: asset.url,
       category: asset.category || 'generica',
       label: asset.label || getImageCategoryMeta(asset.category || 'generica').label,
@@ -219,6 +239,11 @@ const buildVehicleMediaAssets = (vehicleData: Record<string, any>): VehicleImage
       mediaType: asset.mediaType || (isVideoAssetUrl(asset.url) ? 'video360' : 'image'),
       storagePath: asset.storagePath || null,
     }));
+    const videoCount = assets.filter((asset: VehicleImageAsset) => asset.mediaType === 'video360').length;
+    let videoIndex = 0;
+    return assets.map((asset: VehicleImageAsset) => asset.mediaType === 'video360'
+      ? { ...asset, label: getVehicleVideoLabel(videoIndex++, videoCount) }
+      : asset);
   }
 
   const publicAssets = Array.isArray(vehicleData.immagini)
@@ -250,6 +275,9 @@ type UploadItem = {
   file: File;
   label: string;
   category: VehicleImageCategory;
+  categorySource: 'ai' | 'filename' | 'fallback';
+  categoryConfidence: number;
+  isClassifyingCategory: boolean;
   visibility: VehicleImageVisibility;
   mediaType: VehicleMediaType;
   previewUrl: string;
@@ -262,9 +290,16 @@ type UploadItem = {
 export default function EditVehiclePage() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
+  const returnTo = searchParams.get('returnTo') || '/admin';
   const auth = useAuth();
   const firestore = useFirestore();
   const app = useFirebaseApp();
+  const { roleData, isPlatformAdmin } = useUserRole();
+  const normalizedSellerType = (roleData?.sellerType ?? '').trim().toUpperCase();
+  const isHubSeller = !isPlatformAdmin && normalizedSellerType === 'HUB';
+  const isAdmin = isPlatformAdmin;
+  const isHubLimitedEditor = isHubSeller && !isAdmin;
   const storage = useMemo(
     () => getStorage(app, 'gs://studio-3074982188-44660.firebasestorage.app'),
     [app]
@@ -275,7 +310,10 @@ export default function EditVehiclePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isResendingNotification, setIsResendingNotification] = useState(false);
+  const [notificationFailureCount, setNotificationFailureCount] = useState(0);
+  const [hasNotificationFailures, setHasNotificationFailures] = useState(false);
   const [initialStatus, setInitialStatus] = useState<VehicleFormValues['stato'] | null>(null);
+  const [initialAdminOnly, setInitialAdminOnly] = useState(false);
   const [imagesToDelete, setImagesToDelete] = useState<string[]>([]);
   const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
   const vehicleId = params.id as string;
@@ -283,9 +321,18 @@ export default function EditVehiclePage() {
   const [existingMediaAssets, setExistingMediaAssets] = useState<VehicleImageAsset[]>([]);
   const [coverImageUrl, setCoverImageUrl] = useState<string | null>(null);
   const [uploadItems, setUploadItems] = useState<UploadItem[]>([]);
+  const existingVideoCount = useMemo(
+    () => existingMediaAssets.filter(asset => asset.mediaType === 'video360').length,
+    [existingMediaAssets]
+  );
+  const uploadVideoItems = useMemo(
+    () => uploadItems.filter(item => item.mediaType === 'video360'),
+    [uploadItems]
+  );
   const [freshlyUploadedUrls, setFreshlyUploadedUrls] = useState<string[]>([]);
   const [selectedImageCategory, setSelectedImageCategory] =
     useState<VehicleImageCategory>(defaultImageCategory);
+  const [hasManualImageCategorySelection, setHasManualImageCategorySelection] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const periziaPdfInputRef = useRef<HTMLInputElement | null>(null);
@@ -293,6 +340,7 @@ export default function EditVehiclePage() {
   const [periziaPdfStoragePath, setPeriziaPdfStoragePath] = useState<string | null>(null);
   const [periziaPdfName, setPeriziaPdfName] = useState<string | null>(null);
   const [isUploadingPeriziaPdf, setIsUploadingPeriziaPdf] = useState(false);
+  const hasPeriziaPdf = Boolean(periziaPdfUrl || periziaPdfStoragePath || periziaPdfName);
   const hasUploadingItems = uploadItems.some(
     item => item.status === 'preparing' || item.status === 'uploading'
   ) || isUploadingPeriziaPdf;
@@ -304,6 +352,10 @@ export default function EditVehiclePage() {
     () => existingMediaAssets.filter(asset => asset.visibility === 'admin'),
     [existingMediaAssets]
   );
+  const allowedImageCategoryOptions = useMemo(
+    () => (isAdmin ? imageCategoryOptions : imageCategoryOptions.filter(option => option.visibility === 'public')),
+    [isAdmin]
+  );
   const existingAssetUrls = useMemo(
     () =>
       existingMediaAssets
@@ -312,15 +364,68 @@ export default function EditVehiclePage() {
         .filter((url): url is string => Boolean(url)),
     [existingMediaAssets]
   );
+  const syncPeriziaDocument = async (params: {
+    vehicleId: string;
+    fileName: string;
+    fileUrl: string;
+    storagePath: string;
+    sizeBytes?: number | null;
+  }) => {
+    if (!firestore) {
+      return;
+    }
+
+    const periziaDocumentRef = doc(
+      firestore,
+      'vehicles',
+      params.vehicleId,
+      'documents',
+      'perizia-riconsegna'
+    );
+
+    await setDocumentNonBlocking(
+      periziaDocumentRef,
+      {
+        id: 'perizia-riconsegna',
+        title: 'Perizia riconsegna',
+        titleKey: 'perizia-riconsegna',
+        fileName: params.fileName,
+        fileUrl: params.fileUrl,
+        storagePath: params.storagePath,
+        contentType: 'application/pdf',
+        sizeBytes: params.sizeBytes ?? null,
+        folderId: null,
+        uploadedByUid: auth.currentUser?.uid ?? null,
+        uploadedByEmail: auth.currentUser?.email ?? null,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
+  };
   const [isAssetsGalleryOpen, setIsAssetsGalleryOpen] = useState(false);
   const [assetsGalleryStartIndex, setAssetsGalleryStartIndex] = useState(0);
   const [isDownloadingAllAssets, setIsDownloadingAllAssets] = useState(false);
+  const [isDocumentsDialogOpen, setIsDocumentsDialogOpen] = useState(false);
+  const [lockedHubPricing, setLockedHubPricing] = useState<{
+    prezzoPrivati: number | null;
+    prezzoValutazione: number | null;
+  }>({
+    prezzoPrivati: null,
+    prezzoValutazione: null,
+  });
 
   useEffect(() => {
     if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
       storage.maxUploadRetryTime = 5000;
     }
   }, [storage]);
+
+  useEffect(() => {
+    if (!allowedImageCategoryOptions.some(option => option.value === selectedImageCategory)) {
+      setSelectedImageCategory(defaultImageCategory);
+    }
+  }, [allowedImageCategoryOptions, selectedImageCategory]);
 
   const openAssetsGallery = (index: number) => {
     setAssetsGalleryStartIndex(index);
@@ -330,25 +435,6 @@ export default function EditVehiclePage() {
   const closeAssetsGallery = () => setIsAssetsGalleryOpen(false);
 
   const sanitizeFileName = (value: string) => value.replace(/[^a-zA-Z0-9-_]+/g, '_').replace(/^_+|_+$/g, '');
-
-  const getFileExtension = (url: string, contentType?: string | null) => {
-    try {
-      const pathname = new URL(url).pathname;
-      const match = pathname.match(/\.([a-zA-Z0-9]+)$/);
-      if (match?.[1]) {
-        return match[1].toLowerCase();
-      }
-    } catch {
-      // ignore
-    }
-
-    if (contentType?.includes('png')) return 'png';
-    if (contentType?.includes('webp')) return 'webp';
-    if (contentType?.includes('gif')) return 'gif';
-    if (contentType?.includes('jpeg') || contentType?.includes('jpg')) return 'jpg';
-
-    return 'jpg';
-  };
 
   const downloadAllAssets = async () => {
     if (existingAssetUrls.length === 0) {
@@ -362,27 +448,39 @@ export default function EditVehiclePage() {
     setIsDownloadingAllAssets(true);
 
     try {
-      const zip = new JSZip();
-      const folderName = sanitizeFileName(`${form.getValues('marca') || 'vehicle'}-${form.getValues('modello') || vehicleId}`) || `vehicle-${vehicleId}`;
-      const folder = zip.folder(folderName) ?? zip;
-      const uniqueUrls = Array.from(new Set(existingAssetUrls));
-
-      for (let index = 0; index < uniqueUrls.length; index += 1) {
-        const imageUrl = uniqueUrls[index];
-        const response = await fetch(imageUrl, { mode: 'cors' });
-
-        if (!response.ok) {
-          throw new Error(`Impossibile scaricare l'immagine ${index + 1}`);
-        }
-
-        const blob = await response.blob();
-        const asset = existingMediaAssets.find(item => getDirectImageUrl(item.url) === imageUrl);
-        const label = sanitizeFileName(asset?.label || `foto-${index + 1}`) || `foto-${index + 1}`;
-        const extension = getFileExtension(imageUrl, response.headers.get('content-type'));
-        folder.file(`${String(index + 1).padStart(2, '0')}-${label}.${extension}`, blob);
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        toast({
+          variant: 'destructive',
+          title: 'Non autorizzato',
+          description: 'Effettua di nuovo il login e riprova.',
+        });
+        return;
       }
 
-      const archiveBlob = await zip.generateAsync({ type: 'blob' });
+      const idToken = await currentUser.getIdToken();
+      const response = await fetch(`/api/vehicles/${vehicleId}/photos-zip`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${idToken}`,
+        },
+      });
+
+      if (!response.ok) {
+        const errorBody = (await response.json().catch(() => null)) as { error?: string } | null;
+        const errorCode = errorBody?.error || 'DOWNLOAD_FAILED';
+        if (errorCode === 'NO_IMAGES' || errorCode === 'NO_EXPORTABLE_IMAGES') {
+          toast({
+            title: 'Nessuna foto disponibile',
+            description: 'Questo veicolo non ha immagini scaricabili.',
+          });
+          return;
+        }
+        throw new Error(errorCode);
+      }
+
+      const archiveBlob = await response.blob();
+      const folderName = sanitizeFileName(`${form.getValues('marca') || 'vehicle'}-${form.getValues('modello') || vehicleId}`) || `vehicle-${vehicleId}`;
       const downloadUrl = URL.createObjectURL(archiveBlob);
       const link = document.createElement('a');
       link.href = downloadUrl;
@@ -394,7 +492,7 @@ export default function EditVehiclePage() {
 
       toast({
         title: 'Download avviato',
-        description: `Scaricamento di ${uniqueUrls.length} immagini in corso.`,
+        description: 'Lo ZIP delle foto è pronto.',
       });
     } catch (error) {
       console.error(error);
@@ -424,6 +522,7 @@ export default function EditVehiclePage() {
       prezzo: '',
       prezzoPrivati: '',
       garanzia_legale_prezzo: '',
+      prezzoValutazione: '',
       targa: '',
       garanzia: '',
       classe_emissioni: '',
@@ -447,6 +546,12 @@ export default function EditVehiclePage() {
 
         if (docSnap.exists()) {
           const vehicleData = docSnap.data();
+          const savedFailureCount =
+            typeof vehicleData.newVehicleNotificationFailureCount === 'number'
+              ? vehicleData.newVehicleNotificationFailureCount
+              : 0;
+          setNotificationFailureCount(savedFailureCount);
+          setHasNotificationFailures(savedFailureCount > 0);
           const registrationDateISO = vehicleData.data_immatricolazione || (vehicleData.anno ? new Date(vehicleData.anno, 0, 1).toISOString() : new Date().toISOString());
           const dataForForm = {
             ...vehicleData,
@@ -455,6 +560,7 @@ export default function EditVehiclePage() {
             prezzo: vehicleData.prezzo ?? '',
             prezzoPrivati: vehicleData.prezzoPrivati ?? vehicleData.prezzo ?? '',
             garanzia_legale_prezzo: vehicleData.garanzia_legale_prezzo ?? '',
+            prezzoValutazione: vehicleData.prezzoValutazione ?? '',
             carburante: vehicleData.carburante ?? undefined,
             cambio: vehicleData.cambio ?? undefined,
             colore_esterno: vehicleData.colore_esterno ?? '',
@@ -473,11 +579,38 @@ export default function EditVehiclePage() {
             sendNotificationEmail: false,
           };
           form.reset(dataForForm as any);
+          setLockedHubPricing({
+            prezzoPrivati:
+              typeof vehicleData.prezzoPrivati === 'number'
+                ? vehicleData.prezzoPrivati
+                : typeof vehicleData.prezzo === 'number'
+                  ? vehicleData.prezzo
+                  : null,
+            prezzoValutazione:
+              typeof vehicleData.prezzoValutazione === 'number'
+                ? vehicleData.prezzoValutazione
+                : null,
+          });
           setInitialStatus((vehicleData.stato ?? 'In vendita') as VehicleFormValues['stato']);
+          setInitialAdminOnly(vehicleData.adminOnly === true || vehicleData.stato === 'Trasferita');
           setCoverImageUrl(vehicleData.coverImageUrl ?? null);
-          setPeriziaPdfUrl(vehicleData.periziaPdfUrl ?? null);
-          setPeriziaPdfStoragePath(vehicleData.periziaPdfStoragePath ?? null);
+          const legacyPeriziaPdfUrl = vehicleData.periziaPdfUrl ?? null;
+          const nextPeriziaStoragePath = vehicleData.periziaPdfStoragePath ?? null;
+          setPeriziaPdfStoragePath(nextPeriziaStoragePath);
           setPeriziaPdfName(vehicleData.periziaPdfName ?? null);
+
+          if (nextPeriziaStoragePath) {
+            try {
+              const resolvedPeriziaUrl = await getDownloadURL(ref(storage, nextPeriziaStoragePath));
+              setPeriziaPdfUrl(resolvedPeriziaUrl);
+            } catch {
+              // Fallback to legacy URL if storage URL cannot be resolved.
+              setPeriziaPdfUrl(legacyPeriziaPdfUrl);
+            }
+          } else {
+            setPeriziaPdfUrl(legacyPeriziaPdfUrl);
+          }
+
           setExistingMediaAssets(
             orderVehicleMediaAssetsForCover(
               buildVehicleMediaAssets(vehicleData),
@@ -490,7 +623,7 @@ export default function EditVehiclePage() {
             title: 'Errore',
             description: 'Veicolo non trovato.',
           });
-          router.push('/admin');
+          router.push(returnTo);
         }
       } catch (error) {
         console.error("Errore nel caricamento del veicolo:", error);
@@ -505,7 +638,7 @@ export default function EditVehiclePage() {
     };
 
     fetchVehicle();
-  }, [vehicleId, firestore, form, router, toast]);
+  }, [vehicleId, firestore, form, router, storage, toast]);
 
   const updateUploadItem = (itemId: string, updater: (item: UploadItem) => UploadItem) => {
     setUploadItems(currentItems =>
@@ -542,22 +675,43 @@ export default function EditVehiclePage() {
       });
     }
 
+    const classificationTokenPromise = auth.currentUser
+      ? auth.currentUser.getIdToken().catch(() => undefined)
+      : Promise.resolve<string | undefined>(undefined);
+
+    const allowedCategoryValues = new Set(
+      allowedImageCategoryOptions.map(option => option.value)
+    );
+
+    const fallbackAllowedCategory = allowedCategoryValues.has(category)
+      ? category
+      : defaultImageCategory;
+
     supportedFiles.forEach(file => {
       const uploadId = crypto.randomUUID();
       const previewUrl = URL.createObjectURL(file);
       const isVideo = isVideoFile(file);
-      const resolvedCategory = isVideo ? 'generica' : category;
-      const categoryMeta = getImageCategoryMeta(resolvedCategory);
+      const shouldUseManualFallback = hasManualImageCategorySelection;
+      const fallbackCategory = isVideo
+        ? 'generica'
+        : shouldUseManualFallback
+          ? fallbackAllowedCategory
+          : 'generica';
+      const fallbackCategoryMeta = getImageCategoryMeta(fallbackCategory);
       const mediaType: VehicleMediaType = isVideo ? 'video360' : 'image';
+      const initialLabel = isVideo ? 'Video' : fallbackCategoryMeta.label;
 
       setUploadItems(currentItems => [
         ...currentItems,
         {
           id: uploadId,
           file,
-          label: categoryMeta.label,
-          category: resolvedCategory,
-          visibility: categoryMeta.visibility,
+          label: initialLabel,
+          category: fallbackCategory,
+          categorySource: 'fallback',
+          categoryConfidence: 0,
+          isClassifyingCategory: !isVideo,
+          visibility: fallbackCategoryMeta.visibility,
           mediaType,
           previewUrl,
           progress: 0,
@@ -568,6 +722,32 @@ export default function EditVehiclePage() {
 
       void (async () => {
         try {
+          let resolvedCategory = fallbackCategory;
+          let categoryMeta = fallbackCategoryMeta;
+
+          if (!isVideo) {
+            const idToken = await classificationTokenPromise;
+            const classification = await classifyVehicleImageAutoCategory({
+              file,
+              fallbackCategory,
+              idToken,
+              allowCategory: nextCategory => allowedCategoryValues.has(nextCategory),
+            });
+
+            resolvedCategory = classification.category;
+            categoryMeta = getImageCategoryMeta(resolvedCategory);
+
+            updateUploadItem(uploadId, item => ({
+              ...item,
+              category: resolvedCategory,
+              label: categoryMeta.label,
+              visibility: categoryMeta.visibility,
+              categorySource: classification.source,
+              categoryConfidence: classification.confidence,
+              isClassifyingCategory: false,
+            }));
+          }
+
           const fileToUpload = isVideo ? file : await optimizeImageForUpload(file);
           const storagePath = `download/${vehicleId}/${uploadId}-${fileToUpload.name}`;
 
@@ -576,6 +756,7 @@ export default function EditVehiclePage() {
             file: fileToUpload,
             status: 'uploading',
             storagePath,
+            isClassifyingCategory: false,
           }));
 
           const storageRef = ref(storage, storagePath);
@@ -611,6 +792,9 @@ export default function EditVehiclePage() {
                 .then(url => {
                   URL.revokeObjectURL(previewUrl);
                   setUploadItems(currentItems => currentItems.filter(item => item.id !== uploadId));
+                  if (resolvedCategory === 'showroom-hub' && categoryMeta.visibility === 'public') {
+                    setCoverImageUrl(url);
+                  }
                   setExistingMediaAssets(currentAssets =>
                     orderVehicleMediaAssetsForCover(
                       [
@@ -703,10 +887,23 @@ export default function EditVehiclePage() {
       },
       () => {
         getDownloadURL(uploadTask.snapshot.ref)
-          .then(url => {
+          .then(async url => {
             setPeriziaPdfUrl(url);
             setPeriziaPdfStoragePath(storagePath);
             setPeriziaPdfName(file.name);
+
+            try {
+              await syncPeriziaDocument({
+                vehicleId,
+                fileName: file.name,
+                fileUrl: url,
+                storagePath,
+                sizeBytes: file.size,
+              });
+            } catch (syncError) {
+              console.error('Errore sincronizzazione perizia su documenti veicolo', syncError);
+            }
+
             toast({
               title: 'Perizia aggiornata',
               description: 'Il PDF della perizia e stato caricato correttamente.',
@@ -775,6 +972,37 @@ export default function EditVehiclePage() {
     });
   };
 
+  const setExistingAssetAdminOnly = (urlToChange: string, adminOnly: boolean) => {
+    const librettoMeta = getImageCategoryMeta('libretto');
+    const genericMeta = getImageCategoryMeta('generica');
+
+    setExistingMediaAssets(prev =>
+      prev.map(asset => {
+        if (asset.url !== urlToChange) return asset;
+        if (adminOnly) {
+          return { ...asset, category: 'libretto', label: librettoMeta.label, visibility: 'admin' };
+        }
+        return {
+          ...asset,
+          category: asset.category === 'libretto' ? 'generica' : asset.category,
+          label: asset.category === 'libretto' ? genericMeta.label : asset.label,
+          visibility: 'public',
+        };
+      })
+    );
+
+    if (adminOnly && coverImageUrl === urlToChange) {
+      setCoverImageUrl(null);
+    }
+
+    toast({
+      description: adminOnly
+        ? 'Foto impostata come Libretto (solo admin). Salva per applicare.'
+        : 'Foto resa pubblica. Salva per applicare.',
+      duration: 4000,
+    });
+  };
+
   const setAsCoverImage = (urlToSet: string) => {
     setCoverImageUrl(urlToSet);
     setExistingMediaAssets(prev => {
@@ -812,7 +1040,7 @@ export default function EditVehiclePage() {
         title: "Veicolo eliminato!",
         description: `Il veicolo è stato rimosso dal catalogo.`,
       });
-      router.push("/admin");
+      router.push(returnTo);
     } catch (error) {
       console.error("Errore durante l'eliminazione:", error);
       toast({
@@ -841,21 +1069,28 @@ export default function EditVehiclePage() {
       body: JSON.stringify({ vehicleId, force }),
     });
 
-    const result = (await response.json().catch(() => null)) as { error?: string } | null;
+    const result = (await response.json().catch(() => null)) as VehicleNotificationResponse | null;
+    if (typeof result?.failedCount === 'number' || typeof result?.missingEmailCount === 'number') {
+      const failureCount = (result.failedCount || 0) + (result.missingEmailCount || 0);
+      setNotificationFailureCount(failureCount);
+      setHasNotificationFailures(failureCount > 0);
+    }
 
     if (!response.ok) {
-      throw new Error(result?.error || 'VEHICLE_NOTIFICATION_FAILED');
+      throw new Error(
+        getVehicleNotificationErrorMessage(result || { error: 'VEHICLE_NOTIFICATION_FAILED' })
+      );
     }
 
     return result;
   };
 
-  const handleResendVehicleNotification = async () => {
-    if (form.getValues('stato') !== 'In vendita') {
+  const handleVehicleNotification = async (sendToAll: boolean) => {
+    if (initialAdminOnly || form.getValues('stato') !== 'In vendita') {
       toast({
         variant: 'destructive',
-        title: 'Reinvio non disponibile',
-        description: 'Puoi reinviare la notifica solo per veicoli attualmente in vendita.',
+        title: 'Invio non disponibile',
+        description: 'Puoi inviare la notifica solo per veicoli attualmente in vendita.',
       });
       return;
     }
@@ -863,17 +1098,22 @@ export default function EditVehiclePage() {
     setIsResendingNotification(true);
 
     try {
-      await notifyNewVehicle(true);
+      const notification = await notifyNewVehicle(sendToAll);
       toast({
-        title: 'Notifica reinviata',
-        description: 'La mail del veicolo è stata reinviata a tutti i seller.',
+        title:
+          sendToAll ? 'Invio a tutti completato' : 'Ritentativo completato',
+        description:
+          notification?.skipped === 'ALREADY_NOTIFIED'
+            ? 'Tutti i seller risultano già notificati.'
+            : `Il server email ha accettato l'invio per ${notification?.deliveredCount ?? 0} seller su ${notification?.recipientCount ?? 0}.`,
       });
     } catch (error) {
+      setHasNotificationFailures(true);
       const message = error instanceof Error ? error.message : 'VEHICLE_NOTIFICATION_FAILED';
       toast({
         variant: 'destructive',
-        title: 'Reinvio fallito',
-        description: `Impossibile reinviare la notifica. Motivo: ${message}`,
+        title: 'Invio incompleto',
+        description: message,
       });
     } finally {
       setIsResendingNotification(false);
@@ -1031,7 +1271,12 @@ export default function EditVehiclePage() {
       (asset, index, array) =>
         array.findIndex(candidate => candidate.url === asset.url && candidate.visibility === asset.visibility) === index
     );
-    const allMediaAssets = orderVehicleMediaAssetsForCover(mergedMediaAssets, coverImageUrl);
+    const videoCount = mergedMediaAssets.filter(asset => asset.mediaType === 'video360').length;
+    let videoIndex = 0;
+    const allMediaAssets = orderVehicleMediaAssetsForCover(mergedMediaAssets, coverImageUrl)
+      .map(asset => asset.mediaType === 'video360'
+        ? { ...asset, label: getVehicleVideoLabel(videoIndex++, videoCount) }
+        : asset);
     const allImageUrls = [
       ...new Set(
         allMediaAssets
@@ -1054,8 +1299,37 @@ export default function EditVehiclePage() {
       marca: normalizedBrand,
       id: vehicleId,
     });
+    const submittedMerchantPrice = data.prezzoPrivati
+      ? Number(data.prezzoPrivati)
+      : data.prezzo
+        ? Number(data.prezzo)
+        : null;
+    const submittedHubCost = data.prezzoValutazione ? Number(data.prezzoValutazione) : null;
+    const nextMerchantPrice = submittedMerchantPrice;
+    const nextHubCost = isHubLimitedEditor
+      ? lockedHubPricing.prezzoValutazione
+      : submittedHubCost;
+
+    if (isHubLimitedEditor && typeof lockedHubPricing.prezzoValutazione === 'number') {
+      const hubCostFloor = lockedHubPricing.prezzoValutazione;
+      const submittedPublicPrice = data.prezzo ? Number(data.prezzo) : null;
+      const submittedMerchantComparablePrice = submittedMerchantPrice;
+
+      if (
+        (submittedPublicPrice !== null && submittedPublicPrice < hubCostFloor)
+        || (submittedMerchantComparablePrice !== null && submittedMerchantComparablePrice < hubCostFloor)
+      ) {
+        toast({
+          variant: 'destructive',
+          title: 'Prezzo non valido',
+          description: 'Prezzo pubblico e prezzo commerciante non possono essere inferiori al costo HUB.',
+        });
+        setIsSubmitting(false);
+        return;
+      }
+    }
     
-    const dataToSave = {
+    const fullDataToSave = {
       // Required fields from form
       marca: normalizedBrand,
       modello: data.modello,
@@ -1067,12 +1341,9 @@ export default function EditVehiclePage() {
       chilometraggio: data.chilometraggio ? Number(data.chilometraggio) : null,
       potenza: data.potenza ? Number(data.potenza) : null,
       prezzo: data.prezzo ? Number(data.prezzo) : null,
-      prezzoPrivati: data.prezzoPrivati
-        ? Number(data.prezzoPrivati)
-        : data.prezzo
-          ? Number(data.prezzo)
-          : null,
+      prezzoPrivati: nextMerchantPrice,
       garanzia_legale_prezzo: data.garanzia_legale_prezzo ? Number(data.garanzia_legale_prezzo) : null,
+      prezzoValutazione: nextHubCost,
       potenza_kw: data.potenza_kw ? Number(data.potenza_kw) : null,
       cilindrata: data.cilindrata ? Number(data.cilindrata) : null,
       carburante: data.carburante ?? null,
@@ -1088,6 +1359,7 @@ export default function EditVehiclePage() {
       periziaPdfStoragePath: periziaPdfStoragePath || null,
       periziaPdfName: periziaPdfName || null,
       stato: data.stato ?? 'In vendita',
+      ...(isAdmin ? { adminOnly: initialAdminOnly || data.stato === 'Trasferita' } : {}),
 
       // Generated/updated fields
       coverImageUrl: resolvedCoverImageUrl,
@@ -1097,22 +1369,63 @@ export default function EditVehiclePage() {
       slug,
       updatedAt: serverTimestamp(),
     };
+    const dataToSave = isHubLimitedEditor
+      ? (() => {
+          const {
+            targa: _targa,
+            prezzoValutazione: _prezzoValutazione,
+            ...allowedHubDataToSave
+          } = fullDataToSave;
+
+          return allowedHubDataToSave;
+        })()
+      : fullDataToSave;
     const isTransitionToSale =
       initialStatus !== null &&
       initialStatus !== 'In vendita' &&
       dataToSave.stato === 'In vendita';
-    const shouldSendNotification = isTransitionToSale
-      ? window.confirm(
-          'Stai passando il veicolo a "In vendita". Vuoi inviare una mail a tutti i seller per comunicare il cambio di stato?'
-        )
-      : dataToSave.stato === 'In vendita' && data.sendNotificationEmail;
+    const shouldSendNotification =
+      !initialAdminOnly && dataToSave.stato === 'In vendita' && data.sendNotificationEmail;
     
     try {
       await updateDocumentNonBlocking(vehicleRef, dataToSave);
 
+      if (!initialAdminOnly && initialStatus && dataToSave.stato !== initialStatus && dataToSave.stato !== 'Trasferita' && auth.currentUser) {
+        try {
+          await notifyVehicleStatusChange({
+            user: auth.currentUser,
+            vehicleId,
+            previousStatus: initialStatus,
+            newStatus: dataToSave.stato,
+          });
+        } catch (notificationError) {
+          console.error('Errore durante l\'invio notifica cambio stato:', notificationError);
+        }
+      }
+
+      if (periziaPdfStoragePath && periziaPdfName) {
+        try {
+          await syncPeriziaDocument({
+            vehicleId,
+            fileName: periziaPdfName,
+            fileUrl: periziaPdfUrl || '',
+            storagePath: periziaPdfStoragePath,
+          });
+        } catch (syncError) {
+          console.error('Errore sincronizzazione finale perizia su documenti veicolo', syncError);
+        }
+      }
+
       if (shouldSendNotification) {
         try {
-          await notifyNewVehicle(isTransitionToSale);
+          const notification = await notifyNewVehicle(isTransitionToSale);
+          toast({
+            title: notification?.skipped === 'ALREADY_NOTIFIED' ? 'Email già inviata' : 'Email inviata',
+            description:
+              notification?.skipped === 'ALREADY_NOTIFIED'
+                ? 'La notifica per questo veicolo era già stata inviata a tutti i seller con email registrata.'
+                : `Il server email ha accettato l'invio per tutti i ${notification?.recipientCount ?? 0} seller.`,
+          });
         } catch (notificationError) {
           console.error('Errore durante l\'invio notifica nuovo veicolo:', notificationError);
           const notificationMessage =
@@ -1122,7 +1435,7 @@ export default function EditVehiclePage() {
 
           toast({
             variant: 'destructive',
-            title: 'Veicolo aggiornato, notifica non inviata',
+            title: 'Veicolo aggiornato, invio email incompleto',
             description: `Le modifiche sono state salvate, ma la mail automatica non è partita. Motivo: ${notificationMessage}`,
           });
         }
@@ -1154,7 +1467,7 @@ export default function EditVehiclePage() {
         }
       });
 
-      router.push('/admin');
+      router.push(returnTo);
     } catch (error) {
       console.error('Errore during l\'aggiornamento:', error);
       toast({
@@ -1184,7 +1497,14 @@ export default function EditVehiclePage() {
   return (
     <div className="container mx-auto px-4 py-8">
        <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold font-headline">Modifica Veicolo</h1>
+        <div>
+          <h1 className="text-3xl font-bold font-headline">Modifica Veicolo</h1>
+          {isHubLimitedEditor && (
+            <p className="mt-2 text-sm text-muted-foreground">
+              Profilo seller HUB: puoi modificare tutte le caratteristiche, tranne targa, costo HUB e prezzo commerciante.
+            </p>
+          )}
+        </div>
       </div>
 
       <Form {...form}>
@@ -1256,7 +1576,7 @@ export default function EditVehiclePage() {
                 <FormItem>
                     <FormLabel>Targa *</FormLabel>
                     <FormControl>
-                        <Input placeholder="Es. AB123CD" {...field} value={field.value ?? ''} />
+                        <Input placeholder="Es. AB123CD" {...field} value={field.value ?? ''} disabled={isHubSeller} />
                     </FormControl>
                     <FormMessage />
                 </FormItem>
@@ -1296,9 +1616,23 @@ export default function EditVehiclePage() {
                   <FormItem>
                     <FormLabel>Garanzia Legale (€)</FormLabel>
                     <FormControl>
-                      <Input type="number" placeholder="Es. 500" {...field} value={field.value ?? ''}/>
+                      <Input type="number" placeholder="Es. 500" {...field} value={field.value ?? ''} />
                     </FormControl>
                     <FormDescription>Verrà sommato al prezzo finale.</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="prezzoValutazione"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Costo HUB (€)</FormLabel>
+                    <FormControl>
+                      <Input type="number" placeholder="Es. 28000" {...field} value={field.value ?? ''} disabled={!isAdmin} />
+                    </FormControl>
+                    <FormDescription>Visibile solo ad admin e seller HUB.</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -1338,6 +1672,7 @@ export default function EditVehiclePage() {
                       </FormControl>
                       <SelectContent>
                         <SelectItem value="Benzina">Benzina</SelectItem>
+                        <SelectItem value="GPL">GPL</SelectItem>
                         <SelectItem value="Diesel">Diesel</SelectItem>
                         <SelectItem value="Elettrica">Elettrica</SelectItem>
                         <SelectItem value="Ibrida">Ibrida</SelectItem>
@@ -1497,6 +1832,7 @@ export default function EditVehiclePage() {
                             <SelectItem value="Prenotato">Prenotato</SelectItem>
                           <SelectItem value="In arrivo">In arrivo</SelectItem>
                             <SelectItem value="Venduto">Venduto</SelectItem>
+                            {isAdmin && initialAdminOnly && <SelectItem value="Trasferita">Trasferita (solo admin)</SelectItem>}
                         </SelectContent>
                         </Select>
                         <FormMessage />
@@ -1512,11 +1848,12 @@ export default function EditVehiclePage() {
                           <Checkbox
                             checked={field.value}
                             onCheckedChange={checked => field.onChange(checked === true)}
+                            disabled={initialAdminOnly || form.watch('stato') === 'Trasferita'}
                           />
                           <div className="space-y-1">
                             <FormLabel>Invia email automatica ai seller dopo il salvataggio</FormLabel>
                             <FormDescription>
-                              Se selezionato, al salvataggio verrà inviata la mail del veicolo solo se lo stato è “In vendita”. Il tasto di reinvio manuale resta sempre disponibile.
+                              Se selezionato, al salvataggio verrà inviata la mail a tutti i seller con email registrata se lo stato risultante è “In vendita”, anche quando lo imposti ora. Eventuali invii incompleti verranno segnalati; il tasto di reinvio manuale resta disponibile.
                             </FormDescription>
                           </div>
                         </div>
@@ -1597,9 +1934,9 @@ export default function EditVehiclePage() {
                           ) : (
                             <FileText className="mr-2 h-4 w-4" />
                           )}
-                          {periziaPdfUrl ? 'Sostituisci PDF perizia' : 'Carica PDF perizia'}
+                          {hasPeriziaPdf ? 'Sostituisci PDF perizia' : 'Carica PDF perizia'}
                         </Button>
-                        {periziaPdfUrl && (
+                        {hasPeriziaPdf && (
                           <Button
                             type="button"
                             variant="ghost"
@@ -1617,6 +1954,11 @@ export default function EditVehiclePage() {
                       <p className="mt-2 text-xs text-muted-foreground">
                         Carica qui la perizia di riconsegna con i danni. Sara visibile e scaricabile nella scheda pubblica dell'auto.
                       </p>
+                      {hasPeriziaPdf && (
+                        <p className="mt-2 text-xs font-medium text-emerald-700">
+                          Perizia caricata: {periziaPdfName || 'PDF presente su archivio'}
+                        </p>
+                      )}
                       {periziaPdfUrl && (
                         <>
                           <div className="mt-3 h-64 overflow-hidden rounded-md border bg-muted/20">
@@ -1676,15 +2018,16 @@ export default function EditVehiclePage() {
                         <FormLabel>Tipo foto da caricare</FormLabel>
                         <Select
                           value={selectedImageCategory}
-                          onValueChange={value =>
-                            setSelectedImageCategory(value as VehicleImageCategory)
-                          }
+                          onValueChange={value => {
+                            setSelectedImageCategory(value as VehicleImageCategory);
+                            setHasManualImageCategorySelection(true);
+                          }}
                         >
                           <SelectTrigger>
                             <SelectValue placeholder="Seleziona il tipo foto" />
                           </SelectTrigger>
                           <SelectContent>
-                            {imageCategoryOptions.map(option => (
+                            {allowedImageCategoryOptions.map(option => (
                               <SelectItem key={option.value} value={option.value}>
                                 {option.label}
                               </SelectItem>
@@ -1698,7 +2041,7 @@ export default function EditVehiclePage() {
                       <div className="space-y-2">
                         <p className="text-sm font-medium">Mappa foto consigliata</p>
                         <div className="flex flex-wrap gap-2">
-                          {imageCategoryOptions.map(option => (
+                          {allowedImageCategoryOptions.map(option => (
                             <Badge
                               key={option.value}
                               variant={option.visibility === 'admin' ? 'secondary' : 'outline'}
@@ -1759,6 +2102,11 @@ export default function EditVehiclePage() {
                                                 <Star className="h-4 w-4" />
                                             </Button>
                                         )}
+                                        {isAdmin && !isVideoAsset && (
+                                          <Button type="button" variant="secondary" size="icon" className="h-8 w-8" onClick={() => setExistingAssetAdminOnly(asset.url, true)} disabled={isSubmitting} title="Metti solo admin (libretto)">
+                                            <Lock className="h-4 w-4" />
+                                          </Button>
+                                        )}
                                       <Button type="button" variant="destructive" size="icon" className="h-8 w-8" onClick={() => removeExistingImage(asset.url)} disabled={isSubmitting} title="Rimuovi immagine">
                                             <X className="h-4 w-4" />
                                         </Button>
@@ -1772,6 +2120,7 @@ export default function EditVehiclePage() {
                     )}
                 </div>
 
+                  {isAdmin && (
                   <div>
                     <FormLabel>Immagini Riservate Admin</FormLabel>
                     {adminExistingAssets.length > 0 ? (
@@ -1815,6 +2164,11 @@ export default function EditVehiclePage() {
                               </button>
                             )}
                             <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                              {!isVideoAsset && (
+                                <Button type="button" variant="secondary" size="icon" className="h-8 w-8" onClick={() => setExistingAssetAdminOnly(asset.url, false)} disabled={isSubmitting} title="Rendi pubblica">
+                                  <LockOpen className="h-4 w-4" />
+                                </Button>
+                              )}
                               <Button type="button" variant="destructive" size="icon" className="h-8 w-8" onClick={() => removeExistingImage(asset.url)} disabled={isSubmitting} title="Rimuovi immagine riservata">
                                 <X className="h-4 w-4" />
                               </Button>
@@ -1827,6 +2181,7 @@ export default function EditVehiclePage() {
                       <p className="mt-2 text-sm text-muted-foreground">Nessuna immagine riservata. Usa Foto kilometri o Libretto per aggiungerle.</p>
                     )}
                   </div>
+                  )}
 
                 <div className="relative">
                   <div className="absolute inset-0 flex items-center">
@@ -1870,9 +2225,9 @@ export default function EditVehiclePage() {
                         accept="image/png, image/jpeg, image/webp, video/mp4, video/webm"
                       />
                       <Upload className="mx-auto h-8 w-8 text-muted-foreground" />
-                      <p className="mt-3 text-sm font-medium">Trascina qui foto e video 360 oppure clicca per selezionarli</p>
+                      <p className="mt-3 text-sm font-medium">Trascina qui foto e video oppure clicca per selezionarli</p>
                       <p className="mt-1 text-sm text-muted-foreground">
-                        Caricamento corrente: {getImageCategoryMeta(selectedImageCategory).label}. Le immagini vengono ottimizzate, i video 360 vengono caricati in formato originale.
+                        Caricamento corrente: {getImageCategoryMeta(selectedImageCategory).label}. Le immagini vengono ottimizzate, i video vengono caricati in formato originale.
                       </p>
                     </div>
 
@@ -1916,10 +2271,18 @@ export default function EditVehiclePage() {
                               <div className="absolute inset-x-0 bottom-0 p-2 text-white">
                                 <div className="mb-1 flex items-center gap-2">
                                   <Badge variant={item.visibility === 'admin' ? 'secondary' : 'default'}>
-                                    {item.label}
+                                    {item.mediaType === 'video360'
+                                      ? getVehicleVideoLabel(
+                                          existingVideoCount + uploadVideoItems.findIndex(videoItem => videoItem.id === item.id),
+                                          existingVideoCount + uploadVideoItems.length
+                                        )
+                                      : item.label}
                                   </Badge>
-                                  {item.mediaType === 'video360' && (
-                                    <Badge variant="outline">Video 360</Badge>
+                                  {item.mediaType !== 'video360' && item.categorySource === 'ai' && (
+                                    <Badge variant="outline">Auto AI</Badge>
+                                  )}
+                                  {item.mediaType !== 'video360' && item.categorySource === 'filename' && (
+                                    <Badge variant="outline">Auto nome file</Badge>
                                   )}
                                   {item.visibility === 'admin' && (
                                     <Badge variant="outline">Solo admin</Badge>
@@ -1931,7 +2294,9 @@ export default function EditVehiclePage() {
                                 )}
                                 <p className="mt-1 text-[11px]">
                                   {item.status === 'preparing'
-                                    ? 'Ottimizzazione...'
+                                    ? item.isClassifyingCategory
+                                      ? 'Classificazione automatica...'
+                                      : 'Ottimizzazione...'
                                     : item.status === 'error'
                                     ? item.errorMessage || 'Upload fallito'
                                     : item.progress === 0
@@ -1992,7 +2357,7 @@ https://.../immagine2.png"
                       />
                     </FormControl>
                     <FormDescription>
-                      Inserisci il link YouTube da mostrare in galleria sotto immagini e video 360.
+                      Inserisci il link YouTube da mostrare in galleria sotto immagini e video.
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -2011,7 +2376,44 @@ https://.../immagine2.png"
             />
           )}
 
+          {isAdmin && (
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+              <div>
+                <CardTitle>Documentazione Auto</CardTitle>
+                <CardDescription>Gestisci i documenti del veicolo</CardDescription>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsDocumentsDialogOpen(true)}
+              >
+                <FolderOpen className="mr-2 h-4 w-4" />
+                Gestisci Documenti
+              </Button>
+            </CardHeader>
+          </Card>
+          )}
+
+          {isAdmin && (
+          <Dialog open={isDocumentsDialogOpen} onOpenChange={setIsDocumentsDialogOpen}>
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Documentazione Auto — {form.getValues('marca')} {form.getValues('modello')} {form.getValues('versione')}{form.getValues('targa') ? ` · ${form.getValues('targa')}` : ''}</DialogTitle>
+              </DialogHeader>
+              <div className="py-4">
+                <VehicleDocumentsSection
+                  vehicleId={vehicleId}
+                  vehicleLabel={`${form.getValues('marca')} ${form.getValues('modello')} ${form.getValues('versione')}`}
+                />
+              </div>
+            </DialogContent>
+          </Dialog>
+          )}
+
           <div className="flex items-center justify-between">
+            {isAdmin ? (
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button variant="destructive" type="button" disabled={isSubmitting || isLoading || isDeleting}>
@@ -2034,24 +2436,67 @@ https://.../immagine2.png"
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
+            ) : <div />}
             <div className="flex items-center gap-4">
+              {isAdmin && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={
+                      isSubmitting ||
+                      isLoading ||
+                      isDeleting ||
+                      isResendingNotification ||
+                      initialAdminOnly ||
+                      form.getValues('stato') !== 'In vendita'
+                    }
+                  >
+                    <Mail className="mr-2 h-4 w-4" />
+                    Invia email a tutti i seller
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Inviare di nuovo a tutti i seller?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Questa azione invia una nuova email anche ai seller che hanno già ricevuto la comunicazione.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Annulla</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => handleVehicleNotification(true)}>
+                      Invia a tutti
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+              )}
+              {isAdmin && hasNotificationFailures && (
               <Button
                 type="button"
                 variant="outline"
-                onClick={handleResendVehicleNotification}
+                onClick={() => handleVehicleNotification(false)}
                 disabled={
                   isSubmitting ||
                   isLoading ||
                   isDeleting ||
                   isResendingNotification ||
+                  initialAdminOnly ||
                   form.getValues('stato') !== 'In vendita'
                 }
               >
                 <Mail className="mr-2 h-4 w-4" />
-                {isResendingNotification ? 'Reinvio in corso...' : 'Reinvia notifica email'}
+                {isResendingNotification
+                  ? 'Ritento in corso...'
+                  : notificationFailureCount > 0
+                    ? `Invia email ai ${notificationFailureCount} non riusciti`
+                    : 'Riprova gli invii non riusciti'}
               </Button>
+              )}
               <Button variant="outline" asChild>
-                  <Link href="/admin">Annulla</Link>
+                  <Link href={returnTo}>Annulla</Link>
               </Button>
               <Button type="submit" disabled={isSubmitting || isLoading || isDeleting}>
                 {isSubmitting ? 'Salvataggio in corso...' : 'Salva Modifiche'}

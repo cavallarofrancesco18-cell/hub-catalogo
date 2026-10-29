@@ -1,0 +1,6 @@
+.env*
+.firebase
+.firebaserc
+.tmp-export-base64.txt
+.modified
+VENDUTA.docx

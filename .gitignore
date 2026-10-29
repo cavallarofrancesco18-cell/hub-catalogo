@@ -48,3 +48,5 @@ firestore-debug.log
 # local secrets and debug snapshots
 service-account.json
 .git-head-*.tsx
+
+.env*

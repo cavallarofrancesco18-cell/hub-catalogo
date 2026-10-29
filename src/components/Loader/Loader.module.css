@@ -1,0 +1,210 @@
+.loader {
+  position: fixed;
+  inset: 0;
+  min-height: 100dvh;
+  width: 100%;
+  overflow: hidden;
+  background: #050814;
+  color: #fff;
+  z-index: 120;
+}
+
+.backdrop {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 18% 22%, rgba(56, 189, 248, 0.3), transparent 40%),
+    radial-gradient(circle at 82% 26%, rgba(244, 114, 182, 0.24), transparent 38%),
+    radial-gradient(circle at 54% 84%, rgba(45, 212, 191, 0.24), transparent 42%),
+    linear-gradient(180deg, #040611 0%, #070c1c 100%);
+}
+
+.canvasWrap {
+  position: absolute;
+  inset: 0;
+  background: #070c1c;
+}
+
+.visualFallback {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.colorWash {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 20% 26%, rgba(56, 189, 248, 0.24), transparent 38%),
+    radial-gradient(circle at 82% 28%, rgba(244, 114, 182, 0.2), transparent 40%),
+    radial-gradient(circle at 52% 82%, rgba(34, 211, 238, 0.2), transparent 46%);
+  mix-blend-mode: screen;
+}
+
+.photoLeft,
+.photoRight,
+.photoCenter {
+  position: absolute;
+  object-fit: cover;
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+  filter: saturate(1.18) contrast(1.05);
+}
+
+.photoLeft {
+  width: min(34vw, 430px);
+  aspect-ratio: 16 / 10;
+  left: 5%;
+  top: 21%;
+  transform: rotate(-8deg);
+  opacity: 0.58;
+}
+
+.photoRight {
+  width: min(36vw, 450px);
+  aspect-ratio: 16 / 10;
+  right: 5%;
+  top: 24%;
+  transform: rotate(7deg);
+  opacity: 0.56;
+}
+
+.photoCenter {
+  width: min(46vw, 620px);
+  aspect-ratio: 16 / 9;
+  left: 50%;
+  top: 39%;
+  transform: translateX(-50%);
+  opacity: 0.5;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 12;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: clamp(1rem, 2.4vw, 2rem);
+}
+
+.topFade {
+  height: 28vh;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.88), rgba(0, 0, 0, 0));
+}
+
+.bottomBlock {
+  margin-inline: auto;
+  width: min(980px, 92vw);
+  padding: clamp(1rem, 2.6vw, 1.8rem);
+  border-radius: 1.2rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: linear-gradient(180deg, rgba(9, 9, 10, 0.72), rgba(4, 4, 6, 0.9));
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.68);
+  backdrop-filter: blur(9px);
+}
+
+.metaRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.metaLeft {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 3.3rem;
+  padding: 0.32rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
+.caption {
+  margin-top: 0.58rem;
+}
+
+.tagline {
+  margin-top: 0.36rem;
+}
+
+.flash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 20;
+  background: #fff;
+}
+
+.grain {
+  position: absolute;
+  inset: -120%;
+  pointer-events: none;
+  z-index: 14;
+  opacity: 0.12;
+  background-image:
+    radial-gradient(circle at 25% 25%, rgba(255, 255, 255, 0.095), transparent 42%),
+    radial-gradient(circle at 75% 62%, rgba(255, 255, 255, 0.065), transparent 34%),
+    radial-gradient(circle at 41% 77%, rgba(255, 255, 255, 0.05), transparent 30%);
+  animation: grainShift 8s steps(8, end) infinite;
+}
+
+@keyframes grainShift {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  20% {
+    transform: translate3d(-6%, -3%, 0);
+  }
+  40% {
+    transform: translate3d(4%, 3%, 0);
+  }
+  60% {
+    transform: translate3d(-2%, 5%, 0);
+  }
+  80% {
+    transform: translate3d(5%, -5%, 0);
+  }
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@media (max-width: 900px) {
+  .bottomBlock {
+    width: min(94vw, 760px);
+    border-radius: 1rem;
+  }
+
+  .topFade {
+    height: 20vh;
+  }
+
+  .photoLeft,
+  .photoRight {
+    width: min(48vw, 280px);
+    top: 18%;
+    opacity: 0.42;
+  }
+
+  .photoCenter {
+    width: min(78vw, 520px);
+    top: 36%;
+    opacity: 0.38;
+  }
+}

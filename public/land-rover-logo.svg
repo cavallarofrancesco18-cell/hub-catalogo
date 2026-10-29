@@ -1,0 +1,15 @@
+<svg width="1200" height="500" viewBox="0 0 1200 500" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Land Rover logo">
+  <rect width="1200" height="500" fill="#f4f4f4"/>
+  <g transform="translate(0 15)">
+    <ellipse cx="600" cy="235" rx="530" ry="172" fill="#f5f5f5" stroke="#0d0d0d" stroke-width="12"/>
+    <ellipse cx="600" cy="235" rx="500" ry="142" fill="none" stroke="#0d0d0d" stroke-width="6" opacity="0.8"/>
+
+    <g>
+      <text x="600" y="230" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="150" font-weight="900" letter-spacing="-8" fill="#111111">LAND-</text>
+      <text x="600" y="360" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="150" font-weight="900" letter-spacing="-8" fill="#111111">ROVER</text>
+    </g>
+
+    <path d="M220 214l86-126 68 48-94 74h-60z" fill="#111111"/>
+    <path d="M980 214l-86-126-68 48 94 74h60z" fill="#111111"/>
+  </g>
+</svg>

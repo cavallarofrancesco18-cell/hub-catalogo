@@ -21,6 +21,7 @@ type SellerProfile = {
 };
 
 type VehicleNotificationPayload = {
+  adminOnly?: boolean;
   marca?: string | null;
   modello?: string | null;
   versione?: string | null;
@@ -34,6 +35,8 @@ type VehicleNotificationPayload = {
   chilometraggio?: number | null;
   data_immatricolazione?: string | null;
   newVehicleNotificationSentAt?: unknown;
+  newVehicleNotificationFailureCount?: number;
+  newVehicleNotificationDeliveredSellerIds?: string[];
 };
 
 function escapeHtml(value: string) {
@@ -80,10 +83,6 @@ function getRegistrationYear(value?: string | null) {
   return String(parsed.getFullYear());
 }
 
-function shouldNotifySeller(profile: SellerProfile) {
-  return !!profile.email?.trim();
-}
-
 async function verifyAdminRequest(request: NextRequest) {
   const authorization = request.headers.get('authorization');
   if (!authorization?.startsWith('Bearer ')) {
@@ -128,25 +127,91 @@ export async function POST(request: NextRequest) {
 
     const vehicle = vehicleSnapshot.data() as VehicleNotificationPayload;
 
+    if (vehicle.adminOnly === true || vehicle.stato === 'Trasferita') {
+      return NextResponse.json({ success: true, skipped: 'ADMIN_ONLY_VEHICLE' });
+    }
+
     if (vehicle.stato !== 'In vendita') {
       return NextResponse.json({ success: true, skipped: 'STATUS_NOT_FOR_SALE' });
     }
 
-    if (vehicle.newVehicleNotificationSentAt && !force) {
-      return NextResponse.json({ success: true, skipped: 'ALREADY_NOTIFIED' });
-    }
-
     const sellersSnapshot = await db.collection('seller').get();
-    const recipients = sellersSnapshot.docs
-      .map(snapshot => snapshot.data() as SellerProfile)
-      .filter(shouldNotifySeller)
+    const sellerProfiles = sellersSnapshot.docs.map(snapshot => ({
+      id: snapshot.id,
+      ...snapshot.data() as SellerProfile,
+    }));
+    const recipients = sellerProfiles
+      .filter(profile => !!profile.email?.trim())
       .map(profile => ({
+        id: profile.id,
         email: profile.email!.trim(),
         name: (profile.nome || profile.name || 'utente').trim(),
       }));
+    const missingEmailCount = sellerProfiles.length - recipients.length;
+    const recipientCount = recipients.length;
 
-    if (recipients.length === 0) {
-      return NextResponse.json({ success: true, skipped: 'NO_RECIPIENTS' });
+    if (sellerProfiles.length === 0) {
+      return NextResponse.json(
+        { error: 'NO_RECIPIENTS', recipientCount: 0, missingEmailCount: 0 },
+        { status: 404 }
+      );
+    }
+
+    if (
+      vehicle.newVehicleNotificationSentAt &&
+      !force &&
+      missingEmailCount === 0 &&
+      Number(vehicle.newVehicleNotificationFailureCount || 0) === 0
+    ) {
+      return NextResponse.json({
+        success: true,
+        skipped: 'ALREADY_NOTIFIED',
+        deliveredCount: recipientCount,
+        failedCount: 0,
+        recipientCount,
+        missingEmailCount,
+      });
+    }
+
+    if (recipientCount === 0) {
+      return NextResponse.json(
+        {
+          error: 'SELLERS_WITHOUT_EMAIL',
+          deliveredCount: 0,
+          failedCount: 0,
+          recipientCount,
+          missingEmailCount,
+        },
+        { status: 409 }
+      );
+    }
+
+    const previouslyDeliveredIds = new Set(
+      force || !Array.isArray(vehicle.newVehicleNotificationDeliveredSellerIds)
+        ? []
+        : vehicle.newVehicleNotificationDeliveredSellerIds
+    );
+    const pendingRecipients = recipients.filter(
+      recipient => !previouslyDeliveredIds.has(recipient.id)
+    );
+
+    if (pendingRecipients.length === 0 && missingEmailCount === 0) {
+      await vehicleRef.update({
+        newVehicleNotificationSentAt: FieldValue.serverTimestamp(),
+        newVehicleNotificationRecipientCount: recipientCount,
+        newVehicleNotificationFailureCount: 0,
+        newVehicleNotificationDeliveredSellerIds: recipients.map(recipient => recipient.id),
+        newVehicleNotificationTriggeredBy: authenticatedAdmin.uid,
+        newVehicleNotificationForcedResendAt: force ? FieldValue.serverTimestamp() : null,
+      });
+
+      return NextResponse.json({
+        success: true,
+        deliveredCount: recipientCount,
+        failedCount: 0,
+        recipientCount,
+        missingEmailCount,
+      });
     }
 
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim() || request.nextUrl.origin;
@@ -163,7 +228,7 @@ export async function POST(request: NextRequest) {
     const from = process.env.SMTP_FROM || 'AUTOTRADE <no-reply@autotrade.local>';
 
     const sendResults = await Promise.allSettled(
-      recipients.map(async recipient => {
+      pendingRecipients.map(async recipient => {
         const subject = `Nuovo veicolo in vendita: ${safeVehicleTitle}`;
         const text = [
           `Ciao ${recipient.name},`,
@@ -232,25 +297,63 @@ export async function POST(request: NextRequest) {
       })
     );
 
-    const deliveredCount = sendResults.filter(result => result.status === 'fulfilled').length;
-    const failedCount = sendResults.length - deliveredCount;
+    const newlyDeliveredIds = sendResults.flatMap((result, index) =>
+      result.status === 'fulfilled' ? [pendingRecipients[index].id] : []
+    );
+    const deliveredIds = new Set([
+      ...previouslyDeliveredIds,
+      ...newlyDeliveredIds,
+    ]);
+    const deliveredCount = recipients.filter(recipient => deliveredIds.has(recipient.id)).length;
+    const failedCount = recipientCount - deliveredCount;
+    const sendFailures = sendResults.flatMap((result, index) =>
+      result.status === 'rejected'
+        ? [
+            {
+              sellerId: pendingRecipients[index].id,
+              message:
+                result.reason instanceof Error
+                  ? result.reason.message
+                  : 'EMAIL_SEND_FAILED',
+            },
+          ]
+        : []
+    );
+    const isComplete = failedCount === 0 && missingEmailCount === 0;
 
-    if (deliveredCount === 0) {
-      return NextResponse.json({ error: 'EMAIL_SEND_FAILED' }, { status: 502 });
+    if (sendFailures.length > 0) {
+      console.error('Vehicle notification delivery failures:', sendFailures);
     }
 
     await vehicleRef.update({
-      newVehicleNotificationSentAt: FieldValue.serverTimestamp(),
-      newVehicleNotificationRecipientCount: deliveredCount,
-      newVehicleNotificationFailureCount: failedCount,
+      ...(isComplete ? { newVehicleNotificationSentAt: FieldValue.serverTimestamp() } : {}),
+      newVehicleNotificationRecipientCount: recipientCount,
+      newVehicleNotificationFailureCount: failedCount + missingEmailCount,
+      newVehicleNotificationDeliveredSellerIds: Array.from(deliveredIds),
       newVehicleNotificationTriggeredBy: authenticatedAdmin.uid,
       newVehicleNotificationForcedResendAt: force ? FieldValue.serverTimestamp() : null,
     });
 
+    if (!isComplete) {
+      return NextResponse.json(
+        {
+          error: failedCount > 0 ? 'EMAIL_SEND_INCOMPLETE' : 'SELLERS_WITHOUT_EMAIL',
+          deliveredCount,
+          failedCount,
+          recipientCount,
+          missingEmailCount,
+          failureMessages: sendFailures.map(failure => failure.message),
+        },
+        { status: failedCount > 0 ? 502 : 409 }
+      );
+    }
+
     return NextResponse.json({
       success: true,
       deliveredCount,
-      failedCount,
+      failedCount: 0,
+      recipientCount,
+      missingEmailCount: 0,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'UNKNOWN_ERROR';

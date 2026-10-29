@@ -23,6 +23,10 @@ const sections = [
     body: 'I dati sono trattati per rispondere alle richieste, fornire informazioni commerciali richieste dall utente, gestire attivita precontrattuali, migliorare il funzionamento del sito, adempiere obblighi normativi e tutelare la sicurezza del servizio.',
   },
   {
+    title: 'Dati aziendali dei commercianti',
+    body: 'Per le richieste di accesso commercianti raccogliamo nome, recapiti, ragione sociale, visura camerale e, facoltativamente, il logo aziendale. Ragione sociale, visura e logo sono conservati in aree interne riservate e utilizzati per gestire la richiesta e il rapporto commerciale e per personalizzare i documenti interni associati all account. Il logo e i dati aziendali non sono pubblicati nelle pagine pubbliche del sito. Il consenso richiesto nel modulo viene registrato insieme alla data e alla versione dell informativa; senza consenso la richiesta non viene inviata.',
+  },
+  {
     title: 'Diritti dell utente',
     body: 'L interessato puo chiedere accesso, rettifica, aggiornamento, cancellazione, limitazione del trattamento, opposizione e portabilita dei dati nei casi previsti dal GDPR, oltre a proporre reclamo all autorita di controllo competente.',
   },

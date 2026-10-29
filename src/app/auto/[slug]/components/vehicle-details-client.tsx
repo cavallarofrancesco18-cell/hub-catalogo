@@ -2,28 +2,32 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Vehicle } from '@/lib/types';
-import { formatCurrency, getDirectImageUrl, getOrderedVehicleImageUrls, isFirebaseStorageUrl } from '@/lib/utils';
+import { formatCurrency, getDirectImageUrl, getOrderedVehicleImageUrls, getVehicleVideoLabel, isFirebaseStorageUrl } from '@/lib/utils';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Camera, Printer, FileSignature, Pencil, Loader2, SquareArrowOutUpRight, Download, Eye } from 'lucide-react';
+import { Camera, Printer, FileSignature, Pencil, Loader2, Download, Eye, FolderOpen, Trash2, Send, Video } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { StatusBadge } from '@/components/status-badge';
 import { ImageGallery } from '@/components/image-gallery';
 import { canManageContracts, isContractCreationBlocked } from '@/lib/contract-permissions';
 import { useToast } from '@/hooks/use-toast';
-import { Video360Viewer } from '@/components/video-360-viewer';
+import { VehicleVideoPlayer } from '@/components/vehicle-video-player';
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { VehicleDocumentsSection } from '@/components/vehicle-documents-section';
+import { DocumentPreviewContent } from '@/components/document-preview-content';
+import { usePathname } from 'next/navigation';
+
+const WHATSAPP_ASSISTANCE_NUMBER = '393275805911';
+type VehicleContactDraft = { nome: string; cognome: string; telefono: string; email: string };
+const EMPTY_VEHICLE_CONTACT_DRAFT: VehicleContactDraft = { nome: '', cognome: '', telefono: '', email: '' };
 
 interface VehicleDetailsClientProps {
   vehicle: Vehicle;
@@ -31,23 +35,54 @@ interface VehicleDetailsClientProps {
   onProformaClick: () => void;
   onSignedContractUpload?: (file: File) => Promise<void> | void;
   onSignedContractDownload?: () => void;
+  onSignedContractDelete?: () => Promise<void> | void;
   disabled: boolean;
   editPath: string | null;
   isBooking: boolean;
   isPrinting: boolean;
   isUploadingSignedContract?: boolean;
+  isDeletingSignedContract?: boolean;
   signedContractAvailable?: boolean;
   canManageSignedContract?: boolean;
   isProformaButtonDisabled?: boolean;
   currentUserUid?: string;
+  currentUserName?: string | null;
+  currentUserPhone?: string | null;
   currentUserEmail?: string | null;
   currentUserToken?: string | null;
   role?: 'admin' | 'seller' | 'agent' | null;
+  isPlatformAdmin?: boolean;
   sellerType?: string | null;
+  periziaPdfUrl?: string | null;
+  periziaAvailable?: boolean;
+  priceOverride?: number | null;
+  isDocumentsDialogOpen?: boolean;
+  onDocumentsDialogOpenChange?: (open: boolean) => void;
+  isVehicleContactOpen: boolean;
+  onVehicleContactOpenChange: (open: boolean) => void;
 }
 
-export function VehicleDetailsClient({ vehicle, onPrintClick, onProformaClick, onSignedContractUpload, onSignedContractDownload, disabled, editPath, isBooking, isPrinting, isUploadingSignedContract, signedContractAvailable, canManageSignedContract, isProformaButtonDisabled, currentUserUid, currentUserEmail, currentUserToken, role, sellerType }: VehicleDetailsClientProps) {
+export function VehicleDetailsClient({ vehicle, onPrintClick, onSignedContractUpload, onSignedContractDownload, onSignedContractDelete, disabled, editPath, isBooking, isPrinting, isUploadingSignedContract, isDeletingSignedContract, signedContractAvailable, canManageSignedContract, isProformaButtonDisabled, currentUserUid, currentUserName, currentUserPhone, currentUserEmail, currentUserToken, role, isPlatformAdmin = false, sellerType, periziaPdfUrl, periziaAvailable = false, priceOverride, isDocumentsDialogOpen = false, onDocumentsDialogOpenChange, isVehicleContactOpen, onVehicleContactOpenChange }: VehicleDetailsClientProps) {
   const { toast } = useToast();
+  const pathname = usePathname();
+  const [isHubCostVisible, setIsHubCostVisible] = useState(false);
+  const [isPeriziaPreviewOpen, setIsPeriziaPreviewOpen] = useState(false);
+  const [isSendingVehicleContact, setIsSendingVehicleContact] = useState(false);
+  const [contactDraft, setContactDraft] = useState<VehicleContactDraft>(EMPTY_VEHICLE_CONTACT_DRAFT);
+  const vehicleContactFormRef = useRef<HTMLFormElement | null>(null);
+  const isSellerAccount = role === 'seller' || (role === 'admin' && !isPlatformAdmin);
+  const openVehicleContactForm = () => {
+    const nameParts = (currentUserName ?? '').trim().split(/\s+/).filter(Boolean);
+    setContactDraft(isSellerAccount
+      ? {
+          nome: nameParts[0] ?? '',
+          cognome: nameParts.slice(1).join(' '),
+          telefono: currentUserPhone?.trim() ?? '',
+          email: currentUserEmail?.trim() ?? '',
+        }
+      : EMPTY_VEHICLE_CONTACT_DRAFT);
+    onVehicleContactOpenChange(true);
+  };
   const isVideoUrl = (url: string) => /\.(mp4|webm)(\?|$)/i.test(url);
   const getYoutubeVideoId = (url: string): string | null => {
     if (!url) return null;
@@ -95,8 +130,9 @@ export function VehicleDetailsClient({ vehicle, onPrintClick, onProformaClick, o
             asset.visibility === 'public' &&
             (asset.mediaType === 'video360' || isVideoUrl(asset.url))
         )
-        .map(asset => ({
+        .map((asset, index, assets) => ({
           ...asset,
+          label: getVehicleVideoLabel(index, assets.length),
           directUrl: getDirectImageUrl(asset.url) || asset.url,
         }))
         .filter(asset => asset.directUrl),
@@ -105,6 +141,9 @@ export function VehicleDetailsClient({ vehicle, onPrintClick, onProformaClick, o
 
   const hasImages = validImageUrls.length > 0;
   const hasVideos = publicVideoAssets.length > 0;
+  const normalizedSellerType = sellerType?.trim().toUpperCase() ?? '';
+  const isHubSeller = role === 'seller' && normalizedSellerType === 'HUB';
+  const canViewReservedImages = role === 'admin' || isHubSeller;
   const youtubeVideoId = useMemo(
     () => getYoutubeVideoId(vehicle.youtubeVideoUrl || ''),
     [vehicle.youtubeVideoUrl]
@@ -123,13 +162,14 @@ export function VehicleDetailsClient({ vehicle, onPrintClick, onProformaClick, o
     setSelectedVideoIndex(0);
   }, [vehicle.id]);
   const adminOnlyImages = useMemo(() => {
-    if (role !== 'admin') {
+    if (!canViewReservedImages) {
       return [];
     }
 
     if (vehicle.mediaAssets?.length) {
       return vehicle.mediaAssets
         .filter(asset => asset.visibility === 'admin')
+        .filter(asset => role === 'admin' || asset.category !== 'libretto')
         .map(asset => ({
           ...asset,
           directUrl: getDirectImageUrl(asset.url),
@@ -146,7 +186,7 @@ export function VehicleDetailsClient({ vehicle, onPrintClick, onProformaClick, o
         directUrl: getDirectImageUrl(url),
       }))
       .filter(asset => asset.directUrl);
-  }, [role, vehicle.mediaAssets, vehicle.immaginiRiservate]);
+  }, [canViewReservedImages, vehicle.mediaAssets, vehicle.immaginiRiservate]);
   const adminGalleryUrls = useMemo(
     () => [
       ...validImageUrls,
@@ -229,62 +269,147 @@ export function VehicleDetailsClient({ vehicle, onPrintClick, onProformaClick, o
   // Find the index of the currently displayed main image
   const currentMainImageIndex = hasImages ? validImageUrls.findIndex(url => url === mainImage) : 0;
   const FAST_IMAGE_MODE_DEFAULT = true;
-  const [isSellerReservationDialogOpen, setIsSellerReservationDialogOpen] = useState(false);
   const mainImageUnoptimized = isFirebaseStorageUrl(mainImage);
 
   const canCreateContract = useMemo(() => {
     if (!currentUserUid) return false; // Must be logged in
-    if (!canManageContracts(role)) return false;
+    if (!canManageContracts(role, sellerType)) return false;
     if (isContractCreationBlocked(currentUserEmail)) return false;
 
     return true;
-  }, [vehicle, currentUserUid, currentUserEmail, role]);
+  }, [vehicle, currentUserUid, currentUserEmail, role, sellerType]);
 
   const canViewVehiclePlate =
     role === 'admin' || (role === 'seller' && sellerType?.toUpperCase() === 'HUB');
-  const isHubSeller = role === 'seller' && sellerType?.toUpperCase() === 'HUB';
+  const parsedRegistrationDate = vehicle.data_immatricolazione
+    ? new Date(vehicle.data_immatricolazione)
+    : null;
+  const registrationDate = parsedRegistrationDate && !Number.isNaN(parsedRegistrationDate.getTime())
+    ? parsedRegistrationDate.toLocaleDateString('it-IT')
+    : vehicle.anno ?? '—';
 
   const isPublicVisitor = role !== 'admin' && role !== 'seller';
-  const shouldConfirmSellerReservation = role === 'seller' && vehicle.stato === 'In vendita';
+  const isIncoming = vehicle.stato === 'In arrivo';
   const merchantPrice =
     typeof vehicle.prezzoPrivati === 'number' && vehicle.prezzoPrivati > 0
       ? vehicle.prezzoPrivati
       : vehicle.prezzo;
-  const visiblePrice = role === 'seller' ? merchantPrice : vehicle.prezzo;
-  const publicVehicleFormUrl = useMemo(() => {
-    const baseUrl = process.env.NEXT_PUBLIC_PUBLIC_VEHICLE_FORM_URL?.trim() || 'https://assieme.noleggiopro.com/site/form-hub-catalogo/';
-    if (!baseUrl) {
-      return '';
+  const hasPriceOverride =
+    typeof priceOverride === 'number' && Number.isFinite(priceOverride) && priceOverride > 0;
+  const effectivePublicPrice =
+    hasPriceOverride
+      ? priceOverride
+      : vehicle.prezzo;
+  const isRegisteredUser = Boolean(currentUserUid);
+  const showBothPrices = role === 'admin' || isHubSeller;
+  const showMerchantOnlyPrice = isRegisteredUser && !showBothPrices;
+  const visiblePrice = showMerchantOnlyPrice ? merchantPrice : effectivePublicPrice;
+  const periziaPreviewUrl = useMemo(() => {
+    const rawUrl = periziaPdfUrl || vehicle.periziaPdfUrl || '';
+    if (!rawUrl) {
+      return null;
     }
 
-    try {
-      const url = new URL(baseUrl);
-      const vehicleLabel = `${vehicle.marca} ${vehicle.modello} ${vehicle.versione}`.trim();
-      url.search = '';
-      url.searchParams.append('vehicleId', vehicle.id);
-      url.searchParams.append('marca', vehicle.marca);
-      url.searchParams.append('modello', vehicle.modello);
-      url.searchParams.append('veicolo', vehicleLabel);
-      url.searchParams.append('targa', vehicle.targa || 'N/D');
-      url.searchParams.append('prezzo', String(vehicle.prezzo));
-
-      return url.toString();
-    } catch {
-      return '';
-    }
-  }, [vehicle]);
+    return getDirectImageUrl(rawUrl) || rawUrl;
+  }, [periziaPdfUrl, vehicle.periziaPdfUrl]);
 
   const handleContractButtonClick = () => {
-    if (shouldConfirmSellerReservation) {
-      setIsSellerReservationDialogOpen(true);
+    const contractBasePath = pathname.startsWith('/admin/auto/') ? '/admin/auto' : '/auto';
+    const contractUrl = `${contractBasePath}/${vehicle.slug}/contratto`;
+    window.location.href = contractUrl;
+  };
+
+  const submitVehicleContact = async (
+    form: HTMLFormElement,
+    wantsWhatsappVideoCall = false,
+    whatsappWindow: Window | null = null
+  ) => {
+    if (isSendingVehicleContact) {
+      whatsappWindow?.close();
       return;
     }
+    const formData = new FormData(form);
+    const phone = String(formData.get('telefono') || '').trim();
+    const whatsappText = `Richiesta videochiamata WhatsApp per ${vehicle.marca} ${vehicle.modello} ${vehicle.versione}. Telefono: ${phone}.`;
+    setIsSendingVehicleContact(true);
+    try {
+      const response = await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nome: formData.get('nome'),
+          cognome: formData.get('cognome'),
+          telefono: formData.get('telefono'),
+          email: formData.get('email'),
+          messaggio: wantsWhatsappVideoCall
+            ? whatsappText
+            : `Richiesta informazioni per il veicolo ${vehicle.marca} ${vehicle.modello} ${vehicle.versione}`,
+          requestType: wantsWhatsappVideoCall ? 'whatsapp_video_call' : 'information',
+          privacyAccepted: formData.get('privacyAccepted') === 'on',
+          vehicleId: vehicle.id,
+        }),
+      });
+      if (!response.ok) throw new Error('CONTACT_REQUEST_FAILED');
+      const result = (await response.json().catch(() => null)) as { emailSent?: boolean } | null;
+      if (wantsWhatsappVideoCall && whatsappWindow) {
+        whatsappWindow.location.href = `https://wa.me/${WHATSAPP_ASSISTANCE_NUMBER}?text=${encodeURIComponent(whatsappText)}`;
+      }
+      toast({
+        title: wantsWhatsappVideoCall ? 'Richiesta videochiamata inviata' : 'Richiesta inviata',
+        description: wantsWhatsappVideoCall
+          ? whatsappWindow
+            ? 'La notifica email è stata inviata e si apre la chat WhatsApp.'
+            : 'La notifica email è stata inviata, ma il browser ha bloccato WhatsApp.'
+          : result?.emailSent === false
+            ? 'La richiesta è stata registrata, ma l’email non è partita. Contatta l’assistenza per verificare.'
+            : 'Ti ricontatteremo al più presto.',
+      });
+      form.reset();
+      setContactDraft(EMPTY_VEHICLE_CONTACT_DRAFT);
+      onVehicleContactOpenChange(false);
+    } catch {
+      whatsappWindow?.close();
+      toast({ variant: 'destructive', title: 'Invio non riuscito', description: 'La richiesta non è stata inviata. Riprova tra poco.' });
+    } finally {
+      setIsSendingVehicleContact(false);
+    }
+  };
 
-    onProformaClick();
+  const handlePublicVehicleContact = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    void submitVehicleContact(event.currentTarget);
+  };
+
+  const handleWhatsappVideoRequest = () => {
+    const form = vehicleContactFormRef.current;
+    if (!form || !form.reportValidity()) return;
+    const whatsappWindow = window.open('', '_blank');
+    if (whatsappWindow) whatsappWindow.opener = null;
+    void submitVehicleContact(form, true, whatsappWindow);
   };
 
   const handleSignedContractPick = () => {
     signedContractInputRef.current?.click();
+  };
+
+  const handlePeriziaPreviewOpen = () => {
+    if (!periziaPreviewUrl) {
+      if (periziaAvailable) {
+        toast({
+          title: 'Perizia in preparazione',
+          description: 'Attendi qualche secondo e riprova: l\'anteprima si aprira automaticamente appena il file e disponibile.',
+        });
+        return;
+      }
+
+      toast({
+        title: 'Perizia non disponibile',
+        description: 'Non e stato trovato un PDF di perizia per questo veicolo.',
+      });
+      return;
+    }
+
+    setIsPeriziaPreviewOpen(true);
   };
 
   const handleSignedContractChange = async (
@@ -302,40 +427,88 @@ export function VehicleDetailsClient({ vehicle, onPrintClick, onProformaClick, o
 
   return (
     <>
-      <AlertDialog open={isSellerReservationDialogOpen} onOpenChange={setIsSellerReservationDialogOpen}>
-        <AlertDialogContent className="max-w-xl border-2 border-amber-500/70 bg-background p-0 shadow-2xl">
-          <div className="rounded-t-lg bg-amber-500 px-6 py-4 text-slate-950">
-            <AlertDialogTitle className="text-xl font-bold">
-              Confermi la prenotazione del veicolo?
-            </AlertDialogTitle>
-          </div>
-          <div className="p-6">
-            <AlertDialogHeader className="space-y-4 text-left">
-              <AlertDialogDescription className="text-base leading-7 text-foreground">
-                Premendo Si, il veicolo verrà prenotato a tuo nome e avrai 8 ore di tempo per comunicare la prenotazione al referente.
-              </AlertDialogDescription>
-              <AlertDialogDescription className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-950">
-                Se entro 8 ore non viene gestita la comunicazione, il veicolo tornerà automaticamente disponibile sul sito.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter className="mt-6">
-              <AlertDialogCancel>No</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={onProformaClick}
-                className="bg-amber-500 text-slate-950 hover:bg-amber-400"
-              >
-                Si, prenota il veicolo
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </div>
-        </AlertDialogContent>
-      </AlertDialog>
+      <Dialog open={isVehicleContactOpen} onOpenChange={open => !isSendingVehicleContact && onVehicleContactOpenChange(open)}>
+        <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Richiedi informazioni</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm font-medium text-muted-foreground">{vehicle.marca} {vehicle.modello} {vehicle.versione}</p>
+          <form ref={vehicleContactFormRef} onSubmit={handlePublicVehicleContact} className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <label htmlFor="vehicle-contact-nome" className="text-sm font-medium">Nome</label>
+                <Input id="vehicle-contact-nome" name="nome" autoComplete="given-name" value={contactDraft.nome} onChange={event => setContactDraft(current => ({ ...current, nome: event.target.value }))} required minLength={2} maxLength={80} disabled={isSendingVehicleContact} />
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="vehicle-contact-cognome" className="text-sm font-medium">Cognome</label>
+                <Input id="vehicle-contact-cognome" name="cognome" autoComplete="family-name" value={contactDraft.cognome} onChange={event => setContactDraft(current => ({ ...current, cognome: event.target.value }))} required minLength={2} maxLength={80} disabled={isSendingVehicleContact} />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="vehicle-contact-telefono" className="text-sm font-medium">Numero di telefono</label>
+              <Input id="vehicle-contact-telefono" name="telefono" type="tel" autoComplete="tel" value={contactDraft.telefono} onChange={event => setContactDraft(current => ({ ...current, telefono: event.target.value }))} required minLength={6} maxLength={40} disabled={isSendingVehicleContact} />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="vehicle-contact-email" className="text-sm font-medium">Email</label>
+              <Input id="vehicle-contact-email" name="email" type="email" autoComplete="email" value={contactDraft.email} onChange={event => setContactDraft(current => ({ ...current, email: event.target.value }))} required maxLength={254} disabled={isSendingVehicleContact} />
+            </div>
+            <label className="flex items-start gap-3 text-sm leading-5 text-muted-foreground">
+              <input name="privacyAccepted" type="checkbox" required disabled={isSendingVehicleContact} className="mt-1 size-4 shrink-0 accent-sky-700" />
+              <span>Acconsento al trattamento dei dati personali secondo la <Link href="/privacy-policy" className="font-medium text-sky-700 underline underline-offset-2">Privacy Policy</Link>.</span>
+            </label>
+            <Button type="submit" className="w-full" disabled={isSendingVehicleContact}>
+              {isSendingVehicleContact ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+              {isSendingVehicleContact ? 'Invio in corso...' : 'Invia richiesta'}
+            </Button>
+            <Button type="button" variant="outline" className="w-full" onClick={handleWhatsappVideoRequest} disabled={isSendingVehicleContact}>
+              {isSendingVehicleContact ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Video className="mr-2 h-4 w-4" />}
+              Richiedi videochiamata WhatsApp
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
       {isGalleryOpen && hasImages && (
         <ImageGallery imageUrls={validImageUrls} startIndex={galleryStartIndex} onClose={closeGallery} fastMode={FAST_IMAGE_MODE_DEFAULT} />
       )}
       {isAdminGalleryOpen && adminGalleryUrls.length > 0 && (
         <ImageGallery imageUrls={adminGalleryUrls} startIndex={adminGalleryStartIndex} onClose={closeAdminGallery} fastMode={FAST_IMAGE_MODE_DEFAULT} />
       )}
+      <Dialog open={isPeriziaPreviewOpen} onOpenChange={setIsPeriziaPreviewOpen}>
+        <DialogContent className="flex h-[90vh] w-[96vw] max-w-6xl flex-col gap-0 p-0">
+          <DialogHeader className="border-b border-border/60 px-5 py-4">
+            <DialogTitle>Perizia — {vehicle.marca} {vehicle.modello} {vehicle.versione}</DialogTitle>
+          </DialogHeader>
+          <div className="min-h-0 flex-1 overflow-hidden bg-background p-3">
+            {periziaPreviewUrl ? (
+              <DocumentPreviewContent
+                fileName={vehicle.periziaPdfName || 'perizia-riconsegna.pdf'}
+                fileUrl={periziaPreviewUrl}
+                contentType="application/pdf"
+                title={`Perizia ${vehicle.marca} ${vehicle.modello}`}
+              />
+            ) : null}
+          </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={isDocumentsDialogOpen} onOpenChange={onDocumentsDialogOpenChange}>
+        <DialogContent className="flex h-[90vh] w-[98vw] max-w-7xl flex-col gap-0 p-0">
+          <DialogHeader className="border-b border-border/60 px-6 py-4">
+            <DialogTitle className="inline-flex items-center gap-2">
+              <FolderOpen className="h-5 w-5 text-primary" />
+              Documentazione Auto — {vehicle.marca} {vehicle.modello} {vehicle.versione}{vehicle.targa ? ` · ${vehicle.targa}` : ''}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="min-h-0 flex-1 overflow-auto p-4">
+            <VehicleDocumentsSection
+              vehicleId={vehicle.id}
+              vehicleLabel={`${vehicle.marca} ${vehicle.modello} ${vehicle.versione}`}
+              vehicle={vehicle}
+              linkedPeriziaUrl={periziaPdfUrl}
+              documentationMode="all"
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
       <div className="relative overflow-hidden rounded-[2rem] border border-slate-800/80 bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.24),_transparent_26%),radial-gradient(circle_at_bottom_right,_rgba(14,165,233,0.18),_transparent_24%),linear-gradient(140deg,_rgba(2,6,23,0.98),_rgba(15,23,42,0.96)_48%,_rgba(30,41,59,0.94))] p-4 shadow-[0_40px_120px_-55px_rgba(15,23,42,0.95)] md:p-6">
         <div className="pointer-events-none absolute inset-0">
           <div className="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-sky-300/12 via-blue-300/6 to-transparent" />
@@ -403,12 +576,13 @@ export function VehicleDetailsClient({ vehicle, onPrintClick, onProformaClick, o
             hasVideos ? (
               <div className="space-y-3">
                 <div className="aspect-[16/9] overflow-hidden rounded-[1.6rem] border border-white/10 bg-slate-950 shadow-[0_30px_80px_-35px_rgba(15,23,42,1)]">
-                  <Video360Viewer
+                  <VehicleVideoPlayer
                     src={firstVideoUrl}
                     className="h-full w-full"
+                    title={activeVideoAsset?.label || 'Video del veicolo'}
                   />
                 </div>
-                <p className="text-sm text-slate-200/90">Video 360 disponibile. Trascina con il mouse per ruotare la vista.</p>
+                <p className="text-sm text-slate-200/90">Usa i controlli per riprodurre il video.</p>
               </div>
             ) : youtubeEmbedUrl ? (
               <div className="space-y-3">
@@ -451,22 +625,23 @@ export function VehicleDetailsClient({ vehicle, onPrintClick, onProformaClick, o
           {publicVideoAssets.length > 0 && (
             <div className="mt-6 rounded-2xl border border-sky-200/70 bg-sky-50/85 p-4 shadow-sm backdrop-blur">
               <div className="mb-3 flex items-center gap-2">
-                <h3 className="text-sm font-semibold">Video 360</h3>
+                <h3 className="text-sm font-semibold">Video</h3>
                 <Badge variant="secondary">{publicVideoAssets.length}</Badge>
               </div>
               <div className="overflow-hidden rounded-lg border bg-background">
                 <div className="aspect-[16/9] w-full bg-slate-950">
-                  <Video360Viewer
+                  <VehicleVideoPlayer
                     src={firstVideoUrl}
                     className="h-full w-full"
+                    title={activeVideoAsset?.label || 'Video del veicolo'}
                   />
                 </div>
                 <div className="border-t bg-white p-3">
                   <p className="text-xs font-medium text-foreground">
-                    {activeVideoAsset?.label || `Video 360 ${selectedVideoIndex + 1}`}
+                    {activeVideoAsset?.label || getVehicleVideoLabel(selectedVideoIndex, publicVideoAssets.length)}
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Trascina con il mouse per guardarti attorno a 360 gradi.
+                    Usa i controlli per riprodurre il video.
                   </p>
                 </div>
               </div>
@@ -483,7 +658,7 @@ export function VehicleDetailsClient({ vehicle, onPrintClick, onProformaClick, o
                         : 'border-border bg-background text-foreground hover:bg-muted/50'
                     )}
                   >
-                    {asset.label || `Video 360 ${index + 1}`}
+                    {asset.label || getVehicleVideoLabel(index, publicVideoAssets.length)}
                   </button>
                 ))}
               </div>
@@ -494,14 +669,14 @@ export function VehicleDetailsClient({ vehicle, onPrintClick, onProformaClick, o
               <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-2">
                   <h3 className="text-sm font-semibold">Foto riservate</h3>
-                  <Badge variant="secondary">Solo admin</Badge>
+                  <Badge variant="secondary">Admin e HUB</Badge>
                 </div>
                 <Button
                   type="button"
-                  variant="outline"
-                  size="sm"
-                  className="border-sky-200 bg-white text-sky-950 hover:bg-sky-50"
                   onClick={downloadAllImages}
+                  size="sm"
+                  variant="outline"
+                  className="border-sky-200 bg-white text-sky-950 hover:bg-sky-50"
                   disabled={isDownloadingImages}
                 >
                   {isDownloadingImages ? (
@@ -549,28 +724,118 @@ export function VehicleDetailsClient({ vehicle, onPrintClick, onProformaClick, o
         <div className="lg:col-span-2">
           <div className="rounded-[1.5rem] border border-sky-100/80 bg-white/95 p-4 text-card-foreground shadow-[0_30px_80px_-45px_rgba(15,23,42,0.8)] backdrop-blur-xl sm:rounded-[1.75rem] sm:p-6 lg:sticky lg:top-24">
             <div className="flex flex-col h-full">
-              <div className="mb-4">
+              {isIncoming ? (
+                <div className="mb-4 bg-sky-100 px-4 py-3 text-sm font-bold uppercase text-sky-950">
+                  In arrivo
+                </div>
+              ) : <div className="mb-4">
                 <p className="mb-2 rounded-xl border border-sky-100 bg-sky-50/80 px-3 py-2 text-[11px] italic leading-4 text-slate-600">
                   I prezzi indicati sul portale sono puramente indicativi e possono variare in base alle condizioni di acquisto selezionate, ai servizi aggiuntivi richiesti e alle modalità di pagamento o finanziamento.
                 </p>
-                <p className="text-3xl font-bold text-slate-950">{formatCurrency(visiblePrice)}</p>
-              </div>
-              <div className="mb-5 grid grid-cols-1 gap-3 text-left sm:grid-cols-2">
-                <div className="rounded-2xl border border-sky-100 bg-sky-50/80 px-4 py-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-sky-700">Carburante</p>
-                  <p className="mt-2 text-sm font-semibold text-slate-900">{vehicle.carburante}</p>
-                </div>
-                <div className="rounded-2xl border border-sky-100 bg-sky-50/80 px-4 py-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-sky-700">Cambio</p>
-                  <p className="mt-2 text-sm font-semibold text-slate-900">{vehicle.cambio}</p>
-                </div>
-                {canViewVehiclePlate && (
-                  <div className="col-span-2 rounded-2xl border border-sky-100 bg-sky-50/80 px-4 py-3">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-sky-700">Targa</p>
-                    <p className="mt-2 text-sm font-semibold text-slate-900">{vehicle.targa || 'N/D'}</p>
+                {showBothPrices ? (
+                  <div className="space-y-1">
+                    {hasPriceOverride ? (
+                      <div className="mb-2 inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-700">
+                        Prezzo promo da scheda QR
+                      </div>
+                    ) : null}
+                    <p className="text-sm font-semibold text-slate-600">Pubblico: {formatCurrency(effectivePublicPrice)}</p>
+                    <p className="text-xl font-bold text-sky-700">Commerciante: {formatCurrency(merchantPrice)}</p>
+                    {(role === 'admin' || isHubSeller) && vehicle.prezzoValutazione && (
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-semibold text-amber-700">
+                          Costo HUB: {isHubCostVisible ? formatCurrency(vehicle.prezzoValutazione) : '••••••'}
+                        </p>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2 text-[11px]"
+                          onClick={() => setIsHubCostVisible(prev => !prev)}
+                        >
+                          {isHubCostVisible ? 'Nascondi' : 'Mostra'}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    {hasPriceOverride ? (
+                      <div className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-700">
+                        Prezzo promo da scheda QR
+                      </div>
+                    ) : null}
+                    <p className="text-2xl font-bold text-slate-950">{formatCurrency(visiblePrice)}</p>
                   </div>
                 )}
-              </div>
+              </div>}
+              <section className="mb-5 border-y border-sky-100 py-3" aria-labelledby="vehicle-technical-data-title">
+                <h2 id="vehicle-technical-data-title" className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-800">
+                  Dati tecnici
+                </h2>
+                <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 text-left">
+                  <div className="min-w-0">
+                    <dt className="text-[10px] font-medium text-slate-500">Immatricolazione</dt>
+                    <dd className="mt-0.5 truncate text-xs font-semibold text-slate-900">{registrationDate}</dd>
+                  </div>
+                  <div className="min-w-0">
+                    <dt className="text-[10px] font-medium text-slate-500">Chilometraggio</dt>
+                    <dd className="mt-0.5 truncate text-xs font-semibold text-slate-900">{typeof vehicle.chilometraggio === 'number' ? `${new Intl.NumberFormat('it-IT').format(vehicle.chilometraggio)} km` : '—'}</dd>
+                  </div>
+                  <div className="min-w-0">
+                    <dt className="text-[10px] font-medium text-slate-500">Carburante</dt>
+                    <dd className="mt-0.5 truncate text-xs font-semibold text-slate-900">{vehicle.carburante || '—'}</dd>
+                  </div>
+                  <div className="min-w-0">
+                    <dt className="text-[10px] font-medium text-slate-500">Cambio</dt>
+                    <dd className="mt-0.5 truncate text-xs font-semibold text-slate-900">{vehicle.cambio || '—'}</dd>
+                  </div>
+                  <div className="min-w-0">
+                    <dt className="text-[10px] font-medium text-slate-500">Potenza</dt>
+                    <dd className="mt-0.5 truncate text-xs font-semibold text-slate-900">{vehicle.potenza ? `${vehicle.potenza} CV${vehicle.potenza_kw ? ` (${vehicle.potenza_kw} kW)` : ''}` : '—'}</dd>
+                  </div>
+                  {vehicle.cilindrata ? (
+                    <div className="min-w-0">
+                      <dt className="text-[10px] font-medium text-slate-500">Cilindrata</dt>
+                      <dd className="mt-0.5 truncate text-xs font-semibold text-slate-900">{new Intl.NumberFormat('it-IT').format(vehicle.cilindrata)} cc</dd>
+                    </div>
+                  ) : null}
+                  <div className="min-w-0">
+                    <dt className="text-[10px] font-medium text-slate-500">Colore esterno</dt>
+                    <dd className="mt-0.5 truncate text-xs font-semibold text-slate-900">{vehicle.colore_esterno || '—'}</dd>
+                  </div>
+                  {vehicle.colore_interni ? (
+                    <div className="min-w-0">
+                      <dt className="text-[10px] font-medium text-slate-500">Colore interni</dt>
+                      <dd className="mt-0.5 truncate text-xs font-semibold text-slate-900">{vehicle.colore_interni}</dd>
+                    </div>
+                  ) : null}
+                  {vehicle.classe_emissioni ? (
+                    <div className="min-w-0">
+                      <dt className="text-[10px] font-medium text-slate-500">Classe emissioni</dt>
+                      <dd className="mt-0.5 truncate text-xs font-semibold text-slate-900">{vehicle.classe_emissioni}</dd>
+                    </div>
+                  ) : null}
+                  {vehicle.garanzia ? (
+                    <div className="min-w-0">
+                      <dt className="text-[10px] font-medium text-slate-500">Garanzia</dt>
+                      <dd className="mt-0.5 truncate text-xs font-semibold text-slate-900">{vehicle.garanzia}</dd>
+                    </div>
+                  ) : null}
+                  {!isIncoming && vehicle.bollo ? (
+                    <div className="min-w-0">
+                      <dt className="text-[10px] font-medium text-slate-500">Bollo</dt>
+                      <dd className="mt-0.5 truncate text-xs font-semibold text-slate-900">{vehicle.bollo}</dd>
+                    </div>
+                  ) : null}
+                  {canViewVehiclePlate ? (
+                    <div className="min-w-0">
+                      <dt className="text-[10px] font-medium text-slate-500">Targa</dt>
+                      <dd className="mt-0.5 truncate text-xs font-semibold text-slate-900">{vehicle.targa || 'N/D'}</dd>
+                    </div>
+                  ) : null}
+                </dl>
+              </section>
               <div className="flex-grow space-y-2">
                  {canManageSignedContract ? (
                    <input
@@ -582,31 +847,6 @@ export function VehicleDetailsClient({ vehicle, onPrintClick, onProformaClick, o
                    />
                  ) : null}
                  
-                 {hasImages && (
-                    <div className="flex w-full items-center gap-2">
-                      <Button onClick={() => openGallery(0)} className="flex-1 bg-sky-600 text-white hover:bg-sky-500" size="lg" disabled={vehicle.stato !== 'In vendita'}>
-                          <Camera className="mr-2 h-5 w-5" />
-                          Guarda la galleria ({validImageUrls.length} foto)
-                      </Button>
-                      {isHubSeller && (
-                        <Button
-                          type="button"
-                          onClick={downloadAllImages}
-                          size="lg"
-                          variant="secondary"
-                          className="shrink-0 border-sky-200 bg-white text-sky-950 hover:bg-sky-50"
-                          disabled={isDownloadingImages || vehicle.stato !== 'In vendita'}
-                          aria-label="Scarica immagini galleria"
-                        >
-                          {isDownloadingImages ? (
-                            <Loader2 className="h-5 w-5 animate-spin" />
-                          ) : (
-                            <Download className="h-5 w-5" />
-                          )}
-                        </Button>
-                      )}
-                    </div>
-                )}
                 {vehicle.link_canva && (
                   <Button asChild className="w-full border-sky-200 bg-white text-sky-950 hover:bg-sky-50" size="lg" variant={hasImages ? 'secondary' : 'default'} disabled={vehicle.stato !== 'In vendita'}>
                     <Link
@@ -619,20 +859,52 @@ export function VehicleDetailsClient({ vehicle, onPrintClick, onProformaClick, o
                     </Link>
                   </Button>
                 )}
-                {!isPublicVisitor && (
-                  <Button onClick={onPrintClick} className="w-full border-sky-200 text-sky-950 hover:bg-sky-50" size="lg" variant="outline" disabled={disabled || isPrinting}>
+                {!isIncoming && !isPublicVisitor && (
+                  <Button onClick={onPrintClick} className="w-full border-sky-200 text-sky-950 hover:bg-sky-100 hover:text-sky-900" size="lg" variant="outline" disabled={disabled || isPrinting}>
                     {isPrinting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Printer className="mr-2 h-5 w-5" />}
-                    {isPrinting ? 'Preparazione...' : 'Anteprima Scheda'}
+                    {isPrinting ? 'Preparazione...' : 'Genera Preventivo al Cliente'}
                   </Button>
                 )}
-                {!isPublicVisitor && (
+                {(role === 'admin' || role === 'seller') && (
+                  <Button
+                    type="button"
+                    onClick={handlePeriziaPreviewOpen}
+                    className="w-full border-sky-200 bg-white text-sky-950 hover:bg-sky-100 hover:text-sky-900"
+                    size="lg"
+                    variant="outline"
+                  >
+                    <Eye className="mr-2 h-5 w-5" />
+                    Visualizza perizia
+                  </Button>
+                )}
+                {role === 'admin' && (
+                  <Button
+                    type="button"
+                    onClick={() => onDocumentsDialogOpenChange?.(true)}
+                    className="w-full border-sky-200 bg-white text-sky-950 hover:bg-sky-100 hover:text-sky-900"
+                    size="lg"
+                    variant="outline"
+                  >
+                    <FolderOpen className="mr-2 h-5 w-5" />
+                    Documentazione Auto
+                  </Button>
+                )}
+                {role === 'seller' && !isHubSeller && (
+                  <Button onClick={openVehicleContactForm} className="h-auto min-h-11 w-full whitespace-normal bg-sky-700 px-3 py-3 text-white hover:bg-sky-600" size="lg" disabled={disabled || !['In vendita', 'In arrivo'].includes(vehicle.stato)}>
+                    <Send className="mr-2 h-5 w-5 shrink-0" />
+                    Contatta Responsabile Vendite
+                  </Button>
+                )}
+                {(role === 'admin' || isHubSeller) && (
+                  <Button onClick={handleContractButtonClick} className="w-full bg-sky-700 text-white hover:bg-sky-600" size="lg" variant="default" disabled={isProformaButtonDisabled || disabled || isBooking || !canCreateContract}>
+                    {isBooking ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <FileSignature className="mr-2 h-5 w-5" />}
+                    {isBooking ? 'Apertura contratto...' : 'Crea Contratto'}
+                  </Button>
+                )}
+                {!isIncoming && !isPublicVisitor && (
                   <>
-                    <Button onClick={handleContractButtonClick} className="w-full bg-sky-700 text-white hover:bg-sky-600" size="lg" variant="default" disabled={isProformaButtonDisabled || disabled || isBooking || !canCreateContract}>
-                      {isBooking ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <FileSignature className="mr-2 h-5 w-5" />}
-                      {isBooking ? 'Prenotazione...' : 'Crea Contratto'}
-                    </Button>
                     {canManageSignedContract && (
-                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                         <Button
                           type="button"
                           onClick={handleSignedContractPick}
@@ -659,17 +931,32 @@ export function VehicleDetailsClient({ vehicle, onPrintClick, onProformaClick, o
                           <Download className="mr-2 h-5 w-5" />
                           Scarica firmato
                         </Button>
+                        <Button
+                          type="button"
+                          onClick={onSignedContractDelete}
+                          className="w-full border-red-200 text-red-700 hover:bg-red-50"
+                          size="lg"
+                          variant="outline"
+                          disabled={!signedContractAvailable || Boolean(isDeletingSignedContract)}
+                        >
+                          {isDeletingSignedContract ? (
+                            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                          ) : (
+                            <Trash2 className="mr-2 h-5 w-5" />
+                          )}
+                          {isDeletingSignedContract ? 'Eliminazione...' : 'Elimina firmato'}
+                        </Button>
                       </div>
                     )}
-                    {editPath && (
-                      <Button asChild className="w-full border-sky-100 bg-sky-50 text-sky-950 hover:bg-sky-100" size="lg" variant="secondary">
-                        <Link href={editPath}>
-                          <Pencil className="mr-2 h-5 w-5" />
-                          Modifica Annuncio
-                        </Link>
-                      </Button>
-                    )}
                   </>
+                )}
+                {!isPublicVisitor && editPath && (
+                  <Button asChild className="w-full border-sky-100 bg-sky-50 text-sky-950 hover:bg-sky-100" size="lg" variant="secondary">
+                    <Link href={editPath}>
+                      <Pencil className="mr-2 h-5 w-5" />
+                      Modifica Annuncio
+                    </Link>
+                  </Button>
                 )}
                 {isPublicVisitor && (
                   <div className="mt-4 rounded-2xl border border-sky-100 bg-sky-50/80 p-4">
@@ -677,14 +964,25 @@ export function VehicleDetailsClient({ vehicle, onPrintClick, onProformaClick, o
                     <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                       Se sei interessato a questa auto, compila il form dedicato per essere ricontattato.
                     </p>
-                    {publicVehicleFormUrl && (
-                      <Button asChild className="mt-4 h-14 w-full bg-sky-600 text-white text-base font-semibold shadow-md hover:bg-sky-500 focus-visible:ring-sky-500" size="lg">
-                        <a href={publicVehicleFormUrl} target="_blank" rel="noopener noreferrer">
-                          <SquareArrowOutUpRight className="mr-2 h-5 w-5" />
-                          Richiedi informazioni
-                        </a>
-                      </Button>
-                    )}
+                    <Button type="button" onClick={openVehicleContactForm} className="mt-4 h-14 w-full bg-sky-600 text-base font-semibold text-white shadow-md hover:bg-sky-500 focus-visible:ring-sky-500" size="lg">
+                      <Send className="mr-2 h-5 w-5" />
+                      Richiedi informazioni
+                    </Button>
+                  </div>
+                )}
+                {isRegisteredUser && hasImages && (
+                  <div className="flex justify-end pt-1">
+                    <Button
+                      type="button"
+                      onClick={downloadAllImages}
+                      variant="secondary"
+                      className="h-11 w-11 shrink-0 border-sky-200 bg-white p-0 text-sky-950 hover:bg-sky-50"
+                      disabled={isDownloadingImages || (vehicle.stato !== 'In vendita' && !isIncoming)}
+                      aria-label="Scarica immagini galleria"
+                      title="Scarica immagini"
+                    >
+                      {isDownloadingImages ? <Loader2 className="h-5 w-5 animate-spin" /> : <Download className="h-5 w-5" />}
+                    </Button>
                   </div>
                 )}
               </div>

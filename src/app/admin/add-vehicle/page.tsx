@@ -5,11 +5,11 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useRouter } from 'next/navigation';
-import { doc, collection, serverTimestamp } from 'firebase/firestore';
+import { doc, collection, serverTimestamp, getDocs } from 'firebase/firestore';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import Image from 'next/image';
 
-import { useAuth, useFirestore, useFirebaseApp } from '@/firebase';
+import { useAuth, useFirestore, useFirebaseApp, useUserRole } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -39,19 +39,26 @@ import {
 } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
 import { optimizeImageForUpload, getUploadErrorMessage } from '@/lib/image-upload';
+import { classifyVehicleImageAutoCategory } from '@/lib/vehicle-image-auto-category';
 import { normalizeBrandLabel } from '@/lib/brand-utils';
 import {
   cn,
   generateSlug,
   getDefaultVehicleCoverCategory,
   getDirectImageUrl,
+  getVehicleVideoLabel,
   orderVehicleMediaAssetsForCover,
 } from '@/lib/utils';
 import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import {
+  getVehicleNotificationErrorMessage,
+  type VehicleNotificationResponse,
+} from '@/lib/vehicle-notification';
 import Link from 'next/link';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Upload, X, Sparkles, FileText } from 'lucide-react';
+import { VehicleDocumentsSection } from '@/components/vehicle-documents-section';
+import { Loader2, Upload, X, Sparkles, FileText, Star, Lock, LockOpen } from 'lucide-react';
 import { generateVehicleDescription } from '@/ai/flows/generate-vehicle-description';
 import type {
   VehicleImageAsset,
@@ -67,7 +74,7 @@ const vehicleSchema = z.object({
   data_immatricolazione: z.string({ required_error: 'La data di immatricolazione è obbligatoria.' }),
   targa: z.string().min(1, 'La targa è obbligatoria.'),
   chilometraggio: z.coerce.number().int().optional().or(z.literal('')),
-  carburante: z.enum(['Benzina', 'Diesel', 'Elettrica', 'Ibrida']).optional(),
+  carburante: z.enum(['Benzina', 'GPL', 'Diesel', 'Elettrica', 'Ibrida']).optional(),
   cambio: z.enum(['Manuale', 'Automatico']).optional(),
   potenza: z.coerce.number().int().optional().or(z.literal('')),
   potenza_kw: z.coerce.number().int().optional().or(z.literal('')),
@@ -77,13 +84,14 @@ const vehicleSchema = z.object({
   prezzo: z.coerce.number().optional().or(z.literal('')),
   prezzoPrivati: z.coerce.number().optional().or(z.literal('')),
   garanzia_legale_prezzo: z.coerce.number().optional().or(z.literal('')),
+  prezzoValutazione: z.coerce.number().optional().or(z.literal('')),
   garanzia: z.string().optional(),
   classe_emissioni: z.string().optional(),
   bollo: z.string().optional(),
   descrizione: z.string().optional(),
   youtubeVideoUrl: z.string().trim().optional().or(z.literal('')),
   immagini: z.string().optional(),
-  stato: z.enum(['In vendita', 'Venduto', 'Prenotato', 'In arrivo']).optional(),
+  stato: z.enum(['In vendita', 'Venduto', 'Prenotato', 'In arrivo', 'Trasferita']).optional(),
   sendNotificationEmail: z.boolean().default(false),
 });
 
@@ -95,6 +103,12 @@ const imageCategoryOptions: Array<{
   visibility: VehicleImageVisibility;
   hint: string;
 }> = [
+  {
+    value: 'showroom-hub',
+    label: 'Showroom HUB (copertina)',
+    visibility: 'public',
+    hint: 'Auto davanti al fondale HUB riconoscibile. Viene proposta come copertina.',
+  },
   {
     value: 'fronte-dx',
     label: 'Fronte dx',
@@ -157,9 +171,9 @@ const imageCategoryOptions: Array<{
   },
   {
     value: 'generica',
-    label: 'Video 360',
+    label: 'Generica / da verificare',
     visibility: 'public',
-    hint: 'Video panoramico del veicolo (MP4 o WebM).',
+    hint: 'Foto non riconosciuta con certezza oppure asset generico.',
   },
 ];
 
@@ -167,6 +181,13 @@ const defaultImageCategory = getDefaultVehicleCoverCategory();
 
 const getImageCategoryMeta = (category: VehicleImageCategory) =>
   imageCategoryOptions.find(option => option.value === category) ?? imageCategoryOptions[0];
+
+const normalizePlateForComparison = (value?: string | null) =>
+  (value ?? '')
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, '')
+    .replace(/[-_]/g, '');
 
 const isVideoFile = (file: File) => {
   const lowerName = file.name.toLowerCase();
@@ -193,6 +214,9 @@ type UploadItem = {
   file: File;
   label: string;
   category: VehicleImageCategory;
+  categorySource: 'ai' | 'filename' | 'fallback';
+  categoryConfidence: number;
+  isClassifyingCategory: boolean;
   visibility: VehicleImageVisibility;
   mediaType: VehicleMediaType;
   previewUrl: string;
@@ -206,6 +230,7 @@ type UploadItem = {
 export default function AddVehiclePage() {
   const router = useRouter();
   const auth = useAuth();
+  const { isPlatformAdmin } = useUserRole();
   const firestore = useFirestore();
   const app = useFirebaseApp();
   const storage = useMemo(
@@ -220,8 +245,34 @@ export default function AddVehiclePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
   const [uploadItems, setUploadItems] = useState<UploadItem[]>([]);
+  const uploadVideoItems = useMemo(
+    () => uploadItems.filter(item => item.mediaType === 'video360'),
+    [uploadItems]
+  );
+  const [coverUploadItemId, setCoverUploadItemId] = useState<string | null>(null);
+  const effectiveCoverUploadItemId = useMemo(() => {
+    const publicImageItems = uploadItems.filter(
+      item =>
+        item.status === 'uploaded' &&
+        item.visibility === 'public' &&
+        item.mediaType !== 'video360'
+    );
+    if (publicImageItems.length === 0) {
+      return null;
+    }
+    const preferred = coverUploadItemId
+      ? publicImageItems.find(item => item.id === coverUploadItemId)
+      : undefined;
+    return (
+      preferred ??
+      publicImageItems.find(item => item.category === 'showroom-hub') ??
+      publicImageItems.find(item => item.category === defaultImageCategory) ??
+      publicImageItems[0]
+    ).id;
+  }, [uploadItems, coverUploadItemId]);
   const [selectedImageCategory, setSelectedImageCategory] =
     useState<VehicleImageCategory>(defaultImageCategory);
+  const [hasManualImageCategorySelection, setHasManualImageCategorySelection] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const periziaPdfInputRef = useRef<HTMLInputElement | null>(null);
@@ -255,6 +306,7 @@ export default function AddVehiclePage() {
       prezzo: '',
       prezzoPrivati: '',
       garanzia_legale_prezzo: '',
+      prezzoValutazione: '',
       targa: '',
       garanzia: '',
       classe_emissioni: '',
@@ -270,6 +322,97 @@ export default function AddVehiclePage() {
   const updateUploadItem = (itemId: string, updater: (item: UploadItem) => UploadItem) => {
     setUploadItems(currentItems =>
       currentItems.map(item => (item.id === itemId ? updater(item) : item))
+    );
+  };
+
+  const setUploadItemAsCover = (itemId: string) => {
+    const item = uploadItems.find(currentItem => currentItem.id === itemId);
+    if (
+      !item ||
+      item.status !== 'uploaded' ||
+      item.mediaType === 'video360' ||
+      item.visibility !== 'public'
+    ) {
+      return;
+    }
+    setCoverUploadItemId(itemId);
+  };
+
+  const toggleUploadItemAdminOnly = (itemId: string) => {
+    const item = uploadItems.find(currentItem => currentItem.id === itemId);
+    if (!item || item.mediaType === 'video360') {
+      return;
+    }
+
+    const makeAdminOnly = item.visibility !== 'admin';
+
+    updateUploadItem(itemId, currentItem => {
+      if (makeAdminOnly) {
+        const adminCategory = currentItem.category === 'kilometri' ? 'kilometri' : 'libretto';
+        const adminMeta = getImageCategoryMeta(adminCategory);
+        return {
+          ...currentItem,
+          category: adminCategory,
+          label: adminMeta.label,
+          visibility: 'admin',
+          categorySource: 'fallback',
+        };
+      }
+
+      const isAdminCategory =
+        currentItem.category === 'libretto' || currentItem.category === 'kilometri';
+      const publicMeta = getImageCategoryMeta('generica');
+      return {
+        ...currentItem,
+        category: isAdminCategory ? 'generica' : currentItem.category,
+        label: isAdminCategory ? publicMeta.label : currentItem.label,
+        visibility: 'public',
+        categorySource: isAdminCategory ? 'fallback' : currentItem.categorySource,
+      };
+    });
+
+    if (makeAdminOnly && coverUploadItemId === itemId) {
+      setCoverUploadItemId(null);
+    }
+  };
+
+  const syncPeriziaDocument = async (params: {
+    vehicleId: string;
+    fileName: string;
+    fileUrl: string;
+    storagePath: string;
+    sizeBytes?: number | null;
+  }) => {
+    if (!firestore) {
+      return;
+    }
+
+    const periziaDocumentRef = doc(
+      firestore,
+      'vehicles',
+      params.vehicleId,
+      'documents',
+      'perizia-riconsegna'
+    );
+
+    await setDocumentNonBlocking(
+      periziaDocumentRef,
+      {
+        id: 'perizia-riconsegna',
+        title: 'Perizia riconsegna',
+        titleKey: 'perizia-riconsegna',
+        fileName: params.fileName,
+        fileUrl: params.fileUrl,
+        storagePath: params.storagePath,
+        contentType: 'application/pdf',
+        sizeBytes: params.sizeBytes ?? null,
+        folderId: null,
+        uploadedByUid: auth.currentUser?.uid ?? null,
+        uploadedByEmail: auth.currentUser?.email ?? null,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
     );
   };
 
@@ -311,22 +454,35 @@ export default function AddVehiclePage() {
       });
     }
 
+    const classificationTokenPromise = auth.currentUser
+      ? auth.currentUser.getIdToken().catch(() => undefined)
+      : Promise.resolve<string | undefined>(undefined);
+
     supportedFiles.forEach(file => {
       const uploadId = crypto.randomUUID();
       const previewUrl = URL.createObjectURL(file);
       const isVideo = isVideoFile(file);
-      const resolvedCategory = isVideo ? 'generica' : category;
-      const categoryMeta = getImageCategoryMeta(resolvedCategory);
+      const shouldUseManualFallback = hasManualImageCategorySelection;
+      const fallbackCategory = isVideo
+        ? 'generica'
+        : shouldUseManualFallback
+          ? category
+          : 'generica';
+      const fallbackCategoryMeta = getImageCategoryMeta(fallbackCategory);
       const mediaType: VehicleMediaType = isVideo ? 'video360' : 'image';
+      const initialLabel = isVideo ? 'Video' : fallbackCategoryMeta.label;
 
       setUploadItems(currentItems => [
         ...currentItems,
         {
           id: uploadId,
           file,
-          label: categoryMeta.label,
-          category: resolvedCategory,
-          visibility: categoryMeta.visibility,
+          label: initialLabel,
+          category: fallbackCategory,
+          categorySource: 'fallback',
+          categoryConfidence: 0,
+          isClassifyingCategory: !isVideo,
+          visibility: fallbackCategoryMeta.visibility,
           mediaType,
           previewUrl,
           progress: 0,
@@ -337,6 +493,31 @@ export default function AddVehiclePage() {
 
       void (async () => {
         try {
+          let resolvedCategory = fallbackCategory;
+          let categoryMeta = fallbackCategoryMeta;
+
+          if (!isVideo) {
+            const idToken = await classificationTokenPromise;
+            const classification = await classifyVehicleImageAutoCategory({
+              file,
+              fallbackCategory,
+              idToken,
+            });
+
+            resolvedCategory = classification.category;
+            categoryMeta = getImageCategoryMeta(resolvedCategory);
+
+            updateUploadItem(uploadId, item => ({
+              ...item,
+              category: resolvedCategory,
+              label: categoryMeta.label,
+              visibility: categoryMeta.visibility,
+              categorySource: classification.source,
+              categoryConfidence: classification.confidence,
+              isClassifyingCategory: false,
+            }));
+          }
+
           const fileToUpload = isVideo ? file : await optimizeImageForUpload(file);
           const storagePath = `download/${draftVehicleRef.id}/${uploadId}-${fileToUpload.name}`;
 
@@ -345,6 +526,7 @@ export default function AddVehiclePage() {
             file: fileToUpload,
             status: 'uploading',
             storagePath,
+            isClassifyingCategory: false,
           }));
 
           const storageRef = ref(storage, storagePath);
@@ -468,10 +650,25 @@ export default function AddVehiclePage() {
       },
       () => {
         getDownloadURL(uploadTask.snapshot.ref)
-          .then(url => {
+          .then(async url => {
             setPeriziaPdfUrl(url);
             setPeriziaPdfStoragePath(storagePath);
             setPeriziaPdfName(file.name);
+
+            if (draftVehicleRef) {
+              try {
+                await syncPeriziaDocument({
+                  vehicleId: draftVehicleRef.id,
+                  fileName: file.name,
+                  fileUrl: url,
+                  storagePath,
+                  sizeBytes: file.size,
+                });
+              } catch (syncError) {
+                console.error('Errore sincronizzazione perizia su documenti veicolo', syncError);
+              }
+            }
+
             toast({
               title: 'Perizia caricata',
               description: 'Il PDF della perizia di riconsegna e disponibile per questo veicolo.',
@@ -509,6 +706,10 @@ export default function AddVehiclePage() {
     URL.revokeObjectURL(itemToRemove.previewUrl);
     setUploadItems(currentItems => currentItems.filter(item => item.id !== itemId));
 
+    if (coverUploadItemId === itemId) {
+      setCoverUploadItemId(null);
+    }
+
     if (!itemToRemove.storagePath) {
       return;
     }
@@ -541,10 +742,14 @@ export default function AddVehiclePage() {
       body: JSON.stringify({ vehicleId }),
     });
 
+    const result = (await response.json().catch(() => null)) as VehicleNotificationResponse | null;
     if (!response.ok) {
-      const result = (await response.json().catch(() => null)) as { error?: string } | null;
-      throw new Error(result?.error || 'VEHICLE_NOTIFICATION_FAILED');
+      throw new Error(
+        getVehicleNotificationErrorMessage(result || { error: 'VEHICLE_NOTIFICATION_FAILED' })
+      );
     }
+
+    return result;
   };
 
   const reserveVehicleReferenceNumber = async () => {
@@ -721,15 +926,53 @@ export default function AddVehiclePage() {
       return;
     }
 
+    const normalizedTarga = normalizePlateForComparison(data.targa);
+    if (normalizedTarga) {
+      try {
+        const vehiclesSnapshot = await getDocs(collection(firestore, 'vehicles'));
+        const foundDuplicatePlate = vehiclesSnapshot.docs.some(vehicleDoc => {
+          const existingTarga = normalizePlateForComparison(vehicleDoc.data()?.targa);
+          return existingTarga && existingTarga === normalizedTarga;
+        });
+
+        if (foundDuplicatePlate) {
+          toast({
+            variant: 'destructive',
+            title: 'Targa già presente',
+            description: `La targa ${data.targa.toUpperCase()} è già stata inserita in catalogo. Usa una targa differente.`,
+          });
+          return;
+        }
+      } catch (duplicateError) {
+        console.error('Errore durante il controllo targa duplicata:', duplicateError);
+        toast({
+          variant: 'destructive',
+          title: 'Controllo targa non riuscito',
+          description: 'Non è stato possibile verificare se la targa era già presente. Riprova.',
+        });
+        return;
+      }
+    }
+
     setIsSubmitting(true);
 
     const textAreaUrls = data.immagini?.split('\n').filter(url => url.trim() !== '') ?? [];
-    const uploadedMediaAssets: VehicleImageAsset[] = uploadItems
-      .filter(item => item.status === 'uploaded' && item.url)
+    const successfullyUploadedItems = uploadItems.filter(
+      item => item.status === 'uploaded' && item.url
+    );
+    const successfullyUploadedVideos = successfullyUploadedItems.filter(
+      item => item.mediaType === 'video360'
+    );
+    const uploadedMediaAssets: VehicleImageAsset[] = successfullyUploadedItems
       .map(item => ({
         url: item.url as string,
         category: item.category,
-        label: item.label,
+        label: item.mediaType === 'video360'
+          ? getVehicleVideoLabel(
+              successfullyUploadedVideos.findIndex(videoItem => videoItem.id === item.id),
+              successfullyUploadedVideos.length
+            )
+          : item.label,
         visibility: item.visibility,
         mediaType: item.mediaType,
         storagePath: item.storagePath || null,
@@ -742,10 +985,25 @@ export default function AddVehiclePage() {
       mediaType: 'image',
       storagePath: null,
     }));
-    const allMediaAssets = orderVehicleMediaAssetsForCover([
-      ...manualMediaAssets,
-      ...uploadedMediaAssets,
-    ]);
+    const uploadedPublicImageItems = successfullyUploadedItems.filter(
+      item => item.visibility === 'public' && item.mediaType !== 'video360'
+    );
+    const preferredCoverItem =
+      (coverUploadItemId
+        ? uploadedPublicImageItems.find(item => item.id === coverUploadItemId)
+        : undefined) ??
+      uploadedPublicImageItems.find(item => item.category === 'showroom-hub') ??
+      uploadedPublicImageItems.find(item => item.category === defaultImageCategory) ??
+      uploadedPublicImageItems[0];
+    const preferredCoverUrl = preferredCoverItem?.url ?? null;
+
+    let videoIndex = 0;
+    const allMediaAssets = orderVehicleMediaAssetsForCover(
+      [...manualMediaAssets, ...uploadedMediaAssets],
+      preferredCoverUrl
+    ).map(asset => asset.mediaType === 'video360'
+      ? { ...asset, label: getVehicleVideoLabel(videoIndex++, successfullyUploadedVideos.length) }
+      : asset);
     const allImageUrls = [
       ...new Set(
         allMediaAssets
@@ -801,6 +1059,7 @@ export default function AddVehiclePage() {
           ? Number(data.prezzo)
           : null,
       garanzia_legale_prezzo: data.garanzia_legale_prezzo ? Number(data.garanzia_legale_prezzo) : null,
+      prezzoValutazione: data.prezzoValutazione ? Number(data.prezzoValutazione) : null,
       potenza_kw: data.potenza_kw ? Number(data.potenza_kw) : null,
       cilindrata: data.cilindrata ? Number(data.cilindrata) : null,
       carburante: data.carburante ?? null,
@@ -816,6 +1075,7 @@ export default function AddVehiclePage() {
       periziaPdfStoragePath: periziaPdfStoragePath || null,
       periziaPdfName: periziaPdfName || null,
       stato: data.stato ?? 'In vendita',
+      adminOnly: data.stato === 'Trasferita',
 
       // Generated fields
       id: draftVehicleRef.id,
@@ -833,9 +1093,26 @@ export default function AddVehiclePage() {
     try {
       await setDocumentNonBlocking(draftVehicleRef, dataToSave, { merge: true });
 
+      if (periziaPdfStoragePath && periziaPdfName) {
+        try {
+          await syncPeriziaDocument({
+            vehicleId: draftVehicleRef.id,
+            fileName: periziaPdfName,
+            fileUrl: periziaPdfUrl || '',
+            storagePath: periziaPdfStoragePath,
+          });
+        } catch (syncError) {
+          console.error('Errore sincronizzazione finale perizia su documenti veicolo', syncError);
+        }
+      }
+
       if (dataToSave.stato === 'In vendita' && data.sendNotificationEmail) {
         try {
-          await notifyNewVehicle(draftVehicleRef.id);
+          const notification = await notifyNewVehicle(draftVehicleRef.id);
+          toast({
+            title: 'Email inviata',
+            description: `Il server email ha accettato l'invio per tutti i ${notification?.recipientCount ?? 0} seller.`,
+          });
         } catch (notificationError) {
           console.error('Errore durante l\'invio notifica nuovo veicolo:', notificationError);
           const notificationMessage =
@@ -845,7 +1122,7 @@ export default function AddVehiclePage() {
 
           toast({
             variant: 'destructive',
-            title: 'Veicolo salvato, notifica non inviata',
+            title: 'Veicolo salvato, invio email incompleto',
             description: `Il veicolo è stato creato correttamente, ma la mail automatica non è partita. Motivo: ${notificationMessage}`,
           });
         }
@@ -994,6 +1271,20 @@ export default function AddVehiclePage() {
                   </FormItem>
                 )}
               />
+              <FormField
+                control={form.control}
+                name="prezzoValutazione"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Costo HUB (€)</FormLabel>
+                    <FormControl>
+                      <Input type="number" placeholder="Es. 28000" {...field} value={field.value ?? ''}/>
+                    </FormControl>
+                    <FormDescription>Visibile solo ad admin e seller HUB.</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </CardContent>
           </Card>
 
@@ -1029,6 +1320,7 @@ export default function AddVehiclePage() {
                       </FormControl>
                       <SelectContent>
                         <SelectItem value="Benzina">Benzina</SelectItem>
+                        <SelectItem value="GPL">GPL</SelectItem>
                         <SelectItem value="Diesel">Diesel</SelectItem>
                         <SelectItem value="Elettrica">Elettrica</SelectItem>
                         <SelectItem value="Ibrida">Ibrida</SelectItem>
@@ -1188,6 +1480,7 @@ export default function AddVehiclePage() {
                             <SelectItem value="Prenotato">Prenotato</SelectItem>
                           <SelectItem value="In arrivo">In arrivo</SelectItem>
                             <SelectItem value="Venduto">Venduto</SelectItem>
+                            {isPlatformAdmin && <SelectItem value="Trasferita">Trasferita (solo admin)</SelectItem>}
                         </SelectContent>
                         </Select>
                         <FormMessage />
@@ -1207,7 +1500,7 @@ export default function AddVehiclePage() {
                           <div className="space-y-1">
                             <FormLabel>Invia email automatica ai seller dopo il salvataggio</FormLabel>
                             <FormDescription>
-                              Se selezionato, al salvataggio verrà inviata la mail del nuovo veicolo solo se lo stato è “In vendita”.
+                              Se selezionato, al salvataggio verrà inviata la mail a tutti i seller con email registrata, solo se lo stato è “In vendita”. Eventuali invii incompleti verranno segnalati.
                             </FormDescription>
                           </div>
                         </div>
@@ -1340,7 +1633,7 @@ export default function AddVehiclePage() {
             <CardHeader>
                 <CardTitle>Immagini e Galleria</CardTitle>
                 <CardDescription>
-                    Prima di caricare, scegli quale lato o documento stai inserendo. Le foto kilometri e libretto vengono salvate come solo admin e non finiscono nella galleria pubblica.
+                    Prima di caricare, scegli quale lato o documento stai inserendo. Le foto kilometri e libretto vengono salvate come solo admin e non finiscono nella galleria pubblica. Subito dopo il caricamento puoi impostare la copertina con la stella e cambiare la visibilità con il lucchetto, senza dover salvare l&apos;annuncio.
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -1350,9 +1643,10 @@ export default function AddVehiclePage() {
                         <FormLabel>Tipo foto da caricare</FormLabel>
                         <Select
                           value={selectedImageCategory}
-                          onValueChange={value =>
-                            setSelectedImageCategory(value as VehicleImageCategory)
-                          }
+                          onValueChange={value => {
+                            setSelectedImageCategory(value as VehicleImageCategory);
+                            setHasManualImageCategorySelection(true);
+                          }}
                         >
                           <SelectTrigger>
                             <SelectValue placeholder="Seleziona il tipo foto" />
@@ -1415,9 +1709,9 @@ export default function AddVehiclePage() {
                         accept="image/png, image/jpeg, image/webp, video/mp4, video/webm"
                       />
                       <Upload className="mx-auto h-8 w-8 text-muted-foreground" />
-                      <p className="mt-3 text-sm font-medium">Trascina qui foto e video 360 oppure clicca per selezionarli</p>
+                      <p className="mt-3 text-sm font-medium">Trascina qui foto e video oppure clicca per selezionarli</p>
                       <p className="mt-1 text-sm text-muted-foreground">
-                        Caricamento corrente: {getImageCategoryMeta(selectedImageCategory).label}. Le immagini vengono ottimizzate, i video 360 vengono caricati in formato originale.
+                        Caricamento corrente: {getImageCategoryMeta(selectedImageCategory).label}. Le immagini vengono ottimizzate, i video vengono caricati in formato originale.
                       </p>
                     </div>
 
@@ -1446,7 +1740,51 @@ export default function AddVehiclePage() {
                                 />
                               )}
                               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-                              <div className="absolute right-2 top-2">
+                              {item.id === effectiveCoverUploadItemId && (
+                                <Badge variant="default" className="absolute left-2 top-2 z-10">
+                                  Copertina
+                                </Badge>
+                              )}
+                              <div className="absolute right-2 top-2 z-10 flex items-center gap-1">
+                                {item.status === 'uploaded' &&
+                                  item.mediaType !== 'video360' &&
+                                  item.visibility === 'public' &&
+                                  item.id !== effectiveCoverUploadItemId && (
+                                    <Button
+                                      type="button"
+                                      variant="secondary"
+                                      size="icon"
+                                      className="h-7 w-7"
+                                      onClick={() => setUploadItemAsCover(item.id)}
+                                      disabled={isSubmitting}
+                                      title="Imposta come copertina"
+                                    >
+                                      <Star className="h-4 w-4" />
+                                    </Button>
+                                  )}
+                                {item.status === 'uploaded' &&
+                                  item.mediaType !== 'video360' &&
+                                  isPlatformAdmin && (
+                                    <Button
+                                      type="button"
+                                      variant="secondary"
+                                      size="icon"
+                                      className="h-7 w-7"
+                                      onClick={() => toggleUploadItemAdminOnly(item.id)}
+                                      disabled={isSubmitting}
+                                      title={
+                                        item.visibility === 'admin'
+                                          ? 'Rendi pubblica'
+                                          : 'Visibile solo ad admin'
+                                      }
+                                    >
+                                      {item.visibility === 'admin' ? (
+                                        <LockOpen className="h-4 w-4" />
+                                      ) : (
+                                        <Lock className="h-4 w-4" />
+                                      )}
+                                    </Button>
+                                  )}
                                 <Button
                                   type="button"
                                   variant="destructive"
@@ -1461,10 +1799,18 @@ export default function AddVehiclePage() {
                               <div className="absolute inset-x-0 bottom-0 p-2 text-white">
                                 <div className="mb-1 flex items-center gap-2">
                                   <Badge variant={item.visibility === 'admin' ? 'secondary' : 'default'}>
-                                    {item.label}
+                                    {item.mediaType === 'video360'
+                                      ? getVehicleVideoLabel(
+                                          uploadVideoItems.findIndex(videoItem => videoItem.id === item.id),
+                                          uploadVideoItems.length
+                                        )
+                                      : item.label}
                                   </Badge>
-                                  {item.mediaType === 'video360' && (
-                                    <Badge variant="outline">Video 360</Badge>
+                                  {item.mediaType !== 'video360' && item.categorySource === 'ai' && (
+                                    <Badge variant="outline">Auto AI</Badge>
+                                  )}
+                                  {item.mediaType !== 'video360' && item.categorySource === 'filename' && (
+                                    <Badge variant="outline">Auto nome file</Badge>
                                   )}
                                   {item.visibility === 'admin' && (
                                     <Badge variant="outline">Solo admin</Badge>
@@ -1478,7 +1824,9 @@ export default function AddVehiclePage() {
                                   {item.status === 'uploaded'
                                     ? 'Caricata'
                                     : item.status === 'preparing'
-                                      ? 'Ottimizzazione...'
+                                      ? item.isClassifyingCategory
+                                        ? 'Classificazione automatica...'
+                                        : 'Ottimizzazione...'
                                     : item.status === 'error'
                                       ? item.errorMessage || 'Upload fallito'
                                       : item.progress === 0
@@ -1541,11 +1889,26 @@ https://.../immagine2.png"
                       />
                     </FormControl>
                     <FormDescription>
-                      Inserisci il link YouTube da mostrare in galleria sotto immagini e video 360.
+                      Inserisci il link YouTube da mostrare in galleria sotto immagini e video.
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
+              />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Documentazione Auto</CardTitle>
+              <CardDescription>
+                Carica e organizza i documenti del veicolo già in fase di inserimento. La bozza usa l&apos;ID provvisorio del veicolo, quindi i file restano agganciati alla stessa scheda quando salvi.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <VehicleDocumentsSection
+                vehicleId={draftVehicleRef?.id ?? ''}
+                vehicleLabel={`${form.getValues('marca')} ${form.getValues('modello')} ${form.getValues('versione')}`.trim()}
               />
             </CardContent>
           </Card>

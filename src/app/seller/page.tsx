@@ -3,7 +3,7 @@
 import { useMemo, useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { collection, query, where } from 'firebase/firestore';
-import { Clock3, ExternalLink, Loader2 } from 'lucide-react';
+import { Clock3, ExternalLink, Loader2, Truck } from 'lucide-react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
@@ -11,6 +11,8 @@ import { useCollection } from '@/firebase/firestore/use-collection';
 import { useFirestore, useMemoFirebase, useUser, useUserRole } from '@/firebase';
 import type { Vehicle } from '@/lib/types';
 import { releaseExpiredVehicleReservations } from '@/lib/vehicle-reservations';
+import { buildPdfImageData } from '@/lib/pdf-export-quality';
+import { usePdfExportQualityDialog } from '@/components/pdf-export-quality-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { formatVehicleReference } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -79,6 +81,7 @@ export default function SellerPage() {
   const [batchVehicleForRender, setBatchVehicleForRender] = useState<Vehicle | null>(null);
   const [batchVehiclePrice, setBatchVehiclePrice] = useState(0);
   const batchPrintableSheetRef = useRef<HTMLDivElement>(null);
+  const { requestPdfExportProfile, pdfExportQualityDialog } = usePdfExportQualityDialog();
   const normalizedSellerType = (roleData?.sellerType ?? '').trim().toUpperCase();
   const isHubSeller = normalizedSellerType === 'HUB';
 
@@ -88,6 +91,7 @@ export default function SellerPage() {
         ? query(
             collection(firestore, 'vehicles'),
             where('stato', '==', 'Prenotato'),
+            where('adminOnly', '==', false),
             where('statusChangedBy', '==', user.uid)
           )
         : null,
@@ -96,7 +100,7 @@ export default function SellerPage() {
   const allVehiclesQuery = useMemoFirebase(
     () =>
       firestore && isHubSeller
-        ? collection(firestore, 'vehicles')
+        ? query(collection(firestore, 'vehicles'), where('adminOnly', '==', false))
         : null,
     [firestore, isHubSeller]
   );
@@ -270,6 +274,11 @@ export default function SellerPage() {
     }
 
     setIsGeneratingPdf(true);
+    const exportProfile = await requestPdfExportProfile();
+    if (!exportProfile) {
+      setIsGeneratingPdf(false);
+      return;
+    }
 
     try {
       const pdf = new jsPDF({
@@ -330,7 +339,7 @@ export default function SellerPage() {
         );
 
         const canvas = await html2canvas(targetElement, {
-          scale: 2,
+          scale: exportProfile.scale,
           useCORS: true,
         });
 
@@ -374,10 +383,10 @@ export default function SellerPage() {
               sourceHeightOnCanvas
             );
 
-            const imgData = sliceCanvas.toDataURL('image/png');
+            const imgData = buildPdfImageData(sliceCanvas, exportProfile);
             const renderedSliceHeight =
               (sourceHeightOnCanvas * contentWidth) / canvasWidth;
-            pdf.addImage(imgData, 'PNG', margin, margin, contentWidth, renderedSliceHeight);
+            pdf.addImage(imgData, exportProfile.imageFormat, margin, margin, contentWidth, renderedSliceHeight);
             hasRenderedPage = true;
           }
 
@@ -423,6 +432,33 @@ export default function SellerPage() {
       </div>
 
       <div className="grid gap-6">
+        {isHubSeller && (
+          <Card className="border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-sky-50">
+            <CardHeader>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Truck className="h-5 w-5 text-blue-600" />
+                    Gestione Veicoli
+                  </CardTitle>
+                  <CardDescription>
+                    Visualizza e gestisci tutti i tuoi veicoli in vendita, prenotati e in arrivo.
+                  </CardDescription>
+                </div>
+                <Button
+                  asChild
+                  className="shrink-0 bg-blue-600 text-white hover:bg-blue-700"
+                >
+                  <Link href="/seller/vehicles">
+                    <ExternalLink className="mr-2 h-4 w-4" />
+                    Accedi
+                  </Link>
+                </Button>
+              </div>
+            </CardHeader>
+          </Card>
+        )}
+
         <Card>
           <CardHeader>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -676,6 +712,7 @@ export default function SellerPage() {
           ) : null}
         </div>
       </div>
+      {pdfExportQualityDialog}
     </div>
   );
 }

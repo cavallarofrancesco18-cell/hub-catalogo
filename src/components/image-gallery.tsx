@@ -67,7 +67,7 @@ export function ImageGallery({ imageUrls, startIndex = 0, onClose, fastMode = tr
       <div className="relative flex flex-1 items-center justify-center">
         <button
           onClick={goToPrevious}
-          className="absolute left-4 top-1/2 -translate-y-1/2 rounded-full bg-black/50 p-3 text-white hover:bg-black/75 focus:outline-none focus:ring-2 focus:ring-white"
+          className="absolute left-4 top-1/2 z-20 -translate-y-1/2 rounded-full bg-black/50 p-3 text-white hover:bg-black/75 focus:outline-none focus:ring-2 focus:ring-white"
         >
           <ChevronLeft className="h-8 w-8" />
           <span className="sr-only">Immagine precedente</span>
@@ -96,7 +96,7 @@ export function ImageGallery({ imageUrls, startIndex = 0, onClose, fastMode = tr
 
         <button
           onClick={goToNext}
-          className="absolute right-4 top-1/2 -translate-y-1/2 rounded-full bg-black/50 p-3 text-white hover:bg-black/75 focus:outline-none focus:ring-2 focus:ring-white"
+          className="absolute right-4 top-1/2 z-20 -translate-y-1/2 rounded-full bg-black/50 p-3 text-white hover:bg-black/75 focus:outline-none focus:ring-2 focus:ring-white"
         >
           <ChevronRight className="h-8 w-8" />
           <span className="sr-only">Immagine successiva</span>

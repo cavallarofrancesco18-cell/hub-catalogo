@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getStorage } from 'firebase-admin/storage';
 
 import { getAdminApp } from '@/lib/server/firebase-admin';
+import { isRestrictedVehicleStoragePath } from '@/lib/server/vehicles';
 
 export const runtime = 'nodejs';
 
@@ -25,13 +26,20 @@ function extractStorageLocation(rawUrl: string): { bucket: string; objectPath: s
   try {
     const parsedUrl = new URL(rawUrl);
 
-    if (parsedUrl.hostname === 'firebasestorage.googleapis.com') {
+    if (parsedUrl.hostname === 'firebasestorage.googleapis.com' || parsedUrl.hostname.endsWith('.firebasestorage.app')) {
       const parts = parsedUrl.pathname.split('/').filter(Boolean);
       const bucketIndex = parts.indexOf('b');
       const objectIndex = parts.indexOf('o');
       if (bucketIndex >= 0 && objectIndex >= 0 && parts[bucketIndex + 1] && parts[objectIndex + 1]) {
         return {
           bucket: parts[bucketIndex + 1],
+          objectPath: decodeURIComponent(parts[objectIndex + 1]),
+        };
+      }
+
+      if (parsedUrl.hostname.endsWith('.firebasestorage.app') && objectIndex >= 0 && parts[objectIndex + 1]) {
+        return {
+          bucket: parsedUrl.hostname,
           objectPath: decodeURIComponent(parts[objectIndex + 1]),
         };
       }
@@ -70,6 +78,9 @@ export async function GET(request: NextRequest) {
 
   try {
     const storageLocation = extractStorageLocation(sourceUrl);
+    if (storageLocation && await isRestrictedVehicleStoragePath(storageLocation.objectPath)) {
+      return NextResponse.json({ error: 'FILE_NOT_FOUND' }, { status: 404 });
+    }
 
     let buffer: Buffer;
     let contentType = requestedContentType || 'application/octet-stream';
@@ -116,10 +127,13 @@ export async function GET(request: NextRequest) {
     headers.set('Content-Type', contentType || 'application/octet-stream');
     headers.set('Content-Length', String(buffer.byteLength));
     headers.set('Cache-Control', 'private, max-age=300');
-    headers.set(
-      'Content-Disposition',
-      `${disposition}; filename="${sanitizeDownloadFileName(requestedFileName)}"; filename*=UTF-8''${encodeURIComponent(sanitizeDownloadFileName(requestedFileName))}`
-    );
+
+    if (disposition === 'attachment') {
+      headers.set(
+        'Content-Disposition',
+        `${disposition}; filename="${sanitizeDownloadFileName(requestedFileName)}"; filename*=UTF-8''${encodeURIComponent(sanitizeDownloadFileName(requestedFileName))}`
+      );
+    }
 
     return new NextResponse(buffer, { status: 200, headers });
   } catch (error) {

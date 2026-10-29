@@ -1,4 +1,5 @@
 export type VehicleImageCategory =
+  | 'showroom-hub'
   | 'fronte-dx'
   | 'fronte-sx'
   | 'posteriore-sx'
@@ -23,18 +24,36 @@ export type VehicleImageAsset = {
   storagePath?: string | null;
 };
 
+export type AdminNotification = {
+  id: string;
+  type: 'vehicle_reservation';
+  title: string;
+  message: string;
+  vehicleId: string;
+  vehicleSlug: string;
+  vehicleLabel: string;
+  contractId: string;
+  customerName?: string | null;
+  createdByUid: string;
+  createdByName: string;
+  createdByEmail?: string | null;
+  source: 'contract' | 'admin';
+  createdAt?: any;
+};
+
 export type Vehicle = {
   id: string;
   numeroRiferimento?: number;
   data_inserimento?: string;
   coverImageUrl?: string | null;
-  stato: 'In vendita' | 'Venduto' | 'Prenotato' | 'In arrivo';
+  stato: 'In vendita' | 'Venduto' | 'Prenotato' | 'In arrivo' | 'Trasferita';
+  adminOnly?: boolean;
   marca: string;
   modello: string;
   versione: string;
   data_immatricolazione: string;
   chilometraggio: number;
-  carburante: 'Benzina' | 'Diesel' | 'Elettrica' | 'Ibrida';
+  carburante: 'Benzina' | 'GPL' | 'Diesel' | 'Elettrica' | 'Ibrida';
   cambio: 'Manuale' | 'Automatico';
   potenza: number; // CV
   potenza_kw?: number;
@@ -46,7 +65,9 @@ export type Vehicle = {
   prezzo: number;
   prezzoPrivati?: number; // Prezzo visibile ai seller (commerciante)
   garanzia_legale_prezzo?: number;
+  prezzoValutazione?: number; // Costo HUB visibile solo ad admin e seller HUB
   targa?: string;
+  vin?: string | null;
   garanzia?: string;
   descrizione: string;
   immagini: string[];
@@ -66,6 +87,15 @@ export type Vehicle = {
   statusChangedByEmail?: string;
   reservationCreatedAt?: string | null;
   reservationExpiresAt?: string | null;
+  // Traccia sempre chi e quando ha effettuato l'ultimo cambio di stato (visibile solo ad admin)
+  statusChangeActorUid?: string | null;
+  statusChangeActorName?: string | null;
+  statusChangeActorEmail?: string | null;
+  statusChangedAt?: string | null;
+  postVenditaDataVendita?: string | null;
+  postVenditaDataIncassoSaldo?: string | null;
+  postVenditaDataInvioLibrettoAgenziaItalia?: string | null;
+  postVenditaDataInvioLibrettoClienteFinale?: string | null;
 };
 
 export type Form = {
@@ -82,6 +112,7 @@ export type Form = {
 export type HubDocumentFolder = {
   id: string;
   name: string;
+  parentId?: string | null;
   createdAt?: any;
   createdByUid?: string | null;
   createdByEmail?: string | null;
@@ -103,11 +134,64 @@ export type HubDocument = {
   uploadedByEmail?: string | null;
 };
 
+export type VehicleDocumentFolder = {
+  id: string;
+  name: string;
+  parentId?: string | null;
+  createdAt?: any;
+  createdByUid?: string | null;
+  createdByEmail?: string | null;
+};
+
+export type VehicleDocument = {
+  id: string;
+  title: string;
+  titleKey: string;
+  fileName: string;
+  fileUrl: string;
+  storagePath: string;
+  contentType?: string | null;
+  sizeBytes?: number | null;
+  folderId?: string | null;
+  createdAt?: any;
+  updatedAt?: any;
+  uploadedByUid?: string | null;
+  uploadedByEmail?: string | null;
+};
+
+export type Customer = {
+  id: string;
+  adminOnly?: boolean;
+  name: string;
+  address: string;
+  cf: string; // Codice Fiscale o P.IVA
+  docNumber?: string; // Numero documento
+  birthDate?: string;
+  birthPlace?: string;
+  phone?: string;
+  email?: string;
+  customerType: 'privato' | 'commerciante';
+  totalPurchases?: number; // Numero totale di acquisti
+  totalSpent?: number; // Importo totale speso
+  notes?: string;
+  createdAt: any;
+  updatedAt: any;
+  createdBy: string; // UID dell'admin che ha registrato il cliente
+};
+
 export type Contract = {
   id: string; // Will be same as vehicleId
   vehicleId: string;
+  adminOnly?: boolean;
+  taxRate?: 0 | 4 | 22;
+  customerId?: string; // Reference to Customer document
   companyProfileId?: string | null;
   creatorId: string;
+  adminOnlyManagement?: boolean;
+  adminOnlyManagementReason?: string | null;
+  adminOnlyManagementSetAt?: any;
+  adminOnlyManagementSetByUid?: string | null;
+  adminOnlyManagementSetByEmail?: string | null;
   signedContractUrl?: string | null;
   signedContractStoragePath?: string | null;
   signedContractName?: string | null;
@@ -122,13 +206,68 @@ export type Contract = {
   phone?: string;
   email?: string;
   customerType: 'privato' | 'commerciante';
+  // Vehicle pricing info
+  vehicleSalePrice: number; // Prezzo di vendita al cliente
+  vehicleCostPrice?: number; // Prezzo di costo della vettura
   price: number;
   costoVultura?: number;
+  costoVulturaCaricoCliente?: boolean;
+  discount?: number;
+  // Additional costs/revenues
+  costiShipping?: number;
+  costiAllestimento?: number;
+  costiPratiche?: number;
+  ricaviCommissioni?: number;
+  // Payment info
   paymentMethod: 'contanti' | 'bonifico' | 'assegno' | 'finanziamento';
   financingCompany?: string;
   numberOfInstallments?: number;
   installmentAmount?: number;
   totalFinancedAmount?: number;
+  vehiclePublicPrice?: number;
+  vehicleMerchantPrice?: number;
+  warrantyPrice?: number;
+  hasInsurance?: 'si' | 'no';
+  insurancePrice?: number;
+  notes?: string;
+  contractDate?: string;
+  deliveryDate?: string;
+  caparra?: number;
+  caparraDate?: string;
+  caparraPaymentMethod?: 'contanti' | 'bonifico' | 'assegno' | 'pos';
+  caparraBankAccount?: string;
+  sellerDetails?: {
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    phone?: string;
+  };
+  secondaryBuyer?: {
+    name?: string;
+    address?: string;
+    cf?: string;
+    docNumber?: string;
+    birthDate?: string;
+    birthPlace?: string;
+    phone?: string;
+    email?: string;
+    customerType?: 'privato' | 'commerciante';
+  };
+  tradeInVehicle?: {
+    brand?: string;
+    model?: string;
+    plate?: string;
+    vin?: string;
+    color?: string;
+    value?: number;
+    km?: number;
+    owner?: string;
+    notes?: string;
+  };
+  workItems?: Array<{
+    description?: string;
+    cost?: number;
+  }>;
   warranty?: string;
   insurance?: string;
   wearAndTear?: string;
@@ -156,8 +295,17 @@ export type User = {
   email: string;
   nome?: string;
   name?: string;
+  phone?: string;
   createdAt: any;
-  sellerType?: 'HUB' | 'EXPRESS' | 'MGV' | 'STANDARD' | 'hub' | 'express' | 'mgv' | 'standard' | 'tantibuonikm' | 'gruppodinamica' | 'TANTIBUONIKM' | 'GRUPPODINAMICA' | null;
+  sellerType?: string | null;
+  companyName?: string | null;
+  companyLegalAddress?: string | null;
+  companyVatNumber?: string | null;
+  companyLogoUrl?: string | null;
+  companyLogoStoragePath?: string | null;
+  companyVisuraStoragePath?: string | null;
+  companyVisuraFileName?: string | null;
+  companyVisuraUploadedAt?: any;
   status?: 'pending' | 'active' | 'disabled';
   allowedSections?: string[];
   capabilities?: string[];
@@ -202,7 +350,7 @@ export type AgentVehicleReport = {
   data_immatricolazione: string;
   targa: string;
   chilometraggio?: number | null;
-  carburante?: 'Benzina' | 'Diesel' | 'Elettrica' | 'Ibrida' | null;
+  carburante?: 'Benzina' | 'GPL' | 'Diesel' | 'Elettrica' | 'Ibrida' | null;
   cambio?: 'Manuale' | 'Automatico' | null;
   potenza?: number | null;
   potenza_kw?: number | null;

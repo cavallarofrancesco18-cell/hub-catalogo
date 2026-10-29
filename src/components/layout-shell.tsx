@@ -1,6 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import { usePathname } from 'next/navigation';
 
 import { cn } from '@/lib/utils';
 
@@ -22,11 +23,14 @@ export function LayoutShell({
   showHeader = true,
   showFooter = true,
 }: LayoutShellProps) {
+  const pathname = usePathname();
+  const isSplashPreview = pathname.startsWith('/splash');
+
   return (
     <div className={cn('min-h-screen bg-background text-foreground', className)}>
-      {showHeader ? <Header /> : null}
+      {showHeader && !isSplashPreview ? <Header /> : null}
       <main className={cn('min-h-[calc(100vh-16rem)]', mainClassName)}>{children}</main>
-      {showFooter ? <Footer /> : null}
+      {showFooter && !isSplashPreview ? <Footer /> : null}
     </div>
   );
 }

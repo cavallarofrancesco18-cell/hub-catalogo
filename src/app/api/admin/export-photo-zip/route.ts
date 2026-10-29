@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import JSZip from 'jszip';
 import { getStorage } from 'firebase-admin/storage';
+import sharp from 'sharp';
 
 import type { VehicleImageCategory, VehicleImageVisibility } from '@/lib/types';
 import { getAdminApp, getAdminAuth, getAdminDb } from '@/lib/server/firebase-admin';
@@ -104,6 +105,32 @@ function getFileExtension(url: string, contentType?: string | null) {
   if (contentType?.includes('jpeg') || contentType?.includes('jpg')) return 'jpg';
 
   return 'jpg';
+}
+
+async function optimizeImageBinary(
+  source: Buffer,
+  url: string,
+  contentType?: string | null,
+): Promise<{ data: Buffer; extension: string }> {
+  const originalExtension = getFileExtension(url, contentType);
+
+  // Animated GIFs are kept as-is to avoid breaking animations.
+  if (originalExtension === 'gif') {
+    return { data: source, extension: originalExtension };
+  }
+
+  try {
+    const optimized = await sharp(source, { failOn: 'none' })
+      .rotate()
+      .resize({ width: 1920, height: 1920, fit: 'inside', withoutEnlargement: true })
+      .flatten({ background: '#ffffff' })
+      .jpeg({ quality: 72, mozjpeg: true, chromaSubsampling: '4:2:0' })
+      .toBuffer();
+
+    return { data: optimized, extension: 'jpg' };
+  } catch {
+    return { data: source, extension: originalExtension };
+  }
 }
 
 function buildPhotoExportFileName(vehicle: VehicleExportDocument, index: number, extension: string) {
@@ -288,10 +315,14 @@ async function buildPhotoZip(status: PhotoExportStatus) {
       continue;
     }
 
-    const extension = getFileExtension(exportAsset.url, downloadedAsset.contentType);
-    const fileName = buildPhotoExportFileName(vehicle, exportedCount, extension);
+    const optimizedAsset = await optimizeImageBinary(
+      downloadedAsset.data,
+      exportAsset.url,
+      downloadedAsset.contentType,
+    );
+    const fileName = buildPhotoExportFileName(vehicle, exportedCount, optimizedAsset.extension);
 
-    folder.file(fileName, downloadedAsset.data);
+    folder.file(fileName, optimizedAsset.data);
     manifestRows.push([
       vehicle.id,
       vehicle.numeroRiferimento ? String(vehicle.numeroRiferimento) : '',

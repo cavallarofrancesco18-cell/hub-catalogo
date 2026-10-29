@@ -8,6 +8,11 @@ export function isContractCreationBlocked(email?: string | null) {
   return CONTRACT_CREATION_BLOCKED_EMAILS.includes(email.trim().toLowerCase());
 }
 
-export function canManageContracts(role?: 'admin' | 'seller' | 'agent' | null) {
-  return role === 'admin' || role === 'seller';
+export function isStandardSeller(role?: 'admin' | 'seller' | 'agent' | null, sellerType?: string | null) {
+  const normalizedType = sellerType?.trim().toUpperCase();
+  return role === 'seller' && (!normalizedType || normalizedType === 'STANDARD');
+}
+
+export function canManageContracts(role?: 'admin' | 'seller' | 'agent' | null, sellerType?: string | null) {
+  return role === 'admin' || (role === 'seller' && !isStandardSeller(role, sellerType));
 }

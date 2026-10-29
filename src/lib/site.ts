@@ -63,6 +63,7 @@ export const legalNavigation = [
 export const footerSupportNavigation = [
   { href: '/chi-siamo', label: 'Chi Siamo' },
   { href: '/contatti', label: 'Contatti' },
+  { href: '/dicono-di-noi', label: 'Dicono di noi' },
   { href: '/come-funziona', label: 'Come funziona' },
   { href: '/faq', label: 'FAQ' },
   { href: '/finanziamenti', label: 'Finanziamenti' },
@@ -94,11 +95,13 @@ export function buildPageMetadata(params: {
       siteName: siteConfig.name,
       type: 'website',
       locale: 'it_IT',
+      images: [{ url: `${siteConfig.domain}/favicon2.png`, alt: siteConfig.name }],
     },
     twitter: {
       card: 'summary_large_image',
       title: params.title,
       description: params.description,
+      images: [`${siteConfig.domain}/favicon2.png`],
     },
   };
 }

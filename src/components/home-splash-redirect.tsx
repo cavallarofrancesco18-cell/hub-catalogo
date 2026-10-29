@@ -1,17 +1,49 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import Image from 'next/image';
 
 const MAX_PROGRESS = 100;
 const DURATION_MS = 3000;
-const ARC_LENGTH = 440;
+const ARC_LENGTH = 283;
+const HOME_SPLASH_SESSION_KEY = 'autotrade-home-splash-seen';
 
-export function HomeSplashRedirect() {
-  const router = useRouter();
+type HomeSplashRedirectProps = {
+  overlay?: boolean;
+};
+
+export function HomeSplashRedirect({ overlay = false }: HomeSplashRedirectProps) {
   const [progress, setProgress] = useState(0);
+  const [isVisible, setIsVisible] = useState(!overlay);
 
   useEffect(() => {
+    if (!overlay) {
+      return;
+    }
+
+    try {
+      if (window.sessionStorage.getItem(HOME_SPLASH_SESSION_KEY) === 'true') {
+        return;
+      }
+
+      window.sessionStorage.setItem(HOME_SPLASH_SESSION_KEY, 'true');
+    } catch {
+      // If session storage is unavailable, show the splash normally.
+    }
+
+    setIsVisible(true);
+  }, [overlay]);
+
+  useEffect(() => {
+    if (!isVisible) {
+      return;
+    }
+
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setProgress(MAX_PROGRESS);
+      return;
+    }
+
     const start = performance.now();
     let rafId = 0;
 
@@ -29,132 +61,95 @@ export function HomeSplashRedirect() {
     rafId = window.requestAnimationFrame(animate);
 
     return () => window.cancelAnimationFrame(rafId);
-  }, []);
+  }, [isVisible]);
 
   useEffect(() => {
-    if (progress < MAX_PROGRESS) {
+    if (!overlay || progress < MAX_PROGRESS) {
       return;
     }
 
-    const redirectTimer = window.setTimeout(() => {
-      // Fallback hard redirect for environments where SPA navigation is delayed.
-      window.location.replace('/auto');
-      router.replace('/auto');
-    }, 220);
-
-    return () => window.clearTimeout(redirectTimer);
-  }, [progress, router]);
+    const hideTimer = window.setTimeout(() => setIsVisible(false), 350);
+    return () => window.clearTimeout(hideTimer);
+  }, [overlay, progress]);
 
   useEffect(() => {
-    const hardRedirectTimer = window.setTimeout(() => {
-      setProgress(MAX_PROGRESS);
-      window.location.replace('/auto');
-    }, DURATION_MS + 700);
+    if (!overlay || !isVisible) {
+      return;
+    }
 
-    return () => window.clearTimeout(hardRedirectTimer);
-  }, []);
-
-  const needle = useMemo(() => {
-    const angle = -180 + (progress / 100) * 180;
-    return {
-      angle,
-      cx: 180,
-      cy: 180,
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
     };
-  }, [progress]);
+  }, [overlay, isVisible]);
+
+  if (!isVisible) {
+    return null;
+  }
 
   const dashOffset = ARC_LENGTH * (1 - progress / 100);
 
   return (
-    <section className="relative flex min-h-[70vh] items-center justify-center overflow-hidden px-4 py-10">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(239,68,68,0.20),_transparent_38%),radial-gradient(circle_at_bottom,_rgba(14,165,233,0.16),_transparent_36%),linear-gradient(180deg,_#020617_0%,_#0f172a_100%)]" />
-      <div className="absolute -left-16 top-1/3 h-64 w-64 rotate-12 rounded-full border border-red-500/20" />
-      <div className="absolute -right-20 bottom-10 h-72 w-72 -rotate-12 rounded-full border border-cyan-400/20" />
+    <section className={`${overlay ? 'fixed inset-0 z-[100]' : 'relative min-h-[100svh]'} flex items-center justify-center overflow-hidden px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-[max(1.5rem,env(safe-area-inset-top))] transition-opacity duration-300 sm:px-6 sm:py-10`}>
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(56,189,248,0.3),transparent_34%),radial-gradient(circle_at_85%_10%,rgba(239,68,68,0.22),transparent_36%),linear-gradient(180deg,#020617_0%,#0b1224_52%,#111827_100%)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.09)_0%,rgba(255,255,255,0)_42%)]" />
 
-      <div className="relative z-10 w-full max-w-2xl rounded-[2rem] border border-white/10 bg-slate-950/75 p-8 shadow-[0_30px_100px_-50px_rgba(0,0,0,0.75)] backdrop-blur">
-        <h1 className="text-center text-2xl font-semibold text-white">Caricamento catalogo</h1>
+      <div className="relative z-10 w-full max-w-xl text-center">
+        <p className="text-[11px] uppercase tracking-[0.24em] text-cyan-200/90 sm:text-xs sm:tracking-[0.3em]">Avvio AutoTrade HUB</p>
+        <h1 className="mt-3 text-2xl font-semibold text-white sm:text-4xl">Caricamento catalogo</h1>
 
-        <div className="mt-8">
-          <div className="relative mx-auto h-[220px] w-[360px] max-w-full">
-            <svg viewBox="0 0 360 220" className="h-full w-full" role="img" aria-label="Tachimetro caricamento catalogo">
-              <defs>
-                <linearGradient id="race-arc" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor="#38bdf8" />
-                  <stop offset="45%" stopColor="#22d3ee" />
-                  <stop offset="70%" stopColor="#facc15" />
-                  <stop offset="100%" stopColor="#ef4444" />
-                </linearGradient>
-                <linearGradient id="needle-racing" x1="0%" y1="50%" x2="100%" y2="50%">
-                  <stop offset="0%" stopColor="#f87171" />
-                  <stop offset="60%" stopColor="#ef4444" />
-                  <stop offset="100%" stopColor="#f8fafc" />
-                </linearGradient>
-                <filter id="needle-glow" x="-40%" y="-40%" width="180%" height="180%">
-                  <feGaussianBlur stdDeviation="1.8" result="blur" />
-                  <feMerge>
-                    <feMergeNode in="blur" />
-                    <feMergeNode in="SourceGraphic" />
-                  </feMerge>
-                </filter>
-              </defs>
+        <div className="mt-8 flex justify-center sm:mt-12">
+          <div className="relative pb-[clamp(5rem,12vh,7rem)]">
+            <div className="relative h-[clamp(360px,58dvh,420px)] w-[clamp(188px,34vw,218px)] rounded-[2.4rem] border border-white/20 bg-gradient-to-b from-slate-800 to-slate-950 p-2 shadow-[0_24px_55px_-30px_rgba(14,165,233,0.95)]">
+              <div className="absolute left-1/2 top-2 h-5 w-24 -translate-x-1/2 rounded-full bg-slate-900/90" />
+              <div className="absolute bottom-2 left-1/2 h-1 w-9 -translate-x-1/2 rounded-full bg-slate-700/85" />
 
-              <path d="M40 180 A140 140 0 0 1 320 180" stroke="rgba(148,163,184,0.28)" strokeWidth="16" fill="none" strokeLinecap="round" />
-              <path
-                d="M40 180 A140 140 0 0 1 320 180"
-                stroke="url(#race-arc)"
-                strokeWidth="16"
-                fill="none"
-                strokeLinecap="round"
-                strokeDasharray={ARC_LENGTH}
-                strokeDashoffset={dashOffset}
-                style={{ transition: 'stroke-dashoffset 90ms linear' }}
-              />
-
-              {Array.from({ length: 13 }).map((_, index) => {
-                const stepAngle = -120 + index * 20;
-                const rad = (stepAngle * Math.PI) / 180;
-                const outerX = 180 + 148 * Math.cos(rad);
-                const outerY = 180 + 148 * Math.sin(rad);
-                const innerX = 180 + 132 * Math.cos(rad);
-                const innerY = 180 + 132 * Math.sin(rad);
-
-                return (
-                  <line
-                    key={stepAngle}
-                    x1={innerX}
-                    y1={innerY}
-                    x2={outerX}
-                    y2={outerY}
-                    stroke="rgba(226,232,240,0.45)"
-                    strokeWidth={index % 3 === 0 ? 2.5 : 1.5}
-                    strokeLinecap="round"
+              <div className="relative h-full rounded-[2rem] bg-[radial-gradient(circle_at_top,rgba(125,211,252,0.2),transparent_44%),linear-gradient(180deg,#0f172a_0%,#020617_100%)] p-4">
+                <div className="pointer-events-none absolute inset-x-0 top-8 flex justify-center opacity-40 mix-blend-multiply">
+                  <Image
+                    src="/logo.gif"
+                    alt=""
+                    width={210}
+                    height={150}
+                    className="h-auto w-[82%] object-contain"
+                    aria-hidden
+                    sizes="(max-width: 640px) 170px, 210px"
+                    priority
                   />
-                );
-              })}
-
-              <g transform={`rotate(${needle.angle} ${needle.cx} ${needle.cy})`} filter="url(#needle-glow)">
-                <path
-                  d="M178 180 L206 176 L304 180 L206 184 Z"
-                  fill="url(#needle-racing)"
-                  stroke="rgba(248,250,252,0.75)"
-                  strokeWidth="1"
-                />
-                <path d="M162 180 L178 177 L178 183 Z" fill="#ef4444" opacity="0.9" />
-              </g>
-              <circle cx="180" cy="180" r="11" fill="#f8fafc" />
-              <circle cx="180" cy="180" r="6" fill="#0f172a" />
-            </svg>
-
-            <div className="absolute left-1/2 top-[70%] -translate-x-1/2 rounded-2xl border border-white/20 bg-slate-950/80 px-5 py-2 text-center shadow-[0_12px_32px_-18px_rgba(14,165,233,0.7)] backdrop-blur-sm">
-              <p className="text-5xl font-bold tracking-tight text-white">{progress}%</p>
+                </div>
+                <div className="mt-16 flex flex-col items-center">
+                  <div className="relative grid h-32 w-32 place-items-center sm:h-36 sm:w-36">
+                    <svg viewBox="0 0 120 120" className="absolute h-full w-full -rotate-90" role="img" aria-label="Caricamento smartphone">
+                      <circle cx="60" cy="60" r="45" fill="none" stroke="rgba(148,163,184,0.28)" strokeWidth="10" />
+                      <circle
+                        cx="60"
+                        cy="60"
+                        r="45"
+                        fill="none"
+                        stroke="url(#phone-ring-main)"
+                        strokeWidth="10"
+                        strokeLinecap="round"
+                        strokeDasharray={ARC_LENGTH}
+                        strokeDashoffset={dashOffset}
+                        style={{ transition: 'stroke-dashoffset 90ms linear' }}
+                      />
+                      <defs>
+                        <linearGradient id="phone-ring-main" x1="0%" y1="0%" x2="100%" y2="0%">
+                          <stop offset="0%" stopColor="#22d3ee" />
+                          <stop offset="100%" stopColor="#3b82f6" />
+                        </linearGradient>
+                      </defs>
+                    </svg>
+                    <span className="text-[1.75rem] font-bold text-white sm:text-3xl">{progress}%</span>
+                  </div>
+                  <p className="mt-5 text-[11px] uppercase tracking-[0.24em] text-slate-300 sm:mt-6 sm:text-xs sm:tracking-[0.28em]">Charging</p>
+                </div>
+              </div>
             </div>
-          </div>
 
-          <div className="mx-auto mt-8 h-2.5 w-full max-w-lg overflow-hidden rounded-full bg-white/15">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-cyan-400 via-sky-400 to-red-500 transition-[width] duration-100"
-              style={{ width: `${progress}%` }}
-            />
+            <div className="pointer-events-none absolute left-1/2 top-[calc(100%-2px)] h-5 w-7 -translate-x-1/2 rounded-t-md border border-slate-300/70 border-b-0 bg-slate-200/95" />
+            <div className="pointer-events-none absolute left-1/2 top-full h-[clamp(4.5rem,10vh,6rem)] w-2 -translate-x-1/2 rounded-b-full bg-gradient-to-b from-slate-200/95 via-slate-300/85 to-slate-600/20 shadow-[0_0_14px_rgba(226,232,240,0.35)]" />
           </div>
         </div>
       </div>

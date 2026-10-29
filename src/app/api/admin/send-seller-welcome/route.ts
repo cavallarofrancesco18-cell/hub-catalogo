@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { firebaseConfig } from '@/firebase/config';
 import { sendTransactionalEmail } from '@/lib/server/mailer';
+import { siteConfig } from '@/lib/site';
 
 const ADMIN_UID = '4E6MSEuIXZeeo3j2taWIA7LbYcw2';
-const PORTAL_URL = 'https://hubcatalogo.vercel.app/admin/login';
+const PORTAL_URL = `${siteConfig.domain}/admin/login`;
 
 type FirebaseLookupResponse = {
   users?: Array<{
@@ -17,6 +18,15 @@ type AuthenticatedUser = {
   localId: string;
   email: string | null;
 };
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 
 async function getAuthenticatedUser(request: NextRequest): Promise<AuthenticatedUser | null> {
   const authorization = request.headers.get('authorization');
@@ -74,8 +84,8 @@ export async function POST(request: NextRequest) {
     const recipientName = body.name?.trim() || 'Venditore';
     const recipientPassword = body.password ?? '';
 
-    if (!recipientEmail) {
-      return NextResponse.json({ error: 'MISSING_EMAIL' }, { status: 400 });
+    if (!recipientEmail || recipientEmail.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail)) {
+      return NextResponse.json({ error: 'INVALID_EMAIL' }, { status: 400 });
     }
 
     if (!recipientPassword) {
@@ -93,6 +103,9 @@ export async function POST(request: NextRequest) {
 
     const from = process.env.SMTP_FROM || 'AUTOTRADE <no-reply@autotrade.local>';
     const subject = 'Accesso al portale AUTOTRADE';
+    const safeName = escapeHtml(recipientName);
+    const safeEmail = escapeHtml(recipientEmail);
+    const safePassword = escapeHtml(recipientPassword);
     const text = [
       `Ciao ${recipientName},`,
       '',
@@ -111,7 +124,7 @@ export async function POST(request: NextRequest) {
       'Team AUTOTRADE',
     ].join('\n');
     const html = `
-        <p>Ciao ${recipientName},</p>
+      <p>Ciao ${safeName},</p>
         <p>ti confermiamo che il tuo account venditore per il portale AUTOTRADE e stato creato con successo.</p>
         <p>Di seguito trovi i dati di accesso:</p>
         <p>
@@ -119,8 +132,8 @@ export async function POST(request: NextRequest) {
           <a href="${PORTAL_URL}">${PORTAL_URL}</a>
         </p>
         <p>
-          <strong>Email:</strong> ${recipientEmail}<br />
-          <strong>Password:</strong> ${recipientPassword}
+          <strong>Email:</strong> ${safeEmail}<br />
+          <strong>Password:</strong> ${safePassword}
         </p>
         <p>Ti consigliamo di conservare queste informazioni in modo sicuro e di modificare la password al primo accesso, se necessario.</p>
         <p>Per qualsiasi necessita, puoi rispondere a questa email.</p>

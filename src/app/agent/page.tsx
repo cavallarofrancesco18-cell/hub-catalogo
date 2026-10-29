@@ -52,7 +52,7 @@ const agentVehicleSchema = z.object({
   data_immatricolazione: z.string({ required_error: 'La data di immatricolazione è obbligatoria.' }),
   targa: z.string().min(1, 'La targa è obbligatoria.'),
   chilometraggio: z.coerce.number().int().optional().or(z.literal('')),
-  carburante: z.enum(['Benzina', 'Diesel', 'Elettrica', 'Ibrida']).optional(),
+  carburante: z.enum(['Benzina', 'GPL', 'Diesel', 'Elettrica', 'Ibrida']).optional(),
   cambio: z.enum(['Manuale', 'Automatico']).optional(),
   potenza: z.coerce.number().int().optional().or(z.literal('')),
   potenza_kw: z.coerce.number().int().optional().or(z.literal('')),
@@ -607,7 +607,7 @@ export default function AgentPage() {
                 <FormItem><FormLabel>Chilometraggio</FormLabel><FormControl><Input type="number" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>
               )} />
               <FormField control={form.control} name="carburante" render={({ field }) => (
-                <FormItem><FormLabel>Carburante</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleziona carburante" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Benzina">Benzina</SelectItem><SelectItem value="Diesel">Diesel</SelectItem><SelectItem value="Elettrica">Elettrica</SelectItem><SelectItem value="Ibrida">Ibrida</SelectItem></SelectContent></Select><FormMessage /></FormItem>
+                <FormItem><FormLabel>Carburante</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleziona carburante" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Benzina">Benzina</SelectItem><SelectItem value="GPL">GPL</SelectItem><SelectItem value="Diesel">Diesel</SelectItem><SelectItem value="Elettrica">Elettrica</SelectItem><SelectItem value="Ibrida">Ibrida</SelectItem></SelectContent></Select><FormMessage /></FormItem>
               )} />
               <FormField control={form.control} name="cambio" render={({ field }) => (
                 <FormItem><FormLabel>Cambio</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Seleziona cambio" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Manuale">Manuale</SelectItem><SelectItem value="Automatico">Automatico</SelectItem></SelectContent></Select><FormMessage /></FormItem>

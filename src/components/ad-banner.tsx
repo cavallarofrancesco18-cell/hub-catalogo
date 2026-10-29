@@ -19,8 +19,7 @@ export function AdBanner({ slotLabel, enabled = false, className }: AdBannerProp
         )}
       >
         <div>
-          <p className="font-semibold text-foreground">Spazio pubblicitario riservato</p>
-          <p className="mt-1">{slotLabel}</p>
+          <p className="font-semibold text-foreground">Comunicazione in evidenza</p>
         </div>
       </div>
     );
@@ -35,8 +34,7 @@ export function AdBanner({ slotLabel, enabled = false, className }: AdBannerProp
       aria-label={slotLabel}
     >
       <div>
-        <p className="font-semibold text-foreground">Area pubblicitaria predisposta</p>
-        <p className="mt-1">{slotLabel}</p>
+        <p className="font-semibold text-foreground">Spazio informativo</p>
       </div>
     </div>
   );

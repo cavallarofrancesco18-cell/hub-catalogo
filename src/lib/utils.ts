@@ -2,23 +2,38 @@ import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 import type { Vehicle } from "./types";
 
-const DEFAULT_VEHICLE_COVER_CATEGORY = 'fronte-sx' as const;
+const DEFAULT_VEHICLE_COVER_CATEGORY = 'fronte-dx' as const;
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
+}
+
+export function getVehicleVideoLabel(index: number, total: number) {
+  return total > 1 ? `Video ${index + 1}` : 'Video';
 }
 
 export function formatCurrency(amount: number) {
   return new Intl.NumberFormat('it-IT', {
     style: 'currency',
     currency: 'EUR',
+    useGrouping: 'always',
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(amount);
 }
 
+export function formatCurrencyPrecise(amount: number) {
+  return new Intl.NumberFormat('it-IT', {
+    style: 'currency',
+    currency: 'EUR',
+    useGrouping: 'always',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount);
+}
+
 export function formatNumber(num: number) {
-  return new Intl.NumberFormat('it-IT').format(num);
+  return new Intl.NumberFormat('it-IT', { useGrouping: 'always' }).format(num);
 }
 
 function parseDateValue(value: unknown): Date | null {
@@ -143,7 +158,9 @@ export function orderVehicleMediaAssetsForCover(
   const normalizedPreferredCoverUrl = preferredCoverUrl?.trim() || null;
   const coverAsset = normalizedPreferredCoverUrl
     ? publicImageAssets.find(asset => asset.url === normalizedPreferredCoverUrl)
-    : publicImageAssets.find(asset => asset.category === DEFAULT_VEHICLE_COVER_CATEGORY) ?? publicImageAssets[0];
+    : publicImageAssets.find(asset => asset.category === 'showroom-hub') ??
+      publicImageAssets.find(asset => asset.category === DEFAULT_VEHICLE_COVER_CATEGORY) ??
+      publicImageAssets[0];
 
   if (!coverAsset) {
     return [...mediaAssets];
@@ -199,7 +216,10 @@ export function getVehicleCoverImageUrl(
 
 export function generateSlug(vehicle: any) {
   const year = new Date(vehicle.data_immatricolazione).getFullYear();
-  return `${vehicle.marca.toLowerCase()}-${vehicle.modello.toLowerCase()}-${year}-${vehicle.id}`.replace(/\s+/g, '-');
+  return `${vehicle.marca.toLowerCase()}-${vehicle.modello.toLowerCase()}-${year}-${vehicle.id}`
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, '-');
 }
 
 export function getVehicleFromSlug(slug: string, vehicles: Vehicle[]) {
