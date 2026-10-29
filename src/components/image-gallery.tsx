@@ -17,6 +17,7 @@ interface ImageGalleryProps {
 export function ImageGallery({ imageUrls, startIndex = 0, onClose, fastMode = true }: ImageGalleryProps) {
   const [currentIndex, setCurrentIndex] = useState(startIndex);
   const [isMainImageLoading, setIsMainImageLoading] = useState(true);
+  const [isLandscapeFullscreen, setIsLandscapeFullscreen] = useState(false);
   const currentImageUrl = imageUrls[currentIndex] || '';
   const currentImageUnoptimized = isFirebaseStorageUrl(currentImageUrl);
 
@@ -50,19 +51,52 @@ export function ImageGallery({ imageUrls, startIndex = 0, onClose, fastMode = tr
     setIsMainImageLoading(Boolean(currentImageUrl));
   }, [currentImageUrl]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return;
+    }
+
+    const mediaQuery = window.matchMedia('(orientation: landscape) and (max-height: 600px)');
+    const updateFullscreenMode = () => setIsLandscapeFullscreen(mediaQuery.matches);
+
+    updateFullscreenMode();
+    if (typeof mediaQuery.addEventListener === 'function') {
+      mediaQuery.addEventListener('change', updateFullscreenMode);
+      return () => mediaQuery.removeEventListener('change', updateFullscreenMode);
+    }
+
+    mediaQuery.addListener(updateFullscreenMode);
+    return () => mediaQuery.removeListener(updateFullscreenMode);
+  }, []);
+
   if (!imageUrls || imageUrls.length === 0) {
     return null;
   }
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black/90 backdrop-blur-sm" role="dialog" aria-modal="true">
-      <div className="flex items-center justify-between p-4 text-white">
-        <span className="text-lg font-medium">{`${currentIndex + 1} / ${imageUrls.length}`}</span>
-        <button onClick={onClose} className="rounded-full p-2 text-white hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white">
-          <X className="h-6 w-6" />
-          <span className="sr-only">Chiudi galleria</span>
-        </button>
-      </div>
+      {isLandscapeFullscreen ? (
+        <>
+          <span className="absolute left-4 top-4 z-30 rounded-full bg-black/50 px-3 py-1 text-sm font-medium text-white">
+            {`${currentIndex + 1} / ${imageUrls.length}`}
+          </span>
+          <button
+            onClick={onClose}
+            className="absolute right-4 top-4 z-30 rounded-full bg-black/50 p-2 text-white hover:bg-black/75 focus:outline-none focus:ring-2 focus:ring-white"
+          >
+            <X className="h-6 w-6" />
+            <span className="sr-only">Chiudi galleria</span>
+          </button>
+        </>
+      ) : (
+        <div className="flex items-center justify-between p-4 text-white">
+          <span className="text-lg font-medium">{`${currentIndex + 1} / ${imageUrls.length}`}</span>
+          <button onClick={onClose} className="rounded-full p-2 text-white hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white">
+            <X className="h-6 w-6" />
+            <span className="sr-only">Chiudi galleria</span>
+          </button>
+        </div>
+      )}
 
       <div className="relative flex flex-1 items-center justify-center">
         <button
@@ -73,7 +107,7 @@ export function ImageGallery({ imageUrls, startIndex = 0, onClose, fastMode = tr
           <span className="sr-only">Immagine precedente</span>
         </button>
 
-        <div className="relative h-full w-full max-h-[85vh] max-w-[85vw]">
+        <div className={cn('relative h-full w-full', isLandscapeFullscreen ? 'max-h-none max-w-none' : 'max-h-[85vh] max-w-[85vw]')}>
           {isMainImageLoading ? (
             <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/35">
               <BrandedLoader showLabel={false} imageClassName="h-16" />
@@ -85,7 +119,7 @@ export function ImageGallery({ imageUrls, startIndex = 0, onClose, fastMode = tr
             alt={`Immagine ${currentIndex + 1}`}
             fill
             className="object-contain"
-            sizes="85vw"
+            sizes={isLandscapeFullscreen ? '100vw' : '85vw'}
             priority
             decoding="async"
             onLoad={() => setIsMainImageLoading(false)}
@@ -103,6 +137,7 @@ export function ImageGallery({ imageUrls, startIndex = 0, onClose, fastMode = tr
         </button>
       </div>
 
+      {!isLandscapeFullscreen && (
        <div className="p-4 overflow-x-auto">
           <div className="mx-auto flex h-24 items-center justify-center gap-2">
             {imageUrls.map((url, index) => (
@@ -128,6 +163,7 @@ export function ImageGallery({ imageUrls, startIndex = 0, onClose, fastMode = tr
             ))}
           </div>
         </div>
+      )}
     </div>
   );
 }
