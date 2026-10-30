@@ -88,6 +88,7 @@ import { useRouter } from 'next/navigation';
 import { buildVehicleReservationMetadata, buildStatusChangeAuditFields } from '@/lib/vehicle-reservations';
 import { buildPdfImageData } from '@/lib/pdf-export-quality';
 import { usePdfExportQualityDialog } from '@/components/pdf-export-quality-dialog';
+import { WarrantyCostDialog } from '@/components/warranty-cost-dialog';
 
 const HUB_IBAN = 'IT11K0538701011000003398810';
 
@@ -577,6 +578,7 @@ export default function ContrattoPage() {
   const [selectedSavedCustomerId, setSelectedSavedCustomerId] = useState('manual');
   const [isStatusConfirmDialogOpen, setIsStatusConfirmDialogOpen] = useState(false);
   const [isUpdatingVehicleStatus, setIsUpdatingVehicleStatus] = useState(false);
+  const [isWarrantyCostDialogOpen, setIsWarrantyCostDialogOpen] = useState(false);
   const soldPlacardRef = useRef<HTMLDivElement>(null);
 
   const sellerDefaults = useMemo(
@@ -3152,7 +3154,18 @@ export default function ContrattoPage() {
                   {/* Warranty Section - only for privato */}
                   {contractForm.watch('customerType') === 'privato' && (
                     <div className="border-t pt-4 space-y-4">
-                      <h3 className="font-semibold text-slate-900">Garanzia</h3>
+                      <div className="flex items-center justify-between gap-4">
+                        <h3 className="font-semibold text-slate-900">Garanzia</h3>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={!vehicle}
+                          onClick={() => setIsWarrantyCostDialogOpen(true)}
+                        >
+                          Costo garanzia
+                        </Button>
+                      </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <FormField
                           control={contractForm.control}
@@ -4246,6 +4259,11 @@ export default function ContrattoPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <WarrantyCostDialog
+        vehicle={vehicle ?? null}
+        open={isWarrantyCostDialogOpen}
+        onOpenChange={setIsWarrantyCostDialogOpen}
+      />
       {pdfExportQualityDialog}
     </div>
   );

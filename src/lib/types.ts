@@ -54,6 +54,7 @@ export type Vehicle = {
   data_immatricolazione: string;
   chilometraggio: number;
   carburante: 'Benzina' | 'GPL' | 'Diesel' | 'Elettrica' | 'Ibrida';
+  tipo_ibrido?: 'MHEV' | 'Full Hybrid' | 'Plug-in Hybrid' | null;
   cambio: 'Manuale' | 'Automatico';
   potenza: number; // CV
   potenza_kw?: number;

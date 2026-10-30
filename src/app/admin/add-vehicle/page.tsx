@@ -75,6 +75,7 @@ const vehicleSchema = z.object({
   targa: z.string().min(1, 'La targa è obbligatoria.'),
   chilometraggio: z.coerce.number().int().optional().or(z.literal('')),
   carburante: z.enum(['Benzina', 'GPL', 'Diesel', 'Elettrica', 'Ibrida']).optional(),
+  tipo_ibrido: z.enum(['MHEV', 'Full Hybrid', 'Plug-in Hybrid']).optional(),
   cambio: z.enum(['Manuale', 'Automatico']).optional(),
   potenza: z.coerce.number().int().optional().or(z.literal('')),
   potenza_kw: z.coerce.number().int().optional().or(z.literal('')),
@@ -1063,6 +1064,7 @@ export default function AddVehiclePage() {
       potenza_kw: data.potenza_kw ? Number(data.potenza_kw) : null,
       cilindrata: data.cilindrata ? Number(data.cilindrata) : null,
       carburante: data.carburante ?? null,
+      tipo_ibrido: data.carburante === 'Ibrida' ? (data.tipo_ibrido ?? null) : null,
       cambio: data.cambio ?? null,
       colore_esterno: data.colore_esterno || null,
       colore_interni: data.colore_interni || null,
@@ -1312,7 +1314,15 @@ export default function AddVehiclePage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Carburante</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
+                    <Select
+                      onValueChange={(value) => {
+                        field.onChange(value);
+                        if (value !== 'Ibrida') {
+                          form.setValue('tipo_ibrido', undefined);
+                        }
+                      }}
+                      value={field.value}
+                    >
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Seleziona carburante" />
@@ -1330,6 +1340,30 @@ export default function AddVehiclePage() {
                   </FormItem>
                 )}
               />
+              {form.watch('carburante') === 'Ibrida' && (
+                <FormField
+                  control={form.control}
+                  name="tipo_ibrido"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Tipo ibrido</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Seleziona tipo ibrido" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="MHEV">Mild hybrid (MHEV)</SelectItem>
+                          <SelectItem value="Full Hybrid">Full Hybrid</SelectItem>
+                          <SelectItem value="Plug-in Hybrid">Plug-in Hybrid</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
               <FormField
                 control={form.control}
                 name="cambio"
