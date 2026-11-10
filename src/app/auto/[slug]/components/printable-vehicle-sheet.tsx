@@ -7,6 +7,54 @@ import { getDirectImageUrl, getOrderedVehicleImageUrls } from '@/lib/utils';
 import { format } from 'date-fns';
 import type { BrandingProfile } from '@/lib/branding';
 
+function loadImageElement(url: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.crossOrigin = 'anonymous';
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error('IMAGE_LOAD_FAILED'));
+    image.src = url;
+  });
+}
+
+async function addLogoToImage(imageUrl: string, logoUrl?: string): Promise<string> {
+  if (!logoUrl) return imageUrl;
+
+  const image = await loadImageElement(imageUrl);
+  const canvas = document.createElement('canvas');
+  canvas.width = image.naturalWidth || image.width;
+  canvas.height = image.naturalHeight || image.height;
+  const context = canvas.getContext('2d');
+  if (!context || !canvas.width || !canvas.height) return imageUrl;
+
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+  try {
+    const logo = await loadImageElement(logoUrl);
+    const logoMaxWidth = canvas.width * 0.15;
+    const logoMaxHeight = canvas.height * 0.08;
+    const logoRatio = (logo.naturalWidth || logo.width) / (logo.naturalHeight || logo.height || 1);
+    let drawWidth = logoMaxWidth;
+    let drawHeight = drawWidth / logoRatio;
+    if (drawHeight > logoMaxHeight) {
+      drawHeight = logoMaxHeight;
+      drawWidth = drawHeight * logoRatio;
+    }
+    const padding = canvas.width * 0.02;
+    context.drawImage(
+      logo,
+      canvas.width - drawWidth - padding,
+      padding,
+      drawWidth,
+      drawHeight
+    );
+  } catch {
+    // logo non caricabile: resta l'immagine originale
+  }
+
+  return canvas.toDataURL('image/jpeg', 0.92);
+}
+
 function getFileProxyUrl(fileUrl: string, fileName: string, contentType?: string) {
   const searchParams = new URLSearchParams({
     url: fileUrl,
@@ -39,7 +87,9 @@ export function PrintableVehicleSheet({ vehicle, price, branding, logoUrl, compa
   const orderedImageUrls = getOrderedVehicleImageUrls(vehicle);
   const vehiclePhotoUrls = [...new Set(orderedImageUrls.map(getDirectImageUrl).filter((url): url is string => Boolean(url)))];
   const thumbnailColumns = vehiclePhotoUrls.length > 24 ? 8 : vehiclePhotoUrls.length > 12 ? 6 : 5;
-  const imageUrl = getDirectImageUrl(orderedImageUrls[0] || '');
+  // Usa la seconda foto come copertina se disponibile (evita il fondale HUB della prima)
+  const coverImageIndex = vehiclePhotoUrls.length > 1 ? 1 : 0;
+  const imageUrl = vehiclePhotoUrls[coverImageIndex] || vehiclePhotoUrls[0] || '';
   const coverImageProxyUrl = imageUrl
     ? getFileProxyUrl(imageUrl, `${vehicle.slug || 'veicolo'}-copertina.jpg`, 'image/jpeg')
     : '';
@@ -47,32 +97,53 @@ export function PrintableVehicleSheet({ vehicle, price, branding, logoUrl, compa
   const [generatedDate, setGeneratedDate] = useState('');
   const [resolvedLogoUrl, setResolvedLogoUrl] = useState(logoUrl);
   const [resolvedCoverImageUrl, setResolvedCoverImageUrl] = useState(coverImageProxyUrl || imageUrl || '');
+  const [resolvedPhotoUrls, setResolvedPhotoUrls] = useState<string[]>([]);
 
   useEffect(() => {
     setGeneratedDate(format(new Date(), 'dd/MM/yyyy HH:mm'));
   }, []);
 
   useEffect(() => {
-    const preferredCoverUrl = coverImageProxyUrl || imageUrl || '';
-    setResolvedCoverImageUrl(preferredCoverUrl);
-
-    if (!preferredCoverUrl || !imageUrl || preferredCoverUrl === imageUrl) {
-      return;
-    }
-
     let isCancelled = false;
-    const probe = new Image();
-    probe.onerror = () => {
-      if (!isCancelled) {
-        setResolvedCoverImageUrl(imageUrl);
+
+    const loadCover = async () => {
+      const preferredCoverUrl = coverImageProxyUrl || imageUrl || '';
+      if (!preferredCoverUrl) {
+        setResolvedCoverImageUrl('');
+        return;
+      }
+
+      try {
+        const response = await fetch(preferredCoverUrl, { mode: 'cors' });
+        const blob = await response.blob();
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => (typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('READ_FAILED')));
+          reader.onerror = () => reject(new Error('READ_FAILED'));
+          reader.readAsDataURL(blob);
+        });
+        let finalUrl = dataUrl;
+        try {
+          finalUrl = await addLogoToImage(dataUrl, logoUrl || undefined);
+        } catch {
+          finalUrl = dataUrl;
+        }
+        if (!isCancelled) {
+          setResolvedCoverImageUrl(finalUrl);
+        }
+      } catch {
+        if (!isCancelled) {
+          setResolvedCoverImageUrl(preferredCoverUrl);
+        }
       }
     };
-    probe.src = preferredCoverUrl;
+
+    void loadCover();
 
     return () => {
       isCancelled = true;
     };
-  }, [coverImageProxyUrl, imageUrl]);
+  }, [coverImageProxyUrl, imageUrl, logoUrl]);
 
   useEffect(() => {
     let isCancelled = false;
@@ -108,6 +179,10 @@ export function PrintableVehicleSheet({ vehicle, price, branding, logoUrl, compa
       isCancelled = true;
     };
   }, [logoUrl]);
+
+  useEffect(() => {
+    setResolvedPhotoUrls(vehiclePhotoUrls.map((photoUrl, index) => getFileProxyUrl(photoUrl, `${vehicle.slug || 'veicolo'}-foto-${index + 1}`)));
+  }, [vehiclePhotoUrls, vehicle.slug]);
 
   const shortDescription = vehicle.descrizione ? vehicle.descrizione.split(/[.!?]/)[0] + '.' : '';
   const vehicleSpecifications = [
@@ -247,26 +322,23 @@ export function PrintableVehicleSheet({ vehicle, price, branding, logoUrl, compa
           <span className="text-[10px] text-gray-500">{vehiclePhotoUrls.length} foto</span>
         </div>
         <div className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${thumbnailColumns}, minmax(0, 1fr))` }}>
-          {vehiclePhotoUrls.map((photoUrl, index) => {
-            const photoProxyUrl = getFileProxyUrl(photoUrl, `${vehicle.slug || 'veicolo'}-foto-${index + 1}`);
-            return (
-              <figure key={`${photoUrl}-${index}`} className="min-w-0">
-                <div
-                  className="relative overflow-hidden rounded border border-gray-200 bg-gray-100"
-                  role="img"
-                  aria-label={`Foto ${index + 1} ${vehicle.marca} ${vehicle.modello}`}
-                  style={{
-                    aspectRatio: '4 / 3',
-                    backgroundImage: `url("${photoProxyUrl}")`,
-                    backgroundSize: 'cover',
-                    backgroundPosition: 'center',
-                    backgroundRepeat: 'no-repeat',
-                  }}
-                />
-                <figcaption className="mt-0.5 text-center text-[8px] text-gray-500">{index + 1}</figcaption>
-              </figure>
-            );
-          })}
+          {(resolvedPhotoUrls.length > 0 ? resolvedPhotoUrls : vehiclePhotoUrls.map((photoUrl, index) => getFileProxyUrl(photoUrl, `${vehicle.slug || 'veicolo'}-foto-${index + 1}`))).map((photoDisplayUrl, index) => (
+            <figure key={`photo-${index}`} className="min-w-0">
+              <div
+                className="relative overflow-hidden rounded border border-gray-200 bg-gray-100"
+                role="img"
+                aria-label={`Foto ${index + 1} ${vehicle.marca} ${vehicle.modello}`}
+                style={{
+                  aspectRatio: '4 / 3',
+                  backgroundImage: `url("${photoDisplayUrl}")`,
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                  backgroundRepeat: 'no-repeat',
+                }}
+              />
+              <figcaption className="mt-0.5 text-center text-[8px] text-gray-500">{index + 1}</figcaption>
+            </figure>
+          ))}
         </div>
       </section>
 

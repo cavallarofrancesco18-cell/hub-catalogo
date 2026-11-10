@@ -5,6 +5,8 @@ import { Printer } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { useUserRole } from '@/firebase';
+import { getBranding } from '@/lib/branding';
 import type { Vehicle } from '@/lib/types';
 
 type Props = {
@@ -39,7 +41,7 @@ const mileage = (value: unknown) => {
   return Number.isFinite(parsed) ? `${new Intl.NumberFormat('it-IT').format(parsed)} km` : '—';
 };
 
-function buildSheet(vehicle: Partial<Vehicle> | null | undefined, vehicleLabel: string | undefined, baseUrl: string) {
+function buildSheet(vehicle: Partial<Vehicle> | null | undefined, vehicleLabel: string | undefined, baseUrl: string, branding: { logoUrl: string; companyName: string }) {
   const model = [vehicle?.marca, vehicle?.modello, vehicle?.versione].filter(Boolean).join(' ') || vehicleLabel || 'Veicolo';
   const safe = (value: unknown) => escapeHtml(displayValue(value));
   const fields = [
@@ -68,7 +70,7 @@ h2{margin:4mm 0 1mm;color:#102b43;font-size:11pt}.diagram-wrap{display:flex;just
 .notes{margin-top:3mm}.notes-title{margin-bottom:1mm;font-weight:700}.line{height:7mm;border-bottom:1px solid #b8c2ce}.footer{display:flex;gap:12mm;margin-top:4mm;font-size:8pt}.signature{flex:1;padding-top:7mm;border-bottom:1px solid #7d8996}.signature-label{margin-top:1mm;color:#526171}
 @media screen{body{min-height:100vh;padding:12mm;background:#e9eef3}.sheet{min-height:277mm;padding:10mm;background:#fff;box-shadow:0 2mm 8mm #102b4320}}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}.sheet{width:auto}}
 </style></head><body><main class="sheet">
-<header class="header"><img class="logo" src="${baseUrl}/autotradelogo.png" alt="AutoTrade"><div class="kind">SCHEDA VEICOLO<br>Data compilazione: ${today}</div></header>
+<header class="header">${branding.logoUrl ? `<img class="logo" src="${escapeHtml(branding.logoUrl.startsWith('http') ? branding.logoUrl : `${baseUrl}${branding.logoUrl}`)}" alt="${escapeHtml(branding.companyName)}">` : `<div class="logo" style="font-size:14pt;font-weight:700;color:#102b43">${escapeHtml(branding.companyName)}</div>`}<div class="kind">SCHEDA VEICOLO<br>Data compilazione: ${today}</div></header>
 <h1>Accertamento dei danni</h1><p class="model">${escapeHtml(model)}</p>
 <section class="data">${fields.map(([label, value]) => `<div class="field"><span class="label">${label}</span><span class="value">${value}</span></div>`).join('')}</section>
 <h2>Schema danni</h2><div class="diagram-wrap">
@@ -93,6 +95,7 @@ h2{margin:4mm 0 1mm;color:#102b43;font-size:11pt}.diagram-wrap{display:flex;just
 export function VehicleDamageSheetPrintButton({ vehicle, vehicleLabel }: Props) {
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   const previewFrameRef = useRef<HTMLIFrameElement | null>(null);
+  const { roleData } = useUserRole();
 
   return (
     <>
@@ -100,7 +103,7 @@ export function VehicleDamageSheetPrintButton({ vehicle, vehicleLabel }: Props) 
         type="button"
         variant="outline"
         size="sm"
-        onClick={() => setPreviewHtml(buildSheet(vehicle, vehicleLabel, window.location.origin))}
+        onClick={() => setPreviewHtml(buildSheet(vehicle, vehicleLabel, window.location.origin, getBranding(roleData)))}
       >
         <Printer className="mr-2 h-4 w-4" />
         Stampa scheda danni

@@ -428,11 +428,6 @@ export default function VehiclePage() {
   const canAccessReservedVehicle = role === 'admin' || role === 'seller';
   const normalizedSellerType = (roleData?.sellerType ?? '').trim().toUpperCase();
   const useHubVehicleSheetBranding = role === 'admin' || normalizedSellerType === 'HUB';
-  const hasSellerCompanyLogo = Boolean(role === 'seller' && roleData?.companyLogoUrl?.trim());
-  const hasSellerCompanyIdentity = Boolean(
-    hasSellerCompanyLogo
-    && roleData?.companyVisuraStoragePath?.trim()
-  );
   const isHubSeller = role === 'seller' && normalizedSellerType === 'HUB';
   const canIncludeSheetPlate = role === 'admin' || isHubSeller;
   const canManageSignedContract = role === 'admin' || isHubSeller;
@@ -2319,24 +2314,12 @@ export default function VehiclePage() {
                   vehicle={resolvedVehicle}
                   price={finalSheetPrice}
                   showPlate={canIncludeSheetPlate && includePlateInSheet}
-                  branding={useHubVehicleSheetBranding
-                    ? brandingProfiles.default
-                    : { ...branding, companyName: hasSellerCompanyIdentity ? roleData?.companyName?.trim() || '' : '' }}
-                  logoUrl={useHubVehicleSheetBranding
-                    ? brandingProfiles.default.logoUrl
-                    : hasSellerCompanyLogo ? roleData?.companyLogoUrl?.trim() || '' : ''}
-                  companyLegalAddress={useHubVehicleSheetBranding
-                    ? brandingProfiles.default.companyAddress
-                    : hasSellerCompanyIdentity ? roleData?.companyLegalAddress?.trim() || '' : ''}
-                  companyVatNumber={useHubVehicleSheetBranding
-                    ? brandingProfiles.default.companyVatNumber
-                    : hasSellerCompanyIdentity ? roleData?.companyVatNumber?.trim() || '' : ''}
-                  companyEmail={useHubVehicleSheetBranding
-                    ? brandingProfiles.default.companyEmail
-                    : hasSellerCompanyIdentity ? roleData?.email || '' : ''}
-                  companyContact={useHubVehicleSheetBranding
-                    ? brandingProfiles.default.companyPhone
-                    : hasSellerCompanyIdentity ? roleData?.phone?.trim() || '' : ''}
+                  branding={useHubVehicleSheetBranding ? brandingProfiles.default : branding}
+                  logoUrl={useHubVehicleSheetBranding ? brandingProfiles.default.logoUrl : branding.logoUrl}
+                  companyLegalAddress={useHubVehicleSheetBranding ? brandingProfiles.default.companyAddress : branding.companyAddress}
+                  companyVatNumber={useHubVehicleSheetBranding ? brandingProfiles.default.companyVatNumber : branding.companyVatNumber}
+                  companyEmail={useHubVehicleSheetBranding ? brandingProfiles.default.companyEmail : branding.companyEmail || roleData?.email || ''}
+                  companyContact={useHubVehicleSheetBranding ? brandingProfiles.default.companyPhone : branding.companyPhone || roleData?.phone?.trim() || ''}
                   compact
                 />
               )}

@@ -708,6 +708,10 @@ export default function SellerPage() {
               price={batchVehiclePrice}
               branding={branding}
               logoUrl={branding.logoUrl}
+              companyLegalAddress={branding.companyAddress}
+              companyVatNumber={branding.companyVatNumber}
+              companyEmail={branding.companyEmail || roleData?.email || ''}
+              companyContact={branding.companyPhone || roleData?.phone?.trim() || ''}
             />
           ) : null}
         </div>

@@ -112,6 +112,54 @@ interface PrintablePurchaseQuoteProps {
   logoUrl: string;
 }
 
+function loadImageElement(url: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.crossOrigin = 'anonymous';
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error('IMAGE_LOAD_FAILED'));
+    image.src = url;
+  });
+}
+
+async function addLogoToImage(imageUrl: string, logoUrl?: string): Promise<string> {
+  if (!logoUrl) return imageUrl;
+
+  const image = await loadImageElement(imageUrl);
+  const canvas = document.createElement('canvas');
+  canvas.width = image.naturalWidth || image.width;
+  canvas.height = image.naturalHeight || image.height;
+  const context = canvas.getContext('2d');
+  if (!context || !canvas.width || !canvas.height) return imageUrl;
+
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+  try {
+    const logo = await loadImageElement(logoUrl);
+    const logoMaxWidth = canvas.width * 0.15;
+    const logoMaxHeight = canvas.height * 0.08;
+    const logoRatio = (logo.naturalWidth || logo.width) / (logo.naturalHeight || logo.height || 1);
+    let drawWidth = logoMaxWidth;
+    let drawHeight = drawWidth / logoRatio;
+    if (drawHeight > logoMaxHeight) {
+      drawHeight = logoMaxHeight;
+      drawWidth = drawHeight * logoRatio;
+    }
+    const padding = canvas.width * 0.02;
+    context.drawImage(
+      logo,
+      canvas.width - drawWidth - padding,
+      padding,
+      drawWidth,
+      drawHeight
+    );
+  } catch {
+    // logo non caricabile: resta l'immagine originale
+  }
+
+  return canvas.toDataURL('image/jpeg', 0.92);
+}
+
 function formatDateValue(value?: string): string {
   if (!value) return 'N/D';
 
@@ -829,8 +877,41 @@ export function PrintablePurchaseQuote({ vehicle, customer, secondaryBuyer, main
       }
     };
 
+    const loadMainImage = async () => {
+      if (!mainImageUrl) {
+        setResolvedMainImageUrl('');
+        return;
+      }
+
+      try {
+        const response = await fetch(mainImageUrl, { mode: 'cors' });
+        const blob = await response.blob();
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => (typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('READ_FAILED')));
+          reader.onerror = () => reject(new Error('READ_FAILED'));
+          reader.readAsDataURL(blob);
+        });
+
+        let finalUrl = dataUrl;
+        try {
+          finalUrl = await addLogoToImage(dataUrl, logoUrl || undefined);
+        } catch {
+          finalUrl = dataUrl;
+        }
+
+        if (!isCancelled) {
+          setResolvedMainImageUrl(finalUrl);
+        }
+      } catch {
+        if (!isCancelled) {
+          setResolvedMainImageUrl(mainImageUrl);
+        }
+      }
+    };
+
     void loadImageAsDataUrl(logoUrl, setResolvedLogoUrl);
-    void loadImageAsDataUrl(mainImageUrl || '', setResolvedMainImageUrl);
+    void loadMainImage();
 
     return () => {
       isCancelled = true;

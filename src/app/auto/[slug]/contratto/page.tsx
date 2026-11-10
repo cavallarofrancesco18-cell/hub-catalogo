@@ -82,7 +82,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { brandingProfiles, getBranding } from '@/lib/branding';
+import { getBranding } from '@/lib/branding';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { buildVehicleReservationMetadata, buildStatusChangeAuditFields } from '@/lib/vehicle-reservations';
@@ -984,10 +984,9 @@ export default function ContrattoPage() {
         compress: true,
       });
 
-      const parseHubSellerData = () => {
-        const hubProfile = brandingProfiles.default;
-        const companyAddress = hubProfile.companyAddress || '';
-        const companyContact = hubProfile.companyContact || '';
+      const parseSellerData = () => {
+        const companyAddress = branding.companyAddress || '';
+        const companyContact = branding.companyContact || '';
         const operativeAddressMatch = companyAddress.match(/sede operativa:\s*([^]+)$/i);
         const sellerAddress = (operativeAddressMatch?.[1] || companyAddress || '').trim();
         const vatMatch = companyContact.match(/p\.?iva\s*:\s*([a-z0-9]+)/i);
@@ -995,11 +994,11 @@ export default function ContrattoPage() {
         const phoneMatch = companyContact.match(/(?:tel\s*:\s*)?([+0-9\s]{6,})/i);
 
         return {
-          name: hubProfile.companyName,
+          name: branding.companyName,
           address: sellerAddress,
-          vat: vatMatch?.[1] || '',
-          phone: phoneMatch?.[1]?.trim() || '',
-          email: emailMatch?.[0] || '',
+          vat: branding.companyVatNumber || vatMatch?.[1] || '',
+          phone: branding.companyPhone?.replace(/^tel\.?\s*/i, '').trim() || phoneMatch?.[1]?.trim() || '',
+          email: branding.companyEmail || emailMatch?.[0] || '',
         };
       };
 
@@ -1047,7 +1046,7 @@ export default function ContrattoPage() {
         const firstPage = fallbackPdf.addPage([595.28, 841.89]);
         const bodyFont = await fallbackPdf.embedFont(StandardFonts.Helvetica);
         const titleFont = await fallbackPdf.embedFont(StandardFonts.HelveticaBold);
-        const sellerData = parseHubSellerData();
+        const sellerData = parseSellerData();
         const buyerDocumentDetails = [previewData.birthPlace || '', previewData.birthDate || '']
           .filter(Boolean)
           .join(' - ');
@@ -1167,7 +1166,7 @@ export default function ContrattoPage() {
         }
 
         const font = await deliveryPdf.embedFont(StandardFonts.Helvetica);
-        const sellerData = parseHubSellerData();
+        const sellerData = parseSellerData();
         const buyerDocumentDetails = [previewData.birthPlace || '', previewData.birthDate || '']
           .filter(Boolean)
           .join(' - ');

@@ -85,10 +85,36 @@ export const getBranding = (user?: User | null): BrandingProfile => {
   const hasCustomCompany = Boolean(user?.companyName?.trim());
   const hasKnownBranding = ['HUB', 'EXPRESS', 'MGV', 'TANTIBUONIKM', 'GRUPPODINAMICA'].includes(normalizedSellerType ?? '');
   const hasCustomSellerType = hasCustomCompany && !hasKnownBranding;
+
+  const loadedVatNumber = user?.companyVatNumber?.trim() || '';
+  const loadedLegalAddress = user?.companyLegalAddress?.trim() || '';
+  const userEmail = user?.email?.trim() || '';
+  const userPhone = user?.phone?.trim() || '';
+
+  const companyVatNumber = loadedVatNumber || profile.companyVatNumber;
+  const companyEmail = hasCustomSellerType ? userEmail || undefined : profile.companyEmail;
+  const companyPhone = hasCustomSellerType ? userPhone || undefined : profile.companyPhone;
+  const companyAddress = loadedLegalAddress || (hasCustomSellerType ? '' : profile.companyAddress);
+
+  let companyContact = hasCustomSellerType ? '' : profile.companyContact;
+  if (hasCustomSellerType) {
+    companyContact = [
+      loadedVatNumber ? `P.iva:${loadedVatNumber}` : '',
+      userEmail ? `mail:${userEmail}` : '',
+      userPhone ? `tel:${userPhone}` : '',
+    ].filter(Boolean).join(' ');
+  } else if (loadedVatNumber && !companyContact?.includes(loadedVatNumber)) {
+    companyContact = [companyContact, `P.iva:${loadedVatNumber}`].filter(Boolean).join(' ');
+  }
+
   return {
     ...profile,
     companyName: user?.companyName?.trim() || profile.companyName,
     logoUrl: user?.companyLogoUrl?.trim() || (hasCustomSellerType ? '' : profile.logoUrl),
-    ...(hasCustomSellerType ? { companyAddress: '', companyContact: '' } : {}),
+    companyAddress,
+    companyContact,
+    companyVatNumber,
+    companyEmail,
+    companyPhone,
   };
 };
