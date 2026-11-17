@@ -2059,10 +2059,10 @@ export default function ContrattoPage() {
       return;
     }
 
-    await contractForm.handleSubmit(onSubmit)();
+    await contractForm.handleSubmit(data => onSubmit(data, false))();
   };
 
-  const onSubmit = async (data: ContratoFormValues) => {
+  const onSubmit = async (data: ContratoFormValues, showPreview = true) => {
     if (!firestore || !user || !vehicle) {
       toast({
         variant: 'destructive',
@@ -2366,25 +2366,31 @@ export default function ContrattoPage() {
         { merge: true }
       );
 
-      setPreviewData({
-        ...data,
-        sellerDetails: {
-          firstName: sellerDetailsPayload.firstName ?? '',
-          lastName: sellerDetailsPayload.lastName ?? '',
-          email: sellerDetailsPayload.email ?? '',
-          phone: sellerDetailsPayload.phone ?? '',
-        },
-      });
+      if (showPreview) {
+        setPreviewData({
+          ...data,
+          sellerDetails: {
+            firstName: sellerDetailsPayload.firstName ?? '',
+            lastName: sellerDetailsPayload.lastName ?? '',
+            email: sellerDetailsPayload.email ?? '',
+            phone: sellerDetailsPayload.phone ?? '',
+          },
+        });
+      }
 
-      if (isNewContract) {
+      if (isNewContract && showPreview) {
         setAutoGenerateAfterContractCreate(true);
       }
 
       toast({
-        title: existingContractSnap.exists() ? 'Contratto aggiornato' : 'Contratto creato',
-        description: isNewContract
-          ? 'Cliente e contratto salvati. Avvio automatico della generazione contratto e verbale di consegna.'
-          : 'Cliente e contratto sono stati salvati in Gestione Clienti.',
+        title: showPreview
+          ? existingContractSnap.exists() ? 'Contratto aggiornato' : 'Contratto creato'
+          : 'Modifiche salvate',
+        description: showPreview
+          ? isNewContract
+            ? 'Cliente e contratto salvati. Avvio automatico della generazione contratto e verbale di consegna.'
+            : 'Cliente e contratto sono stati salvati in Gestione Clienti.'
+          : 'Le modifiche al contratto sono state salvate e sono visibili ai seller HUB.',
       });
     } catch (error: any) {
       console.error('Errore salvataggio contratto:', error);
@@ -2502,7 +2508,7 @@ export default function ContrattoPage() {
           <div className="lg:col-span-2">
             <div className="rounded-lg border border-sky-100 bg-white p-6 shadow-sm">
               <Form {...contractForm}>
-                <form onSubmit={contractForm.handleSubmit(onSubmit)} className="space-y-6">
+                <form onSubmit={contractForm.handleSubmit(data => onSubmit(data))} className="space-y-6">
                   {/* Customer Type and Payment Method */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <FormField
@@ -3873,6 +3879,24 @@ export default function ContrattoPage() {
                       </Button>
                     )}
 
+                    {isAdmin && linkedContractData && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full"
+                        disabled={!canManageThisContract || isSavingContract}
+                        onClick={handleSaveContractOnly}
+                      >
+                        {isSavingContract ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Salvataggio...
+                          </>
+                        ) : (
+                          'Salva solo le modifiche'
+                        )}
+                      </Button>
+                    )}
                     <Button type="submit" className="w-full" disabled={!canManageThisContract || isSavingContract}>
                       {isSavingContract ? (
                         <>
